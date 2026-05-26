@@ -1,0 +1,145 @@
+import LegalDocumentPage from '@/components/legal/LegalDocumentPage'
+
+const DOCUMENT = {
+  el: {
+    eyebrow: 'Πολιτική Απαγορευμένων Αντικειμένων',
+    title: 'Πολιτική απαγορευμένων, περιορισμένων και μη ασφαλών αντικειμένων',
+    description:
+      'Η παρούσα πολιτική εξηγεί ποια αγαθά δεν επιτρέπεται να αναρτώνται, να πωλούνται ή να προωθούνται στην Cardora, ποια αντικείμενα μπορεί να περιορίζονται ή να απαιτούν πρόσθετο έλεγχο και πώς η πλατφόρμα αντιμετωπίζει counterfeit, illegal, unsafe ή materially misleading αγγελίες.',
+    updated: 'Τελευταία ενημέρωση: 6 Απριλίου 2026',
+    intro:
+      'Η Cardora είναι curated marketplace για συλλεκτικά. Ο συλλεκτικός χαρακτήρας της πλατφόρμας δεν αναιρεί γενικές νομικές υποχρεώσεις: κάθε αντικείμενο που αναρτάται στην Cardora πρέπει να είναι νόμιμο προς πώληση, ασφαλές όπου αυτό έχει σημασία, ειλικρινά περιγεγραμμένο και συμβατό με τους κανόνες της πλατφόρμας.',
+    introSecondary:
+      'Η πολιτική αυτή διαβάζεται μαζί με τους Όρους Χρήσης, την Πολιτική Επιστροφών & Διαφορών και κάθε category-specific ή verification-specific οδηγία που εμφανίζεται στο listing flow. Όπου ο νόμος ή η ασφάλεια της πλατφόρμας το απαιτούν, η Cardora μπορεί να ενεργεί χωρίς προηγούμενη ειδοποίηση.',
+    companyTitle: 'Στοιχεία φορέα',
+    companyRows: [
+      ['Εταιρεία', 'VRealm Ι.Κ.Ε.'],
+      ['Έδρα', 'ΜΙΝΩΟΣ 2, ΑΘΗΝΑ, 117 43'],
+      ['Δ.Ο.Υ.', 'ΚΕΦΟΔΕ ΑΤΤΙΚΗΣ'],
+      ['Α.Φ.Μ.', '802264482'],
+      ['Γ.Ε.ΜΗ.', '173245503000'],
+      ['Δραστηριότητα', 'Υπηρεσίες υποστήριξης λογισμικού πολυμέσων'],
+    ],
+    principlesEyebrow: 'Ασφάλεια αγγελιών',
+    principlesTitle: 'Τι απαιτεί η Cardora από κάθε listing',
+    principlesDescription:
+      'Η πλατφόρμα είναι φτιαγμένη για σοβαρούς συλλέκτες, άρα νομιμότητα, αυθεντικότητα, ιχνηλασιμότητα και ειλικρινής παρουσίαση προηγούνται.',
+    principles: [
+      {
+        title: 'Μόνο νόμιμα και αυθεντικά αγαθά',
+        text: 'Τα αντικείμενα πρέπει να είναι νόμιμα στην κατοχή και πώλησή τους και κάθε authenticity-sensitive αγαθό πρέπει να περιγράφεται με ειλικρίνεια, συμπεριλαμβανομένων repair, restoration, resealing, alteration ή uncertainty όπου υπάρχουν.',
+      },
+      {
+        title: 'Ο συλλεκτικός χαρακτήρας δεν αναιρεί τον κίνδυνο ασφάλειας',
+        text: 'Ένα συλλεκτικό προϊόν μπορεί να είναι unsafe, recalled, restricted, counterfeit ή νομικά απαγορευμένο. Η Cardora μπορεί συνεπώς να αφαιρεί αντικείμενα ακόμη και αν διακινούνται ανεπίσημα σε άλλες αγορές.',
+      },
+      {
+        title: 'Η σωστή κατηγορία έχει σημασία',
+        text: 'Η Cardora δεν είναι γενική πλατφόρμα αγγελιών. Listings που δεν συνδέονται ουσιαστικά με τον συλλεκτικό χαρακτήρα της κατηγορίας μπορεί να αφαιρούνται ακόμη και αν το αγαθό δεν είναι καθεαυτό παράνομο.',
+      },
+    ],
+    sections: [
+      {
+        id: 'counterfeit',
+        icon: 'prohibited',
+        title: '1. Counterfeit, fake, altered ή infringing αγαθά',
+        paragraphs: [
+          'Counterfeit προϊόντα, unauthorized reproductions, fake signatures, falsified certificates, altered slabs, relabelled items, forged provenance materials και listings που παραπλανούν ουσιωδώς ως προς την αυθεντικότητα απαγορεύονται. Η Cardora μπορεί επίσης να αφαιρεί αντικείμενα όταν η αυθεντικότητά τους δεν μπορεί να υποστηριχθεί επαρκώς και η αγγελία δημιουργεί σοβαρό κίνδυνο παραπλάνησης buyers.',
+          'Για τις συλλεκτικές κατηγορίες, αυτό περιλαμβάνει ενδεικτικά fake trading cards, trimmed ή materially altered cards που παρουσιάζονται ανειλικρινώς, resealed packs ή boxes χωρίς σαφή disclosure, forged autographs, manipulated grading cases, unauthorized reproductions figures, pirated art books, fake COAs και κάθε άλλη misleading authenticity practice.',
+        ],
+      },
+      {
+        id: 'illegal',
+        icon: 'legal',
+        title: '2. Κλεμμένη περιουσία, unlawful provenance και illegal αγαθά',
+        paragraphs: [
+          'Αντικείμενα που είναι κλεμμένα, unlawfully obtained, smuggled, looted, misappropriated ή διαφορετικά παράνομα στην κατοχή ή την πώλησή τους απαγορεύονται. Ο χρήστης δεν επιτρέπεται να αναρτά αγαθά για τα οποία δεν έχει νόμιμο τίτλο, νόμιμη εξουσία διάθεσης ή σαφές provenance όπου αυτό είναι ουσιώδες για τη φύση του αντικειμένου.',
+          'Η Cardora μπορεί να ζητά supporting records, invoices ή provenance evidence και να αφαιρεί listing όταν η αλυσίδα προέλευσης ή ownership είναι ασαφής ή ύποπτη.',
+        ],
+      },
+      {
+        id: 'unsafe',
+        icon: 'security',
+        title: '3. Unsafe, recalled ή dangerous προϊόντα',
+        paragraphs: [
+          'Η Cardora δεν επιτρέπει προϊόντα που είναι επικίνδυνα, subject to recall, unlawfully modified σε τρόπο που επηρεάζει την ασφάλειά τους ή γενικά ασύμβατα με product-safety υποχρεώσεις. Αυτό περιλαμβάνει, όπου εφαρμόζεται, unsafe electronics, hazardous materials, altered chargers ή batteries, recalled toys ή collectibles και αγαθά που απαιτούν controlled distribution ή εξειδικευμένη safety handling την οποία η Cardora δεν υποστηρίζει.',
+          'Η συλλεκτική φύση ενός αντικειμένου δεν αρκεί από μόνη της για να δικαιολογήσει την παρουσία του στην πλατφόρμα αν το προϊόν παραμένει επικίνδυνο, μη ασφαλές ή νομικά προβληματικό.',
+        ],
+      },
+      {
+        id: 'regulated',
+        icon: 'prohibited',
+        title: '4. Ρυθμιζόμενα, prohibited ή abuse-prone αγαθά',
+        paragraphs: [
+          'Η Cardora απαγορεύει φάρμακα, prescription products, controlled substances, tobacco και nicotine products, όπλα, πυρομαχικά, εκρηκτικά, active gift cards, top-up codes, cash equivalents, personal identity documents, banking credentials, live financial instruments και γενικά κάθε ρυθμιζόμενο ή abuse-prone αγαθό που δεν είναι συμβατό με τον χαρακτήρα και τη νομική βάση της πλατφόρμας.',
+        ],
+      },
+      {
+        id: 'digital',
+        icon: 'general',
+        title: '5. Unsupported digital goods και αντικείμενα εκτός συλλεκτικού χαρακτήρα',
+        paragraphs: [
+          'Εκτός αν η Cardora το υποστηρίζει ρητά, unsupported digital goods, gaming accounts, software licences, activation keys, downloadable files και άλλες intangible μεταβιβάσεις απαγορεύονται. Η Cardora έχει σχεδιαστεί πρωτίστως για physical collectibles και related supported marketplace formats.',
+          'Η Cardora μπορεί επίσης να αφαιρεί listings που δεν συνδέονται ουσιαστικά με τον συλλεκτικό χαρακτήρα της αντίστοιχης κατηγορίας, ακόμη και αν το αντικείμενο δεν είναι αυτό καθαυτό παράνομο. Ένα collector marketplace δεν μπορεί να παραμείνει σαφές και αξιόπιστο αν γενικά άσχετα αγαθά τοποθετούνται σε collector-facing κατηγορίες μόνο για να εκμεταλλευτούν traffic ή visibility.',
+        ],
+        bullets: [
+          'Άσχετα household ή γενικά consumer goods μέσα σε κατηγορίες συλλεκτικών.',
+          'Low-information spam listings που στοχεύουν views και όχι πραγματική collector συναλλαγή.',
+          'Listings με misleading τίτλο, κατηγορία ή imagery ως προς το τι πωλείται πραγματικά.',
+        ],
+      },
+      {
+        id: 'collector-specific',
+        icon: 'reporting',
+        title: '6. Collector-specific manipulation, reporting και action από την Cardora',
+        paragraphs: [
+          'Επειδή η Cardora απευθύνεται σε collectors, ορισμένες category-specific παραπλανητικές πρακτικές εξετάζονται με ιδιαίτερη αυστηρότητα. Σε αυτές περιλαμβάνονται altered ή repaired items που δεν δηλώνονται καθαρά, incomplete lots που παρουσιάζονται ως complete, box swaps, accessories φιγούρας που έχουν αλλαχθεί μεταξύ διαφορετικών SKUs, replacement parts που παρουσιάζονται ως original, hidden restoration, loose grading labels, resealed wax, repacks που περιγράφονται ως sealed product και mystery bundles που αποκρύπτουν ουσιωδώς το πραγματικό περιεχόμενο.',
+          'Η Cardora μπορεί να remove, suspend, hide, restrict, de-index, refuse ή escalate οποιοδήποτε listing εμφανίζεται prohibited, unsafe, illegal, counterfeit ή materially misleading. Η πλατφόρμα μπορεί να ζητά invoices, provenance, close-up images, serial data, COAs, trader documentation ή άλλα supporting records και μπορεί να ενεργεί ακόμη και πριν λάβει απάντηση όπου ο κίνδυνος για χρήστες, πλατφόρμα ή νόμιμες υποχρεώσεις είναι αρκετά σοβαρός.',
+        ],
+        notice:
+          'Σε σοβαρές ή επαναλαμβανόμενες περιπτώσεις η Cardora μπορεί να διατηρεί records, να επιβάλλει restrictions ή suspensions και, όπου νόμιμα δικαιολογείται, να συνεργάζεται με αρχές ή rightsholders.',
+      },
+    ],
+    relatedEyebrow: 'Σχετικές πολιτικές',
+    relatedTitle: 'Πολιτικές που στέκονται δίπλα στους περιορισμούς αγγελιών',
+    relatedDescription:
+      'Η νομιμότητα listing, η συμπεριφορά χρήστη και το checkout protection είναι στην πράξη ενωμένα.',
+    related: [
+      {
+        badge: 'Όροι',
+        title: 'Όροι Χρήσης',
+        text: 'Οι γενικοί κανόνες λογαριασμών, αγγελιών, enforcement και suspensions για όλο το marketplace.',
+        to: '/oroi-xrisis',
+        cta: 'Άνοιγμα όρων',
+      },
+      {
+        badge: 'Privacy',
+        title: 'Πολιτική Απορρήτου',
+        text: 'Πώς επεξεργάζονται moderation, reporting, verification και safety records.',
+        to: '/politiki-aporritou',
+        cta: 'Άνοιγμα πολιτικής',
+      },
+      {
+        badge: 'Disputes',
+        title: 'Επιστροφές & Διαφορές',
+        text: 'Τι γίνεται όταν ένα αντικείμενο φτάνει damaged, misdescribed, counterfeit ή δεν φτάνει καθόλου.',
+        to: '/epistrofes-kai-diafores',
+        cta: 'Άνοιγμα πολιτικής',
+      },
+    ],
+    ctaEyebrow: 'Έλεγχος listing',
+    ctaTitle: 'Δεν είσαι βέβαιος αν ένα αντικείμενο επιτρέπεται;',
+    ctaText:
+      'Ρώτησε την Cardora πριν από τη δημοσίευση αν η νομιμότητα, η αυθεντικότητα, η ασφάλεια ή η category fit του αντικειμένου δεν είναι ξεκάθαρες. Αυτό είναι ιδιαίτερα σημαντικό για sealed product, restored pieces, vintage electronics, repacks και αντικείμενα με ασαφή provenance.',
+    ctaPrimary: 'Άνοιγμα support center',
+    ctaPrimaryTo: '/kentro-ypostiriksis',
+    ctaSecondary: 'Επικοινωνία',
+    ctaSecondaryTo: '/epikoinonia',
+  },
+}
+
+function ProhibitedItemsPage() {
+  return <LegalDocumentPage document={DOCUMENT} />
+}
+
+export default ProhibitedItemsPage

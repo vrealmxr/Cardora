@@ -1,0 +1,21 @@
+ErrorDocument 404 /index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Preserve Authorization header for the root front-controller as well.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Allow explicit front-controller requests as-is.
+    RewriteRule ^index\.php(?:/.*)?$ - [L]
+
+    # Keep existing files/directories directly accessible.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # SPA/Laravel fallback.
+    RewriteRule . /index.php [L,QSA]
+</IfModule>
