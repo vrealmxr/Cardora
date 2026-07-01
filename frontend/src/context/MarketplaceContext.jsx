@@ -7,6 +7,7 @@ import { priceInRange, toSlug } from '@/utils/helpers'
 import {
   calculateLotSelectionDomesticShipping,
   getDomesticShippingConfig,
+  normalizePackageDetails,
   normalizeParcelType,
   parseAmountInput,
   resolveCyprusShippingFee,
@@ -1815,24 +1816,29 @@ export function MarketplaceProvider({ children }) {
           .map((item) => item.trim())
           .filter(Boolean)
 
-    const usesParcelTypeDomesticShipping = ['cards', 'figures', 'comics', 'misc'].includes(
-      payload.categoryId,
-    )
+    const usesParcelTypeDomesticShipping = payload.domesticShippingMode === 'legacy_boxnow'
     const domesticShippingConfig = getDomesticShippingConfig(payload.categoryId)
-    const domesticParcelType = normalizeParcelType(
-      payload.domesticParcelType ?? domesticShippingConfig.defaultParcelType,
-      domesticShippingConfig.defaultParcelType,
-    )
+    const domesticParcelType = usesParcelTypeDomesticShipping
+      ? normalizeParcelType(
+          payload.domesticParcelType ?? 'small',
+          payload.domesticParcelType ?? 'small',
+        )
+      : null
     const domesticShippingFee = resolveDomesticShippingFee({
       ...payload,
       domesticParcelType,
     })
-    const cyprusShippingFee = resolveCyprusShippingFee({
-      ...payload,
-      domesticParcelType,
-    })
+    const cyprusShippingFee = usesParcelTypeDomesticShipping
+      ? resolveCyprusShippingFee({
+          ...payload,
+          domesticParcelType,
+        })
+      : 0
+    const packageDetails = normalizePackageDetails(payload)
     const domesticShippingCarrier =
-      payload.domesticShippingCarrier || domesticShippingConfig.carrier || 'BoxNow'
+      payload.domesticShippingCarrier ||
+      domesticShippingConfig.carrier ||
+      (usesParcelTypeDomesticShipping ? 'BoxNow' : 'DHL Express')
     const shipInternational = Boolean(payload.shipInternational)
     const internationalCarrier = payload.internationalCarrier || 'DHL Express'
     const internationalRates = Object.fromEntries(
@@ -1840,15 +1846,14 @@ export function MarketplaceProvider({ children }) {
         .map(([zoneKey, value]) => [zoneKey, parseAmountInput(value)])
         .filter(([, value]) => value > 0),
     )
-
     const parcelRateSummary = `GR ${roundMoney(domesticShippingFee)}€ / CY ${
       cyprusShippingFee > 0 ? `${roundMoney(cyprusShippingFee)}€` : 'DHL fallback'
     }`
 
-    const addDomesticShipping = (value) => {
+    const resolveListingMoney = (value) => {
       const numericValue = parseAmountInput(value)
       if (!numericValue || numericValue < 0) return 0
-      return numericValue + domesticShippingFee
+      return usesParcelTypeDomesticShipping ? numericValue + domesticShippingFee : numericValue
     }
 
     const shippingSummaryEl = usesParcelTypeDomesticShipping
@@ -1856,47 +1861,74 @@ export function MarketplaceProvider({ children }) {
         ? `Ελλάδα/Κύπρος: BoxNow ανά τύπο δέματος (${parcelRateSummary}). Εξωτερικό: DHL με κόστος ανά ζώνη.`
         : `Ελλάδα/Κύπρος: BoxNow ανά τύπο δέματος (${parcelRateSummary}).`
       : shipInternational
-        ? 'Ελλάδα: BoxNow με αυτόματο ποσό στην τιμή. Εξωτερικό: DHL με κόστος ανά ζώνη.'
-        : 'Ελλάδα: BoxNow με αυτόματο ποσό στην τιμή.'
+        ? `Ελλάδα: DHL Express με χρέωση ${roundMoney(domesticShippingFee)}€, βάρος ${packageDetails.weightKg}kg και διαστάσεις ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm. Εξωτερικό: DHL με κόστος ανά ζώνη.`
+        : `Ελλάδα: DHL Express με χρέωση ${roundMoney(domesticShippingFee)}€, βάρος ${packageDetails.weightKg}kg και διαστάσεις ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm.`
     const shippingSummaryEn = usesParcelTypeDomesticShipping
       ? shipInternational
         ? `Greece/Cyprus: BoxNow parcel rates (${parcelRateSummary}). International: DHL with zone-based pricing.`
         : `Greece/Cyprus: BoxNow parcel rates (${parcelRateSummary}).`
       : shipInternational
-        ? 'Domestic: BoxNow with automatic fee included in price. International: DHL with zone-based pricing.'
-        : 'Domestic: BoxNow with automatic fee included in price.'
+        ? `Domestic: DHL Express with a ${roundMoney(domesticShippingFee)}€ fee, ${packageDetails.weightKg}kg weight and ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm parcel size. International: DHL with zone-based pricing.`
+        : `Domestic: DHL Express with a ${roundMoney(domesticShippingFee)}€ fee, ${packageDetails.weightKg}kg weight and ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm parcel size.`
     const shippingInfoEl = [shippingSummaryEl, payload.shippingNotes].filter(Boolean).join(' ')
     const shippingInfoEn = [shippingSummaryEn, payload.shippingNotes].filter(Boolean).join(' ')
     const shippingProfile = shipInternational
-      ? 'boxnow_domestic_dhl_international'
-      : 'boxnow_domestic_only'
+      ? usesParcelTypeDomesticShipping
+        ? 'boxnow_domestic_dhl_international'
+        : 'dhl_domestic_dhl_international'
+      : usesParcelTypeDomesticShipping
+        ? 'boxnow_domestic_only'
+        : 'dhl_domestic_only'
+    const shippingMethods = shipInternational
+      ? [...new Set([domesticShippingCarrier, internationalCarrier].filter(Boolean))]
+      : [domesticShippingCarrier]
+    const domesticShippingPayload = {
+      carrier: domesticShippingCarrier,
+      fee: domesticShippingFee,
+      included_in_price: usesParcelTypeDomesticShipping,
+      package: {
+        weight_kg: packageDetails.weightKg,
+        length_cm: packageDetails.lengthCm,
+        width_cm: packageDetails.widthCm,
+        height_cm: packageDetails.heightCm,
+      },
+      ...(usesParcelTypeDomesticShipping
+        ? {
+            parcel_type: domesticParcelType,
+            rates: {
+              gr: domesticShippingFee,
+              cy: cyprusShippingFee,
+            },
+          }
+        : {}),
+    }
 
     const listingPayload = {
       category_id: category.databaseId,
       title_snapshot: payload.title,
-      price: isAuction ? addDomesticShipping(payload.startingBid) : addDomesticShipping(payload.price),
-      old_price: isTrade ? null : payload.oldPrice ? addDomesticShipping(payload.oldPrice) : null,
-      minimum_offer: !isAuction && !isTrade && payload.minimumOffer ? addDomesticShipping(payload.minimumOffer) : null,
+      price: isAuction ? resolveListingMoney(payload.startingBid) : resolveListingMoney(payload.price),
+      old_price: isTrade ? null : payload.oldPrice ? resolveListingMoney(payload.oldPrice) : null,
+      minimum_offer: !isAuction && !isTrade && payload.minimumOffer ? resolveListingMoney(payload.minimumOffer) : null,
       quantity: isAuction || isTrade ? 1 : Number(payload.quantity || 1),
       available_quantity: isAuction || isTrade ? 1 : Number(payload.quantity || 1),
       condition: payload.condition || null,
       rarity: payload.rarity || null,
       status: payload.publishAction === 'draft' ? 'draft' : 'pending_review',
       sale_format: saleFormat,
-      shipping_cost: 0,
+      shipping_cost: domesticShippingFee,
       shipping_profile: shippingProfile,
-      shipping_methods: [domesticShippingCarrier, ...(shipInternational ? [internationalCarrier] : [])],
+      shipping_methods: shippingMethods,
       dispatch_time: payload.dispatchTime || null,
       packaging_notes: payload.shippingNotes || payload.mediaNotes || null,
       availability: payload.availability || 'in_stock',
       accept_offers: saleFormat === 'fixed_price' ? Boolean(payload.acceptOffers) : false,
       is_featured: Boolean(payload.featured && payload.featuredPaymentId),
       featured_payment_id: payload.featuredPaymentId ?? null,
-      starting_bid: isAuction ? addDomesticShipping(payload.startingBid) : null,
-      current_bid: isAuction ? addDomesticShipping(payload.startingBid) : null,
-      reserve_price: isAuction && payload.reservePrice ? addDomesticShipping(payload.reservePrice) : null,
+      starting_bid: isAuction ? resolveListingMoney(payload.startingBid) : null,
+      current_bid: isAuction ? resolveListingMoney(payload.startingBid) : null,
+      reserve_price: isAuction && payload.reservePrice ? resolveListingMoney(payload.reservePrice) : null,
       bid_increment: isAuction ? parseAmountInput(payload.bidIncrement || 1) : null,
-      buyout_price: isAuction && payload.buyoutPrice ? addDomesticShipping(payload.buyoutPrice) : null,
+      buyout_price: isAuction && payload.buyoutPrice ? resolveListingMoney(payload.buyoutPrice) : null,
       auction_ends_at: isAuction ? payload.auctionEndsAt : null,
       lot_snapshot: lotConfiguration,
       compliance_flags: payload.complianceAcknowledgements ?? [],
@@ -1938,16 +1970,13 @@ export function MarketplaceProvider({ children }) {
         authenticity: payload.authenticity || null,
         returns_policy: payload.shippingNotes || null,
         shipping: {
-          domestic: {
-            carrier: domesticShippingCarrier,
-            fee: domesticShippingFee,
-            parcel_type: domesticParcelType,
-            rates: {
-              gr: domesticShippingFee,
-              cy: cyprusShippingFee,
-            },
-            included_in_price: true,
+          package: {
+            weight_kg: packageDetails.weightKg,
+            length_cm: packageDetails.lengthCm,
+            width_cm: packageDetails.widthCm,
+            height_cm: packageDetails.heightCm,
           },
+          domestic: domesticShippingPayload,
           international: {
             enabled: shipInternational,
             carrier: internationalCarrier,
@@ -2028,21 +2057,18 @@ export function MarketplaceProvider({ children }) {
               highlights: tagList.slice(0, 5),
             },
           },
-      visual: {
+          visual: {
             gradient: payload.visualGradient ?? 'from-[#204178] via-[#14223b] to-[#09111d]',
             label: isAuction ? 'Auction' : isTrade ? 'Trade' : isLootLot ? 'Loot Lot' : 'Listing',
           },
           shipping: {
-            domestic: {
-              carrier: domesticShippingCarrier,
-              fee: domesticShippingFee,
-              parcel_type: domesticParcelType,
-              rates: {
-                gr: domesticShippingFee,
-                cy: cyprusShippingFee,
-              },
-              included_in_price: true,
+            package: {
+              weight_kg: packageDetails.weightKg,
+              length_cm: packageDetails.lengthCm,
+              width_cm: packageDetails.widthCm,
+              height_cm: packageDetails.heightCm,
             },
+            domestic: domesticShippingPayload,
             international: {
               enabled: shipInternational,
               carrier: internationalCarrier,

@@ -15,7 +15,9 @@ class OrderPolicy
 
     public function confirmReceived(User $user, Order $order): bool
     {
-        return $order->buyer_id === $user->getKey() && $order->status === OrderStatus::PaidPendingRelease->value;
+        return $order->buyer_id === $user->getKey()
+            && $order->status === OrderStatus::PaidPendingRelease->value
+            && $order->delivered_at !== null;
     }
 
     public function sellerView(User $user, Order $order): bool

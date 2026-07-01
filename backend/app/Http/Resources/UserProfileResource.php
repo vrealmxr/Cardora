@@ -24,6 +24,11 @@ class UserProfileResource extends JsonResource
         $purchasedItems = (int) ($this->purchase_count ?? 0);
         $marketplaceAccess = app(MarketplaceAccessService::class)->summaryForUser($this->resource, app()->getLocale());
         $notificationPreferences = app(UserNotificationPreferenceService::class)->normalize($this->notification_preferences);
+        $canViewPrivateProfileFields = (bool) $request->user()
+            && (
+                (int) $request->user()->getKey() === (int) $this->id
+                || (bool) $request->user()->is_admin
+            );
 
         return [
             'id' => $this->id,
@@ -32,6 +37,7 @@ class UserProfileResource extends JsonResource
             'displayName' => $this->display_name ?: $this->handle ?: $this->name,
             'handle' => $this->handle,
             'email' => $this->email,
+            'phone' => $this->when($canViewPrivateProfileFields, $this->phone),
             'email_verified_at' => $this->email_verified_at,
             'emailVerifiedAt' => $this->email_verified_at,
             'email_verified' => (bool) $this->hasVerifiedEmail(),
@@ -42,6 +48,8 @@ class UserProfileResource extends JsonResource
             'collectorTagline' => $this->collector_tagline,
             'avatar_url' => $this->avatar_url,
             'profile_cover' => $this->profile_cover,
+            'shipping_origin' => $this->when($canViewPrivateProfileFields, $this->shipping_origin),
+            'shippingOrigin' => $this->when($canViewPrivateProfileFields, $this->shipping_origin),
             'notification_preferences' => $notificationPreferences,
             'notificationPreferences' => $notificationPreferences,
             'profile_visibility' => $this->profile_visibility,

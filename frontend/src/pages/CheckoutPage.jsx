@@ -1,6 +1,7 @@
-﻿import { ShieldCheck, Ticket } from 'lucide-react'
+﻿import { Home, Package, ShieldCheck, Ticket } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import PickupPointPicker from '@/components/checkout/PickupPointPicker'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import { Input, Select } from '@/components/ui/Input'
@@ -30,6 +31,8 @@ function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState('Stripe Checkout')
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [deliveryType, setDeliveryType] = useState('home')
+  const [selectedPoint, setSelectedPoint] = useState(null)
   const [searchParams] = useSearchParams()
   const acceptedOfferId = Number(searchParams.get('offer') ?? 0) || null
   const acceptedOffer = acceptedOfferId
@@ -49,6 +52,11 @@ function CheckoutPage() {
     : null
   const isPrivateOfferCheckout = Boolean(acceptedOffer)
   const requiresShipping = isPrivateOfferCheckout ? true : cartSummary.containsPhysicalItems
+  const checkoutCarrier = isPrivateOfferCheckout
+    ? acceptedOfferProduct?.deliveryCarrier ?? null
+    : cartDetailed.find((item) => item.itemType === 'listing')?.product?.deliveryCarrier ?? null
+  const carrierSupportsPickup = requiresShipping && Boolean(checkoutCarrier)
+  const isPickupDelivery = carrierSupportsPickup && deliveryType === 'pickup'
   const checkoutCancelled = searchParams.get('cancelled') === '1'
   const cancelledOrderId = searchParams.get('order_id')
   const cancelledCleanupRef = useRef(false)
@@ -88,9 +96,14 @@ function CheckoutPage() {
             'This checkout contains raffle entries only, so payment can continue without a shipping address.',
           name: 'Full name',
           address: 'Address',
+          phone: 'Phone',
           city: 'City',
           postalCode: 'Postal code',
           country: 'Country',
+          deliveryMethod: 'Delivery method',
+          homeDelivery: 'Home delivery',
+          pickupPoint: checkoutCarrier === 'boxnow' ? 'BoxNow locker' : 'DHL service point',
+          pickupRequired: 'Please select a pickup point to continue.',
           paymentMethod: 'Payment method',
           paymentMethods: ['Stripe Checkout'],
           paymentNotice:
@@ -136,9 +149,14 @@ function CheckoutPage() {
             'Αυτό το checkout περιέχει μόνο συμμετοχές σε κληρώσεις, οπότε η πληρωμή συνεχίζει χωρίς διεύθυνση αποστολής.',
           name: 'Ονοματεπώνυμο',
           address: 'Διεύθυνση',
+          phone: 'Τηλέφωνο',
           city: 'Πόλη',
           postalCode: 'Ταχυδρομικός κώδικας',
           country: 'Χώρα',
+          deliveryMethod: 'Τρόπος παράδοσης',
+          homeDelivery: 'Παράδοση στη διεύθυνση',
+          pickupPoint: checkoutCarrier === 'boxnow' ? 'Locker BoxNow' : 'Σημείο DHL Service Point',
+          pickupRequired: 'Επίλεξε σημείο παραλαβής για να συνεχίσεις.',
           paymentMethod: 'Μέθοδος πληρωμής',
           paymentMethods: ['Stripe Checkout'],
           paymentNotice:
@@ -215,14 +233,33 @@ function CheckoutPage() {
       countryOptions.find((country) => country.value === countryCode)?.label ??
       (locale === 'en' ? 'Greece' : 'Ελλάδα')
 
-    return {
+    const address = {
       full_name: String(form.get('full_name') || ''),
       address_line_1: String(form.get('address') || ''),
+      phone: String(form.get('phone') || ''),
       city: String(form.get('city') || ''),
       postal_code: String(form.get('postal_code') || ''),
       country_code: countryCode === 'OTHER' ? '' : countryCode,
       country: countryLabel,
+      delivery_type: 'home_delivery',
     }
+
+    if (isPickupDelivery && selectedPoint) {
+      address.delivery_type = checkoutCarrier === 'boxnow' ? 'locker' : 'service_point'
+      address.address_line_1 = selectedPoint.address || selectedPoint.name || address.address_line_1
+      address.city = address.city || selectedPoint.city || ''
+      address.postal_code = address.postal_code || selectedPoint.postal_code || ''
+      address.service_point = {
+        id: selectedPoint.id,
+        name: selectedPoint.name,
+        address: selectedPoint.address,
+        city: selectedPoint.city,
+        postal_code: selectedPoint.postal_code,
+        country_code: selectedPoint.country_code,
+      }
+    }
+
+    return address
   }
 
   const handleSubmit = async (event) => {
@@ -236,6 +273,10 @@ function CheckoutPage() {
 
       if (checkoutBlocked) {
         throw new Error(checkoutBlockedMessage)
+      }
+
+      if (isPickupDelivery && !selectedPoint) {
+        throw new Error(copy.pickupRequired)
       }
 
       const checkout = await placeOrder({
@@ -300,10 +341,50 @@ function CheckoutPage() {
                   <label className="mb-2 block text-sm text-mist">{copy.name}</label>
                   <Input name="full_name" defaultValue="" required />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm text-mist">{copy.address}</label>
-                  <Input name="address" defaultValue="" required />
+                <div>
+                  <label className="mb-2 block text-sm text-mist">{copy.phone}</label>
+                  <Input name="phone" defaultValue="" required />
                 </div>
+
+                {carrierSupportsPickup ? (
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-sm text-mist">{copy.deliveryMethod}</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryType('home')}
+                        className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                          deliveryType === 'home'
+                            ? 'border-gold-300/40 bg-gold-300/10 text-white'
+                            : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
+                        }`}
+                      >
+                        <Home className="h-4 w-4" />
+                        {copy.homeDelivery}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryType('pickup')}
+                        className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                          deliveryType === 'pickup'
+                            ? 'border-gold-300/40 bg-gold-300/10 text-white'
+                            : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
+                        }`}
+                      >
+                        <Package className="h-4 w-4" />
+                        {copy.pickupPoint}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {!isPickupDelivery ? (
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-sm text-mist">{copy.address}</label>
+                    <Input name="address" defaultValue="" required />
+                  </div>
+                ) : null}
+
                 <div>
                   <label className="mb-2 block text-sm text-mist">{copy.city}</label>
                   <Input name="city" defaultValue="" required />
@@ -312,7 +393,7 @@ function CheckoutPage() {
                   <label className="mb-2 block text-sm text-mist">{copy.postalCode}</label>
                   <Input name="postal_code" defaultValue="" required />
                 </div>
-                <div>
+                <div className="md:col-span-2">
                   <label className="mb-2 block text-sm text-mist">{copy.country}</label>
                   <Select name="country_code" defaultValue="GR">
                     {countryOptions.map((country) => (
@@ -322,6 +403,17 @@ function CheckoutPage() {
                     ))}
                   </Select>
                 </div>
+
+                {isPickupDelivery ? (
+                  <div className="md:col-span-2">
+                    <PickupPointPicker
+                      carrier={checkoutCarrier}
+                      locale={locale}
+                      selectedPoint={selectedPoint}
+                      onSelect={setSelectedPoint}
+                    />
+                  </div>
+                ) : null}
               </>
             ) : (
               <div className="md:col-span-2 rounded-[22px] border border-white/10 bg-white/5 p-4 text-sm leading-7 text-mist">

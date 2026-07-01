@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSupportTicketRequest;
 use App\Http\Resources\SupportTicketResource;
@@ -49,6 +50,23 @@ class SupportTicketController extends Controller
             'status' => $validated['status'] ?? 'open',
             'priority' => $isDsaNotice ? 'high' : ($validated['priority'] ?? 'normal'),
         ]);
+
+        if (
+            isset($order)
+            && in_array($validated['category'] ?? null, ['order_issue', 'dispute'], true)
+            && $order->status === OrderStatus::PaidPendingRelease->value
+        ) {
+            $order->update([
+                'status' => OrderStatus::Disputed->value,
+                'escrow_status' => OrderStatus::Disputed->value,
+                'disputed_at' => now(),
+                'auto_release_at' => null,
+                'metadata' => array_merge($order->metadata ?? [], [
+                    'dispute_ticket_id' => $ticket->getKey(),
+                    'dispute_ticket_category' => $validated['category'],
+                ]),
+            ]);
+        }
 
         $notifications->createForUser(
             $user->getKey(),

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StartCheckoutRequest extends FormRequest
 {
@@ -18,10 +19,17 @@ class StartCheckoutRequest extends FormRequest
             'shipping_address' => ['nullable', 'array'],
             'shipping_address.full_name' => ['nullable', 'string', 'max:255'],
             'shipping_address.address_line_1' => ['nullable', 'string', 'max:255'],
+            'shipping_address.address_line_2' => ['nullable', 'string', 'max:255'],
             'shipping_address.city' => ['nullable', 'string', 'max:100'],
             'shipping_address.postal_code' => ['nullable', 'string', 'max:30'],
             'shipping_address.country' => ['nullable', 'string', 'max:120'],
             'shipping_address.country_code' => ['nullable', 'string', 'size:2'],
+            'shipping_address.phone' => ['nullable', 'string', 'max:50'],
+            'shipping_address.delivery_type' => ['nullable', Rule::in(['home_delivery', 'service_point'])],
+            'shipping_address.service_point' => ['nullable', 'array'],
+            'shipping_address.service_point.id' => ['nullable', 'string', 'max:120'],
+            'shipping_address.service_point.name' => ['nullable', 'string', 'max:255'],
+            'shipping_address.service_point.address' => ['nullable', 'string', 'max:255'],
             'billing_address' => ['nullable', 'array'],
             'billing_address.full_name' => ['nullable', 'string', 'max:255'],
             'billing_address.address_line_1' => ['nullable', 'string', 'max:255'],

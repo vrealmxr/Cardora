@@ -66,6 +66,8 @@ class OrderCheckoutService
             $sellerAmount = round(($subtotal + $shippingTotal) - $commissionAmount, 2);
             $total = round($subtotal + $shippingTotal + $buyerFeeAmount, 2);
             $primaryProductId = $lineItems->pluck('product')->filter()->first()?->getKey();
+            $shippingCarrier = $this->resolveShippingCarrier($lineItems);
+            $shippingService = data_get($payload, 'shipping_address.delivery_type', 'home_delivery');
 
             $order = Order::create([
                 'buyer_id' => $buyer->getKey(),
@@ -83,11 +85,14 @@ class OrderCheckoutService
                 'seller_amount' => $sellerAmount,
                 'currency' => strtoupper((string) ($payload['currency'] ?? 'EUR')),
                 'payment_method' => 'stripe_checkout',
+                'shipping_carrier' => $shippingCarrier,
+                'shipping_service' => $shippingCarrier === 'dhl_express' ? $shippingService : null,
+                'shipment_status' => $shippingCarrier === 'dhl_express' ? 'pending_label' : null,
                 'shipping_address' => $payload['shipping_address'] ?? null,
                 'billing_address' => $payload['billing_address'] ?? null,
                 'notes' => $payload['notes'] ?? null,
                 'placed_at' => $payload['placed_at'] ?? now(),
-                'auto_release_at' => now()->addDays($this->confirmationWindowDays()),
+                'auto_release_at' => null,
                 'metadata' => $this->mergeMetadata($payload['metadata'] ?? null, [
                     'source' => $lineItems->contains(fn (array $item) => $item['cart_item_id'] !== null)
                         ? 'cart_checkout'
@@ -204,6 +209,8 @@ class OrderCheckoutService
             $buyerFeeAmount = $this->calculateBuyerFeeAmount($subtotal);
             $total = round($agreedTotal + $buyerFeeAmount, 2);
             $sellerAmount = round($agreedTotal - $commissionAmount, 2);
+            $shippingCarrier = $this->resolveShippingCarrier(collect([$lineItem]));
+            $shippingService = data_get($payload, 'shipping_address.delivery_type', 'home_delivery');
 
             $order = Order::create([
                 'buyer_id' => $buyer->getKey(),
@@ -221,11 +228,14 @@ class OrderCheckoutService
                 'seller_amount' => $sellerAmount,
                 'currency' => strtoupper((string) ($payload['currency'] ?? 'EUR')),
                 'payment_method' => 'stripe_checkout',
+                'shipping_carrier' => $shippingCarrier,
+                'shipping_service' => $shippingCarrier === 'dhl_express' ? $shippingService : null,
+                'shipment_status' => $shippingCarrier === 'dhl_express' ? 'pending_label' : null,
                 'shipping_address' => $payload['shipping_address'] ?? null,
                 'billing_address' => $payload['billing_address'] ?? null,
                 'notes' => $payload['notes'] ?? null,
                 'placed_at' => $payload['placed_at'] ?? now(),
-                'auto_release_at' => now()->addDays($this->confirmationWindowDays()),
+                'auto_release_at' => null,
                 'metadata' => $this->mergeMetadata($payload['metadata'] ?? null, [
                     'source' => 'private_offer_checkout',
                     'private_offer_id' => $lockedOffer->getKey(),
@@ -762,6 +772,14 @@ class OrderCheckoutService
             return 0.0;
         }
 
+        if (in_array($shippingProfile, ['dhl_domestic_only', 'dhl_domestic_dhl_international'], true)) {
+            $configuredRate = data_get($listing->attributes, 'shipping.domestic.fee');
+
+            if (is_numeric($configuredRate) && (float) $configuredRate >= 0) {
+                return round((float) $configuredRate, 2);
+            }
+        }
+
         return max(0.0, (float) ($listing->shipping_cost ?? 0));
     }
 
@@ -778,7 +796,7 @@ class OrderCheckoutService
             return round($cyprusParcelRate, 2);
         }
 
-        if (in_array($shippingProfile, ['boxnow_domestic_only', 'calculated_domestic_only'], true)) {
+        if (in_array($shippingProfile, ['boxnow_domestic_only', 'calculated_domestic_only', 'dhl_domestic_only'], true)) {
             throw ValidationException::withMessages([
                 'shipping_address' => [__('api.orders.international_not_supported', [
                     'title' => $listing->title_snapshot ?: $listing->product?->title ?: __('api.orders.untitled_item'),
@@ -786,7 +804,7 @@ class OrderCheckoutService
             ]);
         }
 
-        if (in_array($shippingProfile, ['boxnow_domestic_dhl_international', 'calculated_domestic_dhl_international'], true)) {
+        if (in_array($shippingProfile, ['boxnow_domestic_dhl_international', 'calculated_domestic_dhl_international', 'dhl_domestic_dhl_international'], true)) {
             $zone = $this->resolveInternationalZone($shippingAddress);
             $rates = $this->extractInternationalRates($listing);
             $rate = (float) ($rates[$zone] ?? $rates['restOfWorld'] ?? 0);
@@ -803,6 +821,35 @@ class OrderCheckoutService
         }
 
         return max(0.0, (float) ($listing->shipping_cost ?? 0));
+    }
+
+    protected function resolveShippingCarrier(Collection $lineItems): ?string
+    {
+        $listing = $lineItems->pluck('listing')->filter()->first();
+
+        if (! $listing instanceof Listing) {
+            return null;
+        }
+
+        $shippingProfile = (string) ($listing->shipping_profile ?? '');
+        $shippingMethods = collect($listing->shipping_methods ?? [])
+            ->map(fn ($method) => Str::lower((string) $method));
+
+        if (Str::startsWith($shippingProfile, 'dhl_') || $shippingMethods->contains('dhl express')) {
+            return 'dhl_express';
+        }
+
+        if (Str::startsWith($shippingProfile, 'boxnow_') || $shippingMethods->contains('boxnow')) {
+            if (! config('services.boxnow.enabled', false)) {
+                throw ValidationException::withMessages([
+                    'shipping_address' => [__('api.orders.carrier_unavailable', ['carrier' => 'BoxNow'])],
+                ]);
+            }
+
+            return 'boxnow';
+        }
+
+        return null;
     }
 
     protected function extractCyprusParcelRate(Listing $listing): float

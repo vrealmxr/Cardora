@@ -61,12 +61,22 @@ const createPalette = (baseColor) => {
 
 const buildInitialForm = (user) => {
   const baseColor = normalizeHex(user?.profile_cover?.palette?.from ?? '#f2cb70')
+  const shippingOrigin = user?.shippingOrigin ?? user?.shipping_origin ?? {}
 
   return {
     displayName: user?.displayName ?? user?.display_name ?? user?.name ?? '',
+    phone: user?.phone ?? '',
     city: user?.city ?? '',
     collectorTagline: user?.collector_tagline ?? user?.collectorTagline ?? '',
     bio: user?.bio ?? '',
+    shipFromName: shippingOrigin?.full_name ?? user?.displayName ?? user?.display_name ?? user?.name ?? '',
+    shipFromPhone: shippingOrigin?.phone ?? user?.phone ?? '',
+    shipFromAddress1: shippingOrigin?.address_line_1 ?? '',
+    shipFromAddress2: shippingOrigin?.address_line_2 ?? '',
+    shipFromCity: shippingOrigin?.city ?? user?.city ?? '',
+    shipFromPostalCode: shippingOrigin?.postal_code ?? '',
+    shipFromCountry: shippingOrigin?.country ?? 'Greece',
+    shipFromCountryCode: shippingOrigin?.country_code ?? 'GR',
     baseColor,
     avatarFile: null,
     removeAvatar: false,
@@ -98,9 +108,19 @@ function ProfileAppearanceEditor() {
           customColor: 'Custom color',
           preview: 'Live preview',
           displayName: 'Nickname',
+          phone: 'Phone',
           city: 'City',
           tagline: 'Collector line',
           bio: 'Bio',
+          shippingTitle: 'Private shipping origin',
+          shippingHint: 'These fields stay private and are used only for DHL label creation and courier paperwork.',
+          shipFromName: 'Sender full name',
+          shipFromPhone: 'Sender phone',
+          shipFromAddress1: 'Address line 1',
+          shipFromAddress2: 'Address line 2',
+          shipFromPostalCode: 'Postal code',
+          shipFromCountry: 'Country',
+          shipFromCountryCode: 'Country code',
           save: 'Save profile',
           saving: 'Saving...',
           success: 'Your profile look was updated.',
@@ -189,10 +209,21 @@ function ProfileAppearanceEditor() {
 
       await cardoraService.updateProfile({
         display_name: form.displayName.trim() || null,
+        phone: form.phone.trim() || null,
         city: form.city.trim() || null,
         collector_tagline: form.collectorTagline.trim() || null,
         bio: form.bio.trim() || null,
         avatar_url: avatarUrl,
+        shipping_origin: {
+          full_name: form.shipFromName.trim() || null,
+          phone: form.shipFromPhone.trim() || null,
+          address_line_1: form.shipFromAddress1.trim() || null,
+          address_line_2: form.shipFromAddress2.trim() || null,
+          city: form.shipFromCity.trim() || null,
+          postal_code: form.shipFromPostalCode.trim() || null,
+          country: form.shipFromCountry.trim() || null,
+          country_code: form.shipFromCountryCode.trim().toUpperCase() || null,
+        },
         profile_cover: {
           ...currentCover,
           palette,
@@ -362,6 +393,14 @@ function ProfileAppearanceEditor() {
             />
           </div>
           <div>
+            <label className="mb-2 block text-sm text-mist">{copy.phone ?? (locale === 'en' ? 'Phone' : 'Τηλέφωνο')}</label>
+            <Input
+              value={form.phone}
+              onChange={(event) => setForm((previous) => ({ ...previous, phone: event.target.value }))}
+              maxLength={50}
+            />
+          </div>
+          <div>
             <label className="mb-2 block text-sm text-mist">{copy.city}</label>
             <Input
               value={form.city}
@@ -384,6 +423,106 @@ function ProfileAppearanceEditor() {
               value={form.bio}
               onChange={(event) => setForm((previous) => ({ ...previous, bio: event.target.value }))}
             />
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+          <div className="flex flex-col gap-2">
+            <h4 className="text-sm font-semibold text-white">
+              {copy.shippingTitle ?? (locale === 'en' ? 'Private shipping origin' : 'Ιδιωτική διεύθυνση αποστολέα')}
+            </h4>
+            <p className="text-xs leading-6 text-mist">
+              {copy.shippingHint ??
+                (locale === 'en'
+                  ? 'These fields stay private and are used only for DHL label creation and courier paperwork.'
+                  : 'Τα στοιχεία αυτά μένουν ιδιωτικά και χρησιμοποιούνται μόνο για DHL labels και στοιχεία αποστολής.')}
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm text-mist">
+                {copy.shipFromName ?? (locale === 'en' ? 'Sender full name' : 'Ονοματεπώνυμο αποστολέα')}
+              </label>
+              <Input
+                value={form.shipFromName}
+                onChange={(event) => setForm((previous) => ({ ...previous, shipFromName: event.target.value }))}
+                maxLength={255}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm text-mist">
+                {copy.shipFromPhone ?? (locale === 'en' ? 'Sender phone' : 'Τηλέφωνο αποστολέα')}
+              </label>
+              <Input
+                value={form.shipFromPhone}
+                onChange={(event) => setForm((previous) => ({ ...previous, shipFromPhone: event.target.value }))}
+                maxLength={50}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm text-mist">
+                {copy.shipFromAddress1 ?? (locale === 'en' ? 'Address line 1' : 'Διεύθυνση 1')}
+              </label>
+              <Input
+                value={form.shipFromAddress1}
+                onChange={(event) => setForm((previous) => ({ ...previous, shipFromAddress1: event.target.value }))}
+                maxLength={255}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm text-mist">
+                {copy.shipFromAddress2 ?? (locale === 'en' ? 'Address line 2' : 'Διεύθυνση 2')}
+              </label>
+              <Input
+                value={form.shipFromAddress2}
+                onChange={(event) => setForm((previous) => ({ ...previous, shipFromAddress2: event.target.value }))}
+                maxLength={255}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm text-mist">{copy.city}</label>
+              <Input
+                value={form.shipFromCity}
+                onChange={(event) => setForm((previous) => ({ ...previous, shipFromCity: event.target.value }))}
+                maxLength={100}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm text-mist">
+                {copy.shipFromPostalCode ?? (locale === 'en' ? 'Postal code' : 'Τ.Κ.')}
+              </label>
+              <Input
+                value={form.shipFromPostalCode}
+                onChange={(event) => setForm((previous) => ({ ...previous, shipFromPostalCode: event.target.value }))}
+                maxLength={30}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm text-mist">
+                {copy.shipFromCountry ?? (locale === 'en' ? 'Country' : 'Χώρα')}
+              </label>
+              <Input
+                value={form.shipFromCountry}
+                onChange={(event) => setForm((previous) => ({ ...previous, shipFromCountry: event.target.value }))}
+                maxLength={120}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm text-mist">
+                {copy.shipFromCountryCode ?? (locale === 'en' ? 'Country code' : 'Κωδικός χώρας')}
+              </label>
+              <Input
+                value={form.shipFromCountryCode}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    shipFromCountryCode: event.target.value.slice(0, 2).toUpperCase(),
+                  }))
+                }
+                maxLength={2}
+              />
+            </div>
           </div>
         </div>
 

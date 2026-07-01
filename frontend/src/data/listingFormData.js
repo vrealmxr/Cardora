@@ -1,6 +1,5 @@
 ﻿import {
   DEFAULT_DOMESTIC_SHIPPING,
-  PARCEL_TYPE_DOMESTIC_SHIPPING,
 } from '@/utils/listingShipping'
 import { normalizePotentialMojibake, normalizeTextTree } from '@/utils/textEncoding'
 
@@ -1596,13 +1595,13 @@ export function getListingFormData(locale = 'el') {
         text(locale, '3-5 ημέρες', '3-5 days'),
         text(locale, 'Προπαραγγελία', 'Pre-order'),
       ],
-      shippingMethods: ['BoxNow', 'DHL Express'],
+      shippingMethods: ['DHL Express'],
       domesticShipping: {
         ...DEFAULT_DOMESTIC_SHIPPING,
         note: text(
           locale,
-          'Για Ελλάδα και Κύπρο επιλέγεις τύπο δέματος BoxNow και η αντίστοιχη χρέωση προστίθεται αυτόματα στην τελική τιμή.',
-          'For Greece and Cyprus, choose a BoxNow parcel type and the matching fee is added automatically to the final price.',
+          'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
+          'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
         ),
       },
       domesticShippingByCategory: {
@@ -1610,32 +1609,32 @@ export function getListingFormData(locale = 'el') {
           ...DEFAULT_DOMESTIC_SHIPPING,
           note: text(
             locale,
-            'Για Ελλάδα και Κύπρο επιλέγεις τύπο δέματος BoxNow και η αντίστοιχη χρέωση προστίθεται αυτόματα στην τελική τιμή.',
-            'For Greece and Cyprus, choose a BoxNow parcel type and the matching fee is added automatically to the final price.',
+            'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
+            'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
           ),
         },
         figures: {
-          ...PARCEL_TYPE_DOMESTIC_SHIPPING,
+          ...DEFAULT_DOMESTIC_SHIPPING,
           note: text(
             locale,
-            'Για Ελλάδα και Κύπρο επιλέγεις τύπο δέματος BoxNow και η αντίστοιχη χρέωση προστίθεται αυτόματα στην τελική τιμή.',
-            'For Greece and Cyprus, choose a BoxNow parcel type and the matching fee is added automatically to the final price.',
+            'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
+            'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
           ),
         },
         misc: {
-          ...PARCEL_TYPE_DOMESTIC_SHIPPING,
+          ...DEFAULT_DOMESTIC_SHIPPING,
           note: text(
             locale,
-            'Για Ελλάδα και Κύπρο επιλέγεις τύπο δέματος BoxNow και η αντίστοιχη χρέωση προστίθεται αυτόματα στην τελική τιμή.',
-            'For Greece and Cyprus, choose a BoxNow parcel type and the matching fee is added automatically to the final price.',
+            'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
+            'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
           ),
         },
         comics: {
-          ...PARCEL_TYPE_DOMESTIC_SHIPPING,
+          ...DEFAULT_DOMESTIC_SHIPPING,
           note: text(
             locale,
-            'Για Ελλάδα και Κύπρο επιλέγεις τύπο δέματος BoxNow και η αντίστοιχη χρέωση προστίθεται αυτόματα στην τελική τιμή.',
-            'For Greece and Cyprus, choose a BoxNow parcel type and the matching fee is added automatically to the final price.',
+            'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
+            'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
           ),
         },
       },

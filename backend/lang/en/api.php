@@ -58,6 +58,7 @@ return [
         'international_not_supported' => 'The listing :title ships within Greece only via BoxNow.',
         'international_rate_missing' => 'The listing :title has no DHL rate configured for the selected destination.',
         'self_checkout_not_allowed' => 'You cannot checkout your own listing or raffle entries. Use a different buyer account to test checkout.',
+        'carrier_unavailable' => ':carrier shipping is temporarily on hold, so this listing cannot be purchased right now.',
         'untitled_item' => 'Untitled item',
     ],
     'messages' => [

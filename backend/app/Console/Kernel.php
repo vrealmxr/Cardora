@@ -13,6 +13,8 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('marketplace:auto-release-orders')->everyTenMinutes();
+        $schedule->command('marketplace:sync-dhl-shipments')->everyThirtyMinutes();
+        $schedule->command('marketplace:sync-boxnow-shipments')->everyThirtyMinutes();
     }
 
     /**

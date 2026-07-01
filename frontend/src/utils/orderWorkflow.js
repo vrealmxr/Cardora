@@ -7,7 +7,8 @@ export const getOrderRole = (order, currentUserId) => {
 
 export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
   const isEnglish = locale === 'en'
-  const hasTracking = Boolean(order?.trackingNumber)
+  const hasShipped = Boolean(order?.shippedAt || order?.deliveredAt || order?.releasedAt)
+  const hasDelivered = Boolean(order?.deliveredAt || order?.releasedAt)
 
   if (order?.statusKey === 'released') {
     return {
@@ -16,7 +17,7 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
       tone: 'success',
       summary: isEnglish
         ? 'Funds have been released to the seller Stripe account.'
-        : 'Τα χρήματα αποδεσμεύτηκαν προς το Stripe account του πωλητή.',
+        : 'Τα χρήματα έχουν αποδεσμευτεί προς το Stripe account του πωλητή.',
       actionRequired: false,
     }
   }
@@ -50,7 +51,7 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
       tone: 'warning',
       summary: isEnglish
         ? 'Cardora is reviewing this order before any release or recovery.'
-        : 'Η Cardora εξετάζει την παραγγελία πριν από επόμενη αποδέσμευση ή recovery.',
+        : 'Η Cardora εξετάζει την παραγγελία πριν από οποιαδήποτε αποδέσμευση ή recovery.',
       actionRequired: false,
     }
   }
@@ -68,26 +69,38 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
   }
 
   if (order?.statusKey === 'paid_pending_release') {
-    if (role === 'seller' && !hasTracking) {
-      return {
-        key: 'needs_shipping',
-        label: isEnglish ? 'Needs shipping' : 'Πρέπει να σταλεί',
-        tone: 'warning',
-        summary: isEnglish
-          ? 'The buyer has paid. Ship the order and add tracking.'
-          : 'Ο αγοραστής πλήρωσε. Στείλε την παραγγελία και πρόσθεσε tracking.',
-        actionRequired: true,
+    if (!hasShipped) {
+      if (role === 'seller') {
+        return {
+          key: 'needs_shipping',
+          label: isEnglish ? 'Needs shipping' : 'Πρέπει να σταλεί',
+          tone: 'warning',
+          summary: isEnglish
+            ? 'The DHL label is created automatically after payment. Hand over the parcel so DHL can scan it.'
+            : 'Το DHL label δημιουργείται αυτόματα μετά την πληρωμή. Παράδωσε το δέμα ώστε να γίνει το πρώτο scan από τη DHL.',
+          actionRequired: true,
+        }
       }
-    }
 
-    if (role === 'buyer' && !hasTracking) {
       return {
         key: 'waiting_for_seller',
         label: isEnglish ? 'Waiting for shipment' : 'Αναμένει αποστολή',
         tone: 'info',
         summary: isEnglish
-          ? 'The payment is protected while the seller prepares shipment.'
-          : 'Η πληρωμή προστατεύεται όσο ο πωλητής ετοιμάζει την αποστολή.',
+          ? 'Payment is protected while the seller prepares the DHL handoff.'
+          : 'Η πληρωμή παραμένει προστατευμένη όσο ο πωλητής ετοιμάζει την παράδοση στη DHL.',
+        actionRequired: false,
+      }
+    }
+
+    if (!hasDelivered) {
+      return {
+        key: 'in_transit',
+        label: isEnglish ? 'In transit' : 'Σε μεταφορά',
+        tone: 'info',
+        summary: isEnglish
+          ? 'Shipment updates come directly from DHL. Funds stay on hold until delivery is confirmed.'
+          : 'Οι ενημερώσεις έρχονται απευθείας από τη DHL. Τα χρήματα μένουν σε hold μέχρι να επιβεβαιωθεί η παράδοση.',
         actionRequired: false,
       }
     }
@@ -95,11 +108,11 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
     if (role === 'buyer') {
       return {
         key: 'awaiting_confirmation',
-        label: isEnglish ? 'Confirm when received' : 'Επιβεβαίωσε όταν παραλάβεις',
+        label: isEnglish ? 'Confirm delivery' : 'Επιβεβαίωσε την παράδοση',
         tone: 'warning',
         summary: isEnglish
-          ? 'The order has shipped. Confirm receipt to release funds.'
-          : 'Η παραγγελία έχει σταλεί. Επιβεβαίωσε παραλαβή για να αποδεσμευτούν τα χρήματα.',
+          ? 'DHL marked the order as delivered. Confirm everything is OK to release funds now, otherwise auto-release runs in 2 days.'
+          : 'Η DHL έδειξε ότι η παραγγελία παραδόθηκε. Επιβεβαίωσε ότι όλα είναι ΟΚ για άμεσο release, αλλιώς το auto-release τρέχει σε 2 ημέρες.',
         actionRequired: true,
       }
     }
@@ -109,8 +122,8 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
       label: isEnglish ? 'Waiting for buyer confirmation' : 'Αναμένει επιβεβαίωση αγοραστή',
       tone: 'info',
       summary: isEnglish
-        ? 'The order has shipped. Funds stay on hold until buyer confirmation or auto-release.'
-        : 'Η παραγγελία στάλθηκε. Τα χρήματα μένουν σε hold μέχρι επιβεβαίωση αγοραστή ή auto-release.',
+        ? 'DHL marked the order as delivered. Funds will release after buyer confirmation or after the 2-day protection window.'
+        : 'Η DHL έδειξε ότι η παραγγελία παραδόθηκε. Τα χρήματα θα αποδεσμευτούν μετά την επιβεβαίωση του αγοραστή ή μετά το 2ήμερο παράθυρο προστασίας.',
       actionRequired: false,
     }
   }
@@ -127,8 +140,8 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
 export const buildOrderTimeline = (order, locale = 'el') => {
   const isEnglish = locale === 'en'
   const paidCompleted = order?.statusKey !== 'pending_payment'
-  const shippedCompleted = Boolean(order?.trackingNumber || order?.releasedAt || order?.buyerConfirmedAt)
-  const confirmedCompleted = Boolean(order?.buyerConfirmedAt || order?.releasedAt)
+  const shippedCompleted = Boolean(order?.shippedAt || order?.deliveredAt || order?.releasedAt)
+  const deliveredCompleted = Boolean(order?.deliveredAt || order?.releasedAt)
   const releasedCompleted = Boolean(order?.releasedAt || order?.statusKey === 'released')
 
   return [
@@ -142,13 +155,13 @@ export const buildOrderTimeline = (order, locale = 'el') => {
       key: 'shipped',
       label: isEnglish ? 'Shipped' : 'Στάλθηκε',
       completed: shippedCompleted,
-      current: shippedCompleted && !confirmedCompleted,
+      current: shippedCompleted && !deliveredCompleted,
     },
     {
-      key: 'confirmed',
-      label: isEnglish ? 'Confirmed' : 'Επιβεβαιώθηκε',
-      completed: confirmedCompleted,
-      current: confirmedCompleted && !releasedCompleted,
+      key: 'delivered',
+      label: isEnglish ? 'Delivered' : 'Παραδόθηκε',
+      completed: deliveredCompleted,
+      current: deliveredCompleted && !releasedCompleted,
     },
     {
       key: 'released',

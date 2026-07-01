@@ -68,12 +68,10 @@ class OrderController extends Controller
         $this->ensureParticipant($request, $order);
 
         $validated = $request->validated();
-        $isBuyer = (int) $request->user()->getKey() === (int) $order->buyer_id;
-        $isSeller = (int) $request->user()->getKey() === (int) $order->seller_id;
 
-        if (array_key_exists('tracking_number', $validated) && ! $isSeller) {
+        if (array_key_exists('tracking_number', $validated) || array_key_exists('shipment_tracking_number', $validated)) {
             throw ValidationException::withMessages([
-                'tracking_number' => ['Only the seller can update tracking for this order.'],
+                'tracking_number' => ['Shipment tracking is synced automatically from DHL and cannot be edited manually.'],
             ]);
         }
 
@@ -83,17 +81,9 @@ class OrderController extends Controller
             ]);
         }
 
-        if (($validated['status'] ?? null) === 'released' && ! array_key_exists('completed_at', $validated)) {
-            $validated['completed_at'] = now();
-        }
-
-        if (($validated['status'] ?? null) === 'disputed' && ! array_key_exists('disputed_at', $validated)) {
-            $validated['disputed_at'] = now();
-        }
-
-        if (! empty($validated['tracking_number']) && $isSeller) {
-            $validated['metadata'] = array_merge($order->metadata ?? [], $validated['metadata'] ?? [], [
-                'shipped_at' => data_get($order->metadata, 'shipped_at') ?: now()->toIso8601String(),
+        if (($validated['status'] ?? null) === 'disputed') {
+            throw ValidationException::withMessages([
+                'status' => ['Open a support ticket to report an order problem or dispute.'],
             ]);
         }
 

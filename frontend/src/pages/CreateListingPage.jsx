@@ -20,6 +20,7 @@ import {
   DEFAULT_DOMESTIC_SHIPPING,
   getDomesticShippingConfig,
   getParcelDimensionsCm,
+  normalizePackageDetails,
   normalizeParcelType,
   parseAmountInput,
   resolveCyprusShippingFee,
@@ -153,22 +154,20 @@ const createDefaultForm = (templates, commonOptions) => ({
   ...(() => {
     const domesticShipping = getDomesticShippingProfileFromOptions(commonOptions, 'cards')
     const packagingOptions = getPackagingOptionsForCategory(commonOptions, 'cards')
-    const domesticParcelType = normalizeParcelType(
-      domesticShipping.defaultParcelType,
-      DEFAULT_DOMESTIC_SHIPPING.defaultParcelType,
-    )
-    const domesticShippingFee = resolveDomesticShippingFee({
-      categoryId: 'cards',
-      domesticParcelType,
-    })
+    const packageDefaults = domesticShipping.packageDefaults ?? DEFAULT_DOMESTIC_SHIPPING.packageDefaults
 
     return {
-      shippingCost: domesticShippingFee,
+      shippingCost: 0,
       shippingMethods: [domesticShipping.carrier ?? DEFAULT_DOMESTIC_SHIPPING.carrier],
       packaging: packagingOptions[0] ?? '',
       domesticShippingCarrier: domesticShipping.carrier ?? DEFAULT_DOMESTIC_SHIPPING.carrier,
-      domesticShippingFee,
-      domesticParcelType,
+      domesticShippingMode: 'dhl_manual',
+      domesticShippingFee: '',
+      domesticParcelType: '',
+      packageWeightKg: String(packageDefaults?.weightKg ?? 0.5),
+      packageLengthCm: String(packageDefaults?.lengthCm ?? 20),
+      packageWidthCm: String(packageDefaults?.widthCm ?? 15),
+      packageHeightCm: String(packageDefaults?.heightCm ?? 8),
     }
   })(),
   title: '',
@@ -283,21 +282,36 @@ const buildFormFromExistingListing = ({
     'cards'
   const template = templates[categoryId] ?? templates.cards
   const defaults = createDefaultForm(templates, commonOptions)
-  const domesticParcelType = normalizeParcelType(
+  const isLegacyBoxNow = Boolean(
     domesticShipping?.parcel_type ??
       domesticShipping?.parcelType ??
       domesticShipping?.package?.parcel_type ??
-      defaults.domesticParcelType ??
-      DEFAULT_DOMESTIC_SHIPPING.defaultParcelType,
-    defaults.domesticParcelType ?? DEFAULT_DOMESTIC_SHIPPING.defaultParcelType,
+      String(listing?.shipping_profile ?? '').startsWith('boxnow'),
   )
+  const domesticParcelType = isLegacyBoxNow
+    ? normalizeParcelType(
+        domesticShipping?.parcel_type ??
+          domesticShipping?.parcelType ??
+          domesticShipping?.package?.parcel_type ??
+          'small',
+        'small',
+      )
+    : ''
   const domesticShippingFee =
     storedDomesticShippingFee > 0
       ? storedDomesticShippingFee
       : resolveDomesticShippingFee({
-          categoryId,
+          domesticShippingFee: listing?.shipping_cost ?? 0,
           domesticParcelType,
         })
+  const isShippingIncludedInPrice = Boolean(domesticShipping?.included_in_price ?? isLegacyBoxNow)
+  const packageDetails = normalizePackageDetails({
+    package: domesticShipping?.package ?? shipping?.package ?? {},
+    packageWeightKg: domesticShipping?.weight_kg ?? shipping?.weight_kg,
+    packageLengthCm: domesticShipping?.length_cm ?? shipping?.length_cm,
+    packageWidthCm: domesticShipping?.width_cm ?? shipping?.width_cm,
+    packageHeightCm: domesticShipping?.height_cm ?? shipping?.height_cm,
+  })
   const subcategoryCandidate =
     attributes.type_label ??
     product.product_type ??
@@ -382,11 +396,15 @@ const buildFormFromExistingListing = ({
     price:
       listing?.sale_format === 'auction'
         ? ''
-        : subtractDomesticShippingFromAmount(listing?.price, domesticShippingFee),
-    oldPrice: subtractDomesticShippingFromAmount(listing?.old_price, domesticShippingFee),
+        : isShippingIncludedInPrice
+          ? subtractDomesticShippingFromAmount(listing?.price, domesticShippingFee)
+          : toInputAmount(listing?.price),
+    oldPrice: isShippingIncludedInPrice
+      ? subtractDomesticShippingFromAmount(listing?.old_price, domesticShippingFee)
+      : toInputAmount(listing?.old_price),
     minimumOffer: subtractDomesticShippingFromAmount(
       listing?.minimum_offer,
-      domesticShippingFee,
+      isShippingIncludedInPrice ? domesticShippingFee : 0,
     ),
     acceptOffers: Boolean(listing?.accept_offers),
     availability: listing?.availability ?? defaults.availability,
@@ -400,8 +418,13 @@ const buildFormFromExistingListing = ({
       domesticShipping?.carrier ??
       listing?.shipping_methods?.[0] ??
       defaults.domesticShippingCarrier,
-    domesticShippingFee,
+    domesticShippingMode: isLegacyBoxNow ? 'legacy_boxnow' : 'dhl_manual',
+    domesticShippingFee: domesticShippingFee > 0 ? String(domesticShippingFee) : '',
     domesticParcelType,
+    packageWeightKg: String(packageDetails.weightKg),
+    packageLengthCm: String(packageDetails.lengthCm),
+    packageWidthCm: String(packageDetails.widthCm),
+    packageHeightCm: String(packageDetails.heightCm),
     shipInternational: Boolean(internationalShipping?.enabled),
     internationalCarrier:
       internationalShipping?.carrier ??
@@ -427,17 +450,17 @@ const buildFormFromExistingListing = ({
           : fixedPriceLabel,
     startingBid: subtractDomesticShippingFromAmount(
       listing?.starting_bid,
-      domesticShippingFee,
+      isShippingIncludedInPrice ? domesticShippingFee : 0,
     ),
     reservePrice: subtractDomesticShippingFromAmount(
       listing?.reserve_price,
-      domesticShippingFee,
+      isShippingIncludedInPrice ? domesticShippingFee : 0,
     ),
     bidIncrement: toInputAmount(listing?.bid_increment ?? 5),
     auctionEndsAt: toDateTimeLocalValue(listing?.auction_ends_at),
     buyoutPrice: subtractDomesticShippingFromAmount(
       listing?.buyout_price,
-      domesticShippingFee,
+      isShippingIncludedInPrice ? domesticShippingFee : 0,
     ),
     quantity: String(
       Number(listing?.available_quantity ?? listing?.quantity ?? 1) || 1,
@@ -584,7 +607,7 @@ function CreateListingPage() {
     categories.find((item) => item.id === form.categoryId)
   const isFigureListing = form.categoryId === 'figures'
   const isComicListing = form.categoryId === 'comics'
-  const usesParcelTypeDomesticShipping = ['cards', 'figures', 'comics', 'misc'].includes(form.categoryId)
+  const usesParcelTypeDomesticShipping = form.domesticShippingMode === 'legacy_boxnow'
   const isAuctionFormat = form.saleFormat === auctionLabel
   const isTradeFormat = form.saleFormat === tradeLabel
   const isLootLot = form.categoryId === 'cards' && form.cardBundleMode === CARD_BUNDLE_MODES.lot
@@ -595,19 +618,30 @@ function CreateListingPage() {
   const lotPreviewCards = form.lotNamedCards
   const lotThemes = form.lotThemeTags
   const domesticShipping = getDomesticShippingProfileFromOptions(listingCommonOptions, form.categoryId)
-  const domesticParcelType = normalizeParcelType(
-    form.domesticParcelType ?? domesticShipping.defaultParcelType,
-    domesticShipping.defaultParcelType ?? DEFAULT_DOMESTIC_SHIPPING.defaultParcelType,
-  )
+  const domesticParcelType = usesParcelTypeDomesticShipping
+    ? normalizeParcelType(
+        form.domesticParcelType ?? 'small',
+        form.domesticParcelType ?? 'small',
+      )
+    : ''
   const parcelTypeOptions = getParcelTypeOptions(locale)
-  const selectedParcelDimensions = getParcelDimensionsCm(domesticParcelType)
+  const selectedParcelDimensions = usesParcelTypeDomesticShipping ? getParcelDimensionsCm(domesticParcelType) : null
   const domesticShippingFee = resolveDomesticShippingFee({
     categoryId: form.categoryId,
+    domesticShippingFee: form.domesticShippingFee,
     domesticParcelType,
   })
-  const cyprusShippingFee = resolveCyprusShippingFee({
-    categoryId: form.categoryId,
-    domesticParcelType,
+  const cyprusShippingFee = usesParcelTypeDomesticShipping
+    ? resolveCyprusShippingFee({
+        categoryId: form.categoryId,
+        domesticParcelType,
+      })
+    : 0
+  const packageDetails = normalizePackageDetails({
+    packageWeightKg: form.packageWeightKg,
+    packageLengthCm: form.packageLengthCm,
+    packageWidthCm: form.packageWidthCm,
+    packageHeightCm: form.packageHeightCm,
   })
   const packagingOptions = getPackagingOptionsForCategory(listingCommonOptions, form.categoryId)
   const photoChecklist = getPhotoChecklistForCategory(listingCommonOptions, form.categoryId)
@@ -739,14 +773,7 @@ function CreateListingPage() {
   const handleCategoryChange = (categoryId) => {
     const nextDefaults = getTemplateDefaults(listingCategoryTemplates, categoryId)
     const nextDomesticShipping = getDomesticShippingProfileFromOptions(listingCommonOptions, categoryId)
-    const nextDomesticParcelType = normalizeParcelType(
-      nextDomesticShipping.defaultParcelType,
-      DEFAULT_DOMESTIC_SHIPPING.defaultParcelType,
-    )
-    const nextDomesticShippingFee = resolveDomesticShippingFee({
-      categoryId,
-      domesticParcelType: nextDomesticParcelType,
-    })
+    const nextPackageDefaults = nextDomesticShipping.packageDefaults ?? DEFAULT_DOMESTIC_SHIPPING.packageDefaults
     const nextPackagingOptions = getPackagingOptionsForCategory(listingCommonOptions, categoryId)
     setForm((previous) => ({
       ...previous,
@@ -770,12 +797,20 @@ function CreateListingPage() {
       lotIndividualCardTitleDraft: categoryId === 'cards' ? previous.lotIndividualCardTitleDraft : '',
       lotIndividualCardPriceDraft: categoryId === 'cards' ? previous.lotIndividualCardPriceDraft : '',
       lotThemeDraft: categoryId === 'cards' ? previous.lotThemeDraft : '',
-      shippingCost: nextDomesticShippingFee,
-      shippingMethods: [nextDomesticShipping.carrier ?? DEFAULT_DOMESTIC_SHIPPING.carrier, ...(previous.shipInternational ? [previous.internationalCarrier || internationalShipping.carrier || 'DHL Express'] : [])],
+      shippingCost: 0,
+      shippingMethods: [
+        nextDomesticShipping.carrier ?? DEFAULT_DOMESTIC_SHIPPING.carrier,
+        ...(previous.shipInternational ? [previous.internationalCarrier || internationalShipping.carrier || 'DHL Express'] : []),
+      ].filter((value, index, items) => value && items.indexOf(value) === index),
       packaging: nextPackagingOptions[0] ?? previous.packaging ?? '',
       domesticShippingCarrier: nextDomesticShipping.carrier ?? DEFAULT_DOMESTIC_SHIPPING.carrier,
-      domesticShippingFee: nextDomesticShippingFee,
-      domesticParcelType: nextDomesticParcelType,
+      domesticShippingMode: 'dhl_manual',
+      domesticShippingFee: '',
+      domesticParcelType: '',
+      packageWeightKg: String(nextPackageDefaults?.weightKg ?? 0.5),
+      packageLengthCm: String(nextPackageDefaults?.lengthCm ?? 20),
+      packageWidthCm: String(nextPackageDefaults?.widthCm ?? 15),
+      packageHeightCm: String(nextPackageDefaults?.heightCm ?? 8),
       internationalCarrier: previous.internationalCarrier || internationalShipping.carrier || 'DHL Express',
       internationalRates: Object.fromEntries((internationalShipping.zones ?? []).map((zone) => [zone.key, previous.internationalRates?.[zone.key] ?? ''])),
     }))
@@ -830,9 +865,9 @@ function CreateListingPage() {
       ...previous,
       shipInternational: enabled,
       shippingMethods: [
-        previous.domesticShippingCarrier || domesticShipping.carrier || 'BoxNow',
+        previous.domesticShippingCarrier || domesticShipping.carrier || 'DHL Express',
         ...(enabled ? [previous.internationalCarrier || internationalShipping.carrier || 'DHL Express'] : []),
-      ],
+      ].filter((value, index, items) => value && items.indexOf(value) === index),
       internationalRates: Object.fromEntries(
         (internationalShipping.zones ?? []).map((zone) => [
           zone.key,
@@ -924,7 +959,9 @@ function CreateListingPage() {
   const existingMediaCount = Array.isArray(form.uploadedMedia) ? form.uploadedMedia.length : 0
   const totalMediaCount = existingMediaCount + form.mediaFiles.length
   const baseListingPrice = parseAmountInput(isAuctionFormat ? form.startingBid : form.price)
-  const effectivePreviewPrice = roundMoney(baseListingPrice + domesticShippingFee)
+  const effectivePreviewPrice = usesParcelTypeDomesticShipping
+    ? roundMoney(baseListingPrice + domesticShippingFee)
+    : roundMoney(baseListingPrice)
 
   const preview = {
     title: form.title || (isLootLot ? t('New card lot listing', 'New card lot listing') : isAuctionFormat ? t('New auction listing', 'New auction listing') : isTradeFormat ? t('New trade listing', 'New trade listing') : t('New listing', 'New listing')),
@@ -1011,7 +1048,7 @@ function CreateListingPage() {
       if (usesParcelTypeDomesticShipping) {
         const normalizedParcelType = normalizeParcelType(
           form.domesticParcelType,
-          domesticShipping.defaultParcelType ?? DEFAULT_DOMESTIC_SHIPPING.defaultParcelType,
+          'small',
         )
 
         if (!BOXNOW_PARCEL_TYPES.includes(normalizedParcelType)) {
@@ -1019,6 +1056,29 @@ function CreateListingPage() {
             t(
               'Επίλεξε έγκυρο τύπο δέματος ώστε να υπολογιστούν σωστά τα μεταφορικά.',
               'Select a valid parcel type so shipping can be calculated correctly.',
+            ),
+          ), false
+        }
+      } else {
+        if (!domesticShippingFee || domesticShippingFee <= 0) {
+          return setStepError(
+            t(
+              'Όρισε έγκυρη DHL χρέωση για την εγχώρια αποστολή.',
+              'Set a valid DHL fee for domestic shipping.',
+            ),
+          ), false
+        }
+
+        if (
+          packageDetails.weightKg <= 0 ||
+          packageDetails.lengthCm <= 0 ||
+          packageDetails.widthCm <= 0 ||
+          packageDetails.heightCm <= 0
+        ) {
+          return setStepError(
+            t(
+              'Συμπλήρωσε σωστά βάρος και διαστάσεις δέματος για το DHL label.',
+              'Enter valid parcel weight and dimensions for the DHL label.',
             ),
           ), false
         }
@@ -1273,7 +1333,7 @@ function CreateListingPage() {
           ? t('Δηλωμένη αξία trade (με μεταφορικά τύπου δέματος)', 'Declared trade value (with parcel shipping)')
         : usesParcelTypeDomesticShipping
           ? t('Τελική τιμή (με μεταφορικά τύπου δέματος)', 'Final price (with parcel shipping)')
-          : t('Final price (with BoxNow)', 'Final price (with BoxNow)'),
+          : t('Τιμή προϊόντος', 'Item price'),
       formatCurrency(effectivePreviewPrice),
     ],
     ...(activeFranchiseGroups.length
@@ -1302,7 +1362,12 @@ function CreateListingPage() {
               `BoxNow domestic + DHL international (${(internationalShipping.zones ?? []).length} zones)`,
               `BoxNow domestic + DHL international (${(internationalShipping.zones ?? []).length} zones)`,
             )
-          : t('Greece only with BoxNow', 'Greece only with BoxNow'),
+          : form.shipInternational
+            ? t(
+                `DHL Express domestic + DHL international (${(internationalShipping.zones ?? []).length} zones)`,
+                `DHL Express domestic + DHL international (${(internationalShipping.zones ?? []).length} zones)`,
+              )
+            : t('Greece only with DHL Express', 'Greece only with DHL Express'),
     ],
     [t('Photos', 'Photos'), `${form.mediaFiles.length} ${t('files ready to upload', 'files ready to upload')}`],
   ]
@@ -1318,6 +1383,15 @@ function CreateListingPage() {
           ? formatCurrency(cyprusShippingFee)
           : t('DHL fallback', 'DHL fallback')
       }`,
+    ])
+  } else {
+    reviewRows.push([
+      t('DHL domestic fee', 'DHL domestic fee'),
+      formatCurrency(domesticShippingFee),
+    ])
+    reviewRows.push([
+      t('Package specs', 'Package specs'),
+      `${packageDetails.weightKg}kg • ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm`,
     ])
   }
   if (isLootLot) reviewRows.push([t('Lot summary', 'Lot summary'), `${Number(form.lotCardCount || 0)} / ${Number(form.lotGuaranteedHits || 0)}`])
@@ -2045,7 +2119,7 @@ function CreateListingPage() {
                                   'domesticParcelType',
                                   normalizeParcelType(
                                     event.target.value,
-                                    domesticShipping.defaultParcelType ?? DEFAULT_DOMESTIC_SHIPPING.defaultParcelType,
+                                    'small',
                                   ),
                                 )
                               }
@@ -2106,24 +2180,95 @@ function CreateListingPage() {
                         ) : null}
                       </>
                     ) : (
-                      <div className="mt-4 grid gap-5 md:grid-cols-4">
-                        <div>
-                          <label className="mb-2 block text-sm text-emerald-50">{t('Carrier', 'Carrier')}</label>
-                          <Input value={form.domesticShippingCarrier} disabled />
+                      <>
+                        <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+                          <div>
+                            <label className="mb-2 block text-sm text-emerald-50">{t('Carrier', 'Carrier')}</label>
+                            <Input value={form.domesticShippingCarrier} disabled />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm text-emerald-50">{t('DHL domestic fee', 'DHL domestic fee')}</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={form.domesticShippingFee}
+                              onChange={(event) => updateForm('domesticShippingFee', event.target.value)}
+                              placeholder={t('e.g. 4.50', 'e.g. 4.50')}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm text-emerald-50">{t('Item price', 'Item price')}</label>
+                            <Input value={formatCurrency(baseListingPrice)} disabled />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm text-emerald-50">{t('Buyer pays at checkout', 'Buyer pays at checkout')}</label>
+                            <Input value={formatCurrency(roundMoney(baseListingPrice + domesticShippingFee))} disabled />
+                          </div>
                         </div>
-                        <div>
-                          <label className="mb-2 block text-sm text-emerald-50">{t('Item price', 'Item price')}</label>
-                          <Input value={formatCurrency(baseListingPrice)} disabled />
+
+                        <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+                          <div>
+                            <label className="mb-2 block text-sm text-emerald-50">{t('Weight (kg)', 'Weight (kg)')}</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={form.packageWeightKg}
+                              onChange={(event) => updateForm('packageWeightKg', event.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm text-emerald-50">{t('Length (cm)', 'Length (cm)')}</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={form.packageLengthCm}
+                              onChange={(event) => updateForm('packageLengthCm', event.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm text-emerald-50">{t('Width (cm)', 'Width (cm)')}</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={form.packageWidthCm}
+                              onChange={(event) => updateForm('packageWidthCm', event.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm text-emerald-50">{t('Height (cm)', 'Height (cm)')}</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={form.packageHeightCm}
+                              onChange={(event) => updateForm('packageHeightCm', event.target.value)}
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="mb-2 block text-sm text-emerald-50">{t('Automatic BoxNow fee', 'Automatic BoxNow fee')}</label>
-                          <Input value={formatCurrency(domesticShippingFee)} disabled />
+
+                        <div className="mt-4 grid gap-4 md:grid-cols-3">
+                          <div className="rounded-[18px] border border-white/10 bg-black/10 px-4 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{t('DHL fee', 'DHL fee')}</p>
+                            <p className="mt-2 text-base font-semibold text-white">{formatCurrency(domesticShippingFee)}</p>
+                          </div>
+                          <div className="rounded-[18px] border border-white/10 bg-black/10 px-4 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{t('Package specs', 'Package specs')}</p>
+                            <p className="mt-2 text-base font-semibold text-white">
+                              {packageDetails.weightKg}kg • {packageDetails.lengthCm}x{packageDetails.widthCm}x{packageDetails.heightCm}cm
+                            </p>
+                          </div>
+                          <div className="rounded-[18px] border border-gold-300/20 bg-gold-300/10 px-4 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.24em] text-gold-50">{t('Checkout total preview', 'Checkout total preview')}</p>
+                            <p className="mt-2 text-base font-semibold text-white">
+                              {formatCurrency(roundMoney(baseListingPrice + domesticShippingFee))}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <label className="mb-2 block text-sm text-emerald-50">{t('Final price (item + BoxNow)', 'Final price (item + BoxNow)')}</label>
-                          <Input value={formatCurrency(effectivePreviewPrice)} disabled />
-                        </div>
-                      </div>
+                      </>
                     )}
                   </div>
 

@@ -21,7 +21,7 @@ class OrderReleaseController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Order confirmed and seller funds released.',
+            'message' => 'Delivery confirmed and seller funds released.',
             'data' => new OrderResource($releasedOrder->load(['items', 'buyer', 'seller', 'escrowTransaction'])),
         ]);
     }

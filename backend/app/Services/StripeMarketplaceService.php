@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Enums\OrderStatus;
+use App\Jobs\CreateBoxNowShipmentForOrderJob;
+use App\Jobs\CreateDhlShipmentForOrderJob;
 use App\Mail\MarketplaceEventMail;
 use App\Models\Order;
 use App\Models\SellerPayoutAccount;
@@ -125,6 +127,12 @@ class StripeMarketplaceService
         $this->ledgerService->recordPaymentCaptured($paidOrder);
         $this->platformBalanceService->syncHeldFundsReserve();
 
+        match ((string) $paidOrder->shipping_carrier) {
+            'dhl_express' => CreateDhlShipmentForOrderJob::dispatch($paidOrder->getKey()),
+            'boxnow' => CreateBoxNowShipmentForOrderJob::dispatch($paidOrder->getKey()),
+            default => null,
+        };
+
         return $paidOrder->fresh(['items', 'buyer', 'seller', 'escrowTransaction']);
     }
 
@@ -140,6 +148,16 @@ class StripeMarketplaceService
         if (! $order->isPaidPendingRelease()) {
             throw ValidationException::withMessages([
                 'order' => ['Only paid orders pending release can be released to the seller.'],
+            ]);
+        }
+
+        if (
+            empty($context['manual_release'])
+            && empty($context['force_release'])
+            && ! $order->delivered_at
+        ) {
+            throw ValidationException::withMessages([
+                'order' => ['Funds can be released only after DHL confirms delivery.'],
             ]);
         }
 

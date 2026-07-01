@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\PublicProfileController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SellerBalanceController;
 use App\Http\Controllers\Api\SellerStripeAccountController;
+use App\Http\Controllers\Api\ShippingPickupPointController;
 use App\Http\Controllers\Api\StripeCheckoutController;
 use App\Http\Controllers\Api\StripeWebhookController;
 use App\Http\Controllers\Api\SupportTicketController;
@@ -143,6 +144,8 @@ Route::middleware(['auth:sanctum', 'set.locale'])->group(function (): void {
         Route::delete('/{order}', [OrderController::class, 'destroy']);
         Route::post('/{order}/confirm-received', [OrderReleaseController::class, 'confirmReceived']);
     });
+
+    Route::get('/shipping/pickup-points', [ShippingPickupPointController::class, 'index']);
 
     Route::post('/checkout/session', [StripeCheckoutController::class, 'store']);
     Route::post('/featured-listings/checkout', [FeaturedListingPaymentController::class, 'startCheckout']);

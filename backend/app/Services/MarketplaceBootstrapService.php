@@ -249,7 +249,8 @@ class MarketplaceBootstrapService
             'name' => $user->name,
             'displayName' => $user->display_name ?: $user->handle ?: $user->name,
             'handle' => $user->handle,
-            'email' => $user->email,            'city' => $user->city,
+            'email' => $user->email,
+            'city' => $user->city,
             'bio' => $this->localizedMetadataText($metadata, $locale, 'bio', $user->bio),
             'avatar' => $this->resolveAvatarPalette($user),
             'favoriteCategories' => collect($favoriteCategoryKeys)
@@ -317,6 +318,8 @@ class MarketplaceBootstrapService
             'minimumOffer' => $listing->minimum_offer ? (float) $listing->minimum_offer : null,
             'acceptOffers' => (bool) $listing->accept_offers,
             'shippingCost' => (float) ($listing->shipping_cost ?? 0),
+            'shippingProfile' => $listing->shipping_profile,
+            'deliveryCarrier' => $this->resolveListingCarrier($listing),
             'stock' => (int) ($listing->available_quantity ?? $listing->quantity ?? 0),
             'availability' => $this->localizedAvailability($listing->availability, $locale),
             'sellerId' => (int) $listing->seller_id,
@@ -644,7 +647,7 @@ class MarketplaceBootstrapService
                     ?: $primaryItem?->drawCampaign?->prize_title
                     ?: $primaryItem?->drawCampaign?->title;
                 $primaryType = $primaryItem?->draw_campaign_id ? 'draw_entry' : 'listing';
-                $trackingNumber = $order->tracking_number;
+                $trackingNumber = $order->shipment_tracking_number ?: $order->tracking_number;
                 $isBuyer = $authUser->getKey() === (int) $order->buyer_id;
                 $isSeller = $authUser->getKey() === (int) $order->seller_id;
                 $role = $isBuyer ? 'buyer' : ($isSeller ? 'seller' : 'viewer');
@@ -669,29 +672,48 @@ class MarketplaceBootstrapService
                     'status' => $this->localizedOrderStatus($order->status, $locale),
                     'escrowStatusKey' => $order->escrow_status,
                     'escrowStatus' => $this->localizedEscrowStatus($order->escrow_status, $locale),
+                    'shippingCarrier' => $order->shipping_carrier,
+                    'shippingService' => $order->shipping_service,
+                    'shipmentStatus' => $order->shipment_status,
                     'tracking' => $trackingNumber ?: ($locale === 'en' ? 'Will be added by the seller' : 'ÃƒÆ’Ã…Â½Ãƒâ€¹Ã…â€œÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â± ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚ÂÃƒâ€šÃ‚ÂÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã‚ÂÃƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚ÂµÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚ÂµÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¯ ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â±ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚ÂÃƒâ€¦Ã¢â‚¬â„¢ ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â½ ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â»ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â·ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â®'),
                     'trackingNumber' => $trackingNumber,
                     'orderedAt' => optional($order->placed_at ?: $order->created_at)->toIso8601String(),
-                    'shippedAt' => data_get($order->metadata, 'shipped_at'),
+                    'shippedAt' => optional($order->shipped_at)->toIso8601String(),
+                    'deliveredAt' => optional($order->delivered_at)->toIso8601String(),
                     'buyerConfirmedAt' => optional($order->buyer_confirmed_at)->toIso8601String(),
                     'autoReleaseAt' => optional($order->auto_release_at)->toIso8601String(),
                     'releasedAt' => optional($order->released_at)->toIso8601String(),
-                    'canConfirmReceived' => $isBuyer && $order->status === 'paid_pending_release',
-                    'canMarkShipped' => $isSeller
+                    'canConfirmReceived' => $isBuyer
                         && $order->status === 'paid_pending_release'
-                        && $primaryType === 'listing'
-                        && blank($trackingNumber),
+                        && $order->delivered_at !== null,
+                    'canMarkShipped' => false,
                     'payoutEta' => $locale === 'en'
                         ? 'Released after buyer confirmation'
                         : 'ÃƒÆ’Ã…Â½ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â´ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚ÂµÃƒÆ’Ã‚ÂÃƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¼ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚ÂµÃƒÆ’Ã‚ÂÃƒâ€šÃ‚ÂÃƒÆ’Ã…Â½Ãƒâ€šÃ‚ÂµÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â±ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¹ ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¼ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚ÂµÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¬ ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â·ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â½ ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚ÂµÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¹ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â²ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚ÂµÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â²ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â±ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°ÃƒÆ’Ã‚ÂÃƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â· ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â±ÃƒÆ’Ã‚ÂÃƒâ€šÃ‚ÂÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â±ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â»ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â±ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â²ÃƒÆ’Ã…Â½Ãƒâ€šÃ‚Â®ÃƒÆ’Ã‚ÂÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡',
                     'role' => $role,
                     'workflow' => $this->orderWorkflowSummary($order, $locale, $role),
                     'paymentMethod' => $order->payment_method,
-                    'shippingAddress' => $order->shipping_address,
                 ];
             })
             ->values()
             ->all();
+    }
+
+    protected function resolveListingCarrier(Listing $listing): ?string
+    {
+        $shippingProfile = (string) ($listing->shipping_profile ?? '');
+        $shippingMethods = collect($listing->shipping_methods ?? [])
+            ->map(fn ($method) => Str::lower((string) $method));
+
+        if (Str::startsWith($shippingProfile, 'dhl_') || $shippingMethods->contains('dhl express')) {
+            return 'dhl_express';
+        }
+
+        if (Str::startsWith($shippingProfile, 'boxnow_') || $shippingMethods->contains('boxnow')) {
+            return 'boxnow';
+        }
+
+        return null;
     }
 
     protected function orderWorkflowSummary(Order $order, string $locale, string $role): array

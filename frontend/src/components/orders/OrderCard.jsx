@@ -2,7 +2,6 @@ import {
   CheckCircle2,
   CreditCard,
   MessageCircle,
-  PackageCheck,
   Shield,
   Star,
   Truck,
@@ -13,7 +12,6 @@ import OrderReviewComposer from '@/components/orders/OrderReviewComposer'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
-import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
@@ -29,6 +27,7 @@ const stageToneMap = {
   needs_shipping: 'warning',
   awaiting_confirmation: 'warning',
   waiting_for_seller: 'info',
+  in_transit: 'info',
   awaiting_buyer_confirmation: 'info',
   pending_payment: 'muted',
   cancelled: 'muted',
@@ -43,20 +42,17 @@ function OrderCard({ order }) {
     users,
     conversations,
     confirmOrderReceived,
-    updateOrder,
     startConversationForOrder,
     getMyReviewForOrder,
     saveOrderReview,
   } = useMarketplace()
   const [isConfirming, setIsConfirming] = useState(false)
-  const [isSavingTracking, setIsSavingTracking] = useState(false)
   const [isMessaging, setIsMessaging] = useState(false)
   const [isReviewOpen, setIsReviewOpen] = useState(false)
   const [isReviewBusy, setIsReviewBusy] = useState(false)
   const [isReviewLoading, setIsReviewLoading] = useState(false)
   const [hasLoadedReview, setHasLoadedReview] = useState(false)
   const [existingReview, setExistingReview] = useState(null)
-  const [trackingNumber, setTrackingNumber] = useState(order?.trackingNumber ?? '')
   const [feedback, setFeedback] = useState('')
   const [feedbackTone, setFeedbackTone] = useState('info')
 
@@ -88,17 +84,16 @@ function OrderCard({ order }) {
               held: 'Held for seller',
               sellerReceives: 'Seller release amount',
               autoRelease: 'Auto-release',
-              tracking: 'Tracking',
               buyer: 'Buyer',
               seller: 'Seller',
-              placeTracking: 'Add tracking and mark as shipped',
-              saveTracking: 'Save tracking',
-              savingTracking: 'Saving...',
-              trackingPlaceholder: 'e.g. BOXNOW-123456 or DHL-123456',
+              carrier: 'Carrier',
+              tracking: 'Tracking',
+              shipmentStatus: 'Shipment status',
+              deliveredAt: 'Delivered',
               confirmReceived: 'Confirm received',
               confirming: 'Releasing funds...',
               releaseNote:
-                'Cardora keeps the protected amount on hold until buyer confirmation or the automatic release window.',
+                'Cardora keeps the protected amount on hold until DHL delivery is confirmed and the buyer approves the order, or until the 2-day protection window ends.',
               releasedNote:
                 'The protected amount has already been released to the seller Stripe account.',
               shippedAt: 'Shipped',
@@ -115,7 +110,6 @@ function OrderCard({ order }) {
                   : 'The order is complete. Leave a quick review for the seller.',
               reviewReady: 'Your review is already saved for this order.',
               receiptConfirmed: 'Receipt confirmed. Funds were released.',
-              trackingSaved: 'Tracking saved. The buyer can now follow the order.',
               done: 'Done',
               current: 'Current',
               waiting: 'Waiting',
@@ -127,18 +121,17 @@ function OrderCard({ order }) {
               total: 'Συνολικό πληρωτέο',
               held: 'Σε hold για τον πωλητή',
               sellerReceives: 'Ποσό αποδέσμευσης πωλητή',
-              autoRelease: 'Αυτόματη αποδέσμευση',
-              tracking: 'Tracking',
+              autoRelease: 'Αυτόματο release',
               buyer: 'Αγοραστής',
               seller: 'Πωλητής',
-              placeTracking: 'Πρόσθεσε tracking και σήμανε ότι στάλθηκε',
-              saveTracking: 'Αποθήκευση tracking',
-              savingTracking: 'Αποθήκευση...',
-              trackingPlaceholder: 'π.χ. BOXNOW-123456 ή DHL-123456',
+              carrier: 'Courier',
+              tracking: 'Tracking',
+              shipmentStatus: 'Κατάσταση αποστολής',
+              deliveredAt: 'Παραδόθηκε',
               confirmReceived: 'Επιβεβαίωση παραλαβής',
               confirming: 'Γίνεται αποδέσμευση...',
               releaseNote:
-                'Η Cardora κρατά το προστατευμένο ποσό σε hold μέχρι να επιβεβαιώσει ο αγοραστής ή να λήξει το αυτόματο παράθυρο αποδέσμευσης.',
+                'Η Cardora κρατά το προστατευμένο ποσό σε hold μέχρι να επιβεβαιωθεί η παράδοση από τη DHL και να εγκρίνει ο αγοραστής, ή μέχρι να λήξει το 2ήμερο παράθυρο προστασίας.',
               releasedNote:
                 'Το προστατευμένο ποσό έχει ήδη αποδεσμευτεί προς το Stripe account του πωλητή.',
               shippedAt: 'Στάλθηκε',
@@ -155,7 +148,6 @@ function OrderCard({ order }) {
                   : 'Η παραγγελία ολοκληρώθηκε. Άφησε μια σύντομη αξιολόγηση για τον πωλητή.',
               reviewReady: 'Η αξιολόγησή σου έχει ήδη αποθηκευτεί για αυτή την παραγγελία.',
               receiptConfirmed: 'Η παραλαβή επιβεβαιώθηκε και τα χρήματα αποδεσμεύτηκαν.',
-              trackingSaved: 'Το tracking αποθηκεύτηκε. Ο αγοραστής μπορεί πλέον να δει ότι η παραγγελία στάλθηκε.',
               done: 'Έτοιμο',
               current: 'Τώρα',
               waiting: 'Αναμονή',
@@ -180,28 +172,6 @@ function OrderCard({ order }) {
       setFeedback(error.message)
     } finally {
       setIsConfirming(false)
-    }
-  }
-
-  const handleSaveTracking = async () => {
-    if (!order?.databaseId || isSavingTracking || !trackingNumber.trim()) return
-
-    try {
-      setIsSavingTracking(true)
-      setFeedback('')
-      await updateOrder(order.databaseId, {
-        tracking_number: trackingNumber.trim(),
-        metadata: {
-          shipped_at: new Date().toISOString(),
-        },
-      })
-      setFeedbackTone('success')
-      setFeedback(copy.trackingSaved)
-    } catch (error) {
-      setFeedbackTone('danger')
-      setFeedback(error.message)
-    } finally {
-      setIsSavingTracking(false)
     }
   }
 
@@ -270,9 +240,8 @@ function OrderCard({ order }) {
           <h3 className="mt-2 text-2xl font-semibold text-white">{order.title ?? order.id}</h3>
           <p className="mt-2 text-sm text-mist">
             {copy.placedAt} {formatDate(order.orderedAt)}
-            {order.shippedAt
-              ? `${copy.timelineSeparator}${copy.shippedAt} ${formatDate(order.shippedAt)}`
-              : ''}
+            {order.shippedAt ? `${copy.timelineSeparator}${copy.shippedAt} ${formatDate(order.shippedAt)}` : ''}
+            {order.deliveredAt ? `${copy.timelineSeparator}${copy.deliveredAt} ${formatDate(order.deliveredAt)}` : ''}
           </p>
         </div>
 
@@ -337,7 +306,7 @@ function OrderCard({ order }) {
         <p className="mt-4 text-sm leading-7 text-mist">{stage.summary}</p>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.25fr,0.75fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
         <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-white">
             <Shield className="h-4 w-4 text-gold-100" />
@@ -353,9 +322,32 @@ function OrderCard({ order }) {
             <Truck className="h-4 w-4 text-gold-100" />
             {copy.tracking}
           </div>
-          <p className="mt-3 text-sm font-semibold text-white">
-            {order.trackingNumber || copy.emptyValue}
-          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{copy.carrier}</p>
+              <p className="mt-2 text-sm font-semibold text-white">
+                {order.shippingCarrier || 'DHL Express'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{copy.tracking}</p>
+              <p className="mt-2 break-all text-sm font-semibold text-white">
+                {order.trackingNumber || copy.emptyValue}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{copy.shipmentStatus}</p>
+              <p className="mt-2 text-sm font-semibold text-white">
+                {order.shipmentStatus || copy.emptyValue}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{copy.deliveredAt}</p>
+              <p className="mt-2 text-sm font-semibold text-white">
+                {order.deliveredAt ? formatDate(order.deliveredAt) : copy.emptyValue}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -417,29 +409,6 @@ function OrderCard({ order }) {
           }`}
         >
           {feedback}
-        </div>
-      ) : null}
-
-      {role === 'seller' && order.canMarkShipped ? (
-        <div className="rounded-2xl border border-gold-300/15 bg-gold-300/10 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-gold-50">
-            <PackageCheck className="h-4 w-4 text-gold-100" />
-            {copy.placeTracking}
-          </div>
-          <div className="mt-4 flex flex-col gap-3 md:flex-row">
-            <Input
-              value={trackingNumber}
-              onChange={(event) => setTrackingNumber(event.target.value)}
-              placeholder={copy.trackingPlaceholder}
-              className="md:flex-1"
-            />
-            <Button
-              onClick={handleSaveTracking}
-              disabled={isSavingTracking || !trackingNumber.trim()}
-            >
-              {isSavingTracking ? copy.savingTracking : copy.saveTracking}
-            </Button>
-          </div>
         </div>
       ) : null}
 

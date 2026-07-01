@@ -20,15 +20,27 @@ export const BOXNOW_PARCEL_RATES = Object.freeze({
   }),
 })
 
-export const DEFAULT_DOMESTIC_SHIPPING = Object.freeze({
+export const DEFAULT_PACKAGE_DETAILS = Object.freeze({
+  weightKg: 0.5,
+  lengthCm: 20,
+  widthCm: 15,
+  heightCm: 8,
+})
+
+export const DHL_DOMESTIC_SHIPPING = Object.freeze({
+  calculation: 'manual_rate',
+  carrier: 'DHL Express',
+  defaultFee: 0,
+  packageDefaults: DEFAULT_PACKAGE_DETAILS,
+})
+
+export const DEFAULT_DOMESTIC_SHIPPING = DHL_DOMESTIC_SHIPPING
+
+export const PARCEL_TYPE_DOMESTIC_SHIPPING = Object.freeze({
   calculation: 'parcel_type',
   carrier: 'BoxNow',
   defaultParcelType: 'small',
   supportedParcelTypes: BOXNOW_PARCEL_TYPES,
-})
-
-export const PARCEL_TYPE_DOMESTIC_SHIPPING = Object.freeze({
-  ...DEFAULT_DOMESTIC_SHIPPING,
 })
 
 export const parseAmountInput = (value) => {
@@ -48,12 +60,12 @@ export const parseAmountInput = (value) => {
 export const roundMoney = (value) =>
   Math.round((Number(value ?? 0) + Number.EPSILON) * 100) / 100
 
-export const getDomesticShippingConfig = (categoryId = 'cards') =>
-  ['cards', 'figures', 'comics', 'misc'].includes(categoryId)
-    ? PARCEL_TYPE_DOMESTIC_SHIPPING
-    : DEFAULT_DOMESTIC_SHIPPING
+export const getDomesticShippingConfig = () => DEFAULT_DOMESTIC_SHIPPING
 
-export const normalizeParcelType = (value, fallback = DEFAULT_DOMESTIC_SHIPPING.defaultParcelType) => {
+export const normalizeParcelType = (
+  value,
+  fallback = PARCEL_TYPE_DOMESTIC_SHIPPING.defaultParcelType,
+) => {
   const normalized = String(value ?? '').trim().toLowerCase()
   if (BOXNOW_PARCEL_TYPES.includes(normalized)) {
     return normalized
@@ -80,24 +92,63 @@ export const resolveParcelRate = ({
   return Number.isFinite(parcelRate) ? roundMoney(parcelRate) : 0
 }
 
+const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== '')
+
 export const resolveDomesticShippingFee = (payload = {}) => {
-  const config = getDomesticShippingConfig(payload.categoryId)
-  const parcelType = normalizeParcelType(
-    payload.domesticParcelType ?? payload.parcelType ?? config.defaultParcelType,
-    config.defaultParcelType,
+  const explicitFee = firstDefined(
+    payload.domesticShippingFee,
+    payload.shippingCost,
+    payload.shipping_cost,
+    payload?.domestic?.fee,
   )
 
-  return resolveParcelRate({ parcelType, countryCode: 'GR' })
+  if (explicitFee !== undefined) {
+    return Math.max(0, roundMoney(parseAmountInput(explicitFee)))
+  }
+
+  const parcelType = firstDefined(payload.domesticParcelType, payload.parcelType, payload?.domestic?.parcel_type)
+  if (parcelType !== undefined) {
+    return resolveParcelRate({ parcelType, countryCode: 'GR' })
+  }
+
+  return 0
 }
 
 export const resolveCyprusShippingFee = (payload = {}) => {
-  const config = getDomesticShippingConfig(payload.categoryId)
-  const parcelType = normalizeParcelType(
-    payload.domesticParcelType ?? payload.parcelType ?? config.defaultParcelType,
-    config.defaultParcelType,
-  )
+  const parcelType = firstDefined(payload.domesticParcelType, payload.parcelType, payload?.domestic?.parcel_type)
+  if (parcelType === undefined) {
+    return 0
+  }
 
   return resolveParcelRate({ parcelType, countryCode: 'CY' })
+}
+
+const normalizePositiveNumber = (value, fallback) => {
+  const numericValue = parseAmountInput(value)
+  return numericValue > 0 ? numericValue : fallback
+}
+
+export const normalizePackageDetails = (payload = {}) => {
+  const packageDetails = payload.package ?? payload.packageDetails ?? payload.attributes?.shipping?.package ?? {}
+
+  return {
+    weightKg: normalizePositiveNumber(
+      firstDefined(packageDetails.weight_kg, packageDetails.weightKg, payload.packageWeightKg),
+      DEFAULT_PACKAGE_DETAILS.weightKg,
+    ),
+    lengthCm: normalizePositiveNumber(
+      firstDefined(packageDetails.length_cm, packageDetails.lengthCm, payload.packageLengthCm),
+      DEFAULT_PACKAGE_DETAILS.lengthCm,
+    ),
+    widthCm: normalizePositiveNumber(
+      firstDefined(packageDetails.width_cm, packageDetails.widthCm, payload.packageWidthCm),
+      DEFAULT_PACKAGE_DETAILS.widthCm,
+    ),
+    heightCm: normalizePositiveNumber(
+      firstDefined(packageDetails.height_cm, packageDetails.heightCm, payload.packageHeightCm),
+      DEFAULT_PACKAGE_DETAILS.heightCm,
+    ),
+  }
 }
 
 export const calculateLotSelectionDomesticShipping = (selectedCardsCount) => {

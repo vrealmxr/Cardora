@@ -17,6 +17,7 @@ class AutoReleaseOrders extends Command
     {
         $orders = Order::query()
             ->where('status', OrderStatus::PaidPendingRelease->value)
+            ->whereNotNull('delivered_at')
             ->whereNotNull('auto_release_at')
             ->where('auto_release_at', '<=', now())
             ->orderBy('auto_release_at')

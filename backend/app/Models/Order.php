@@ -33,11 +33,18 @@ class Order extends Model
         'seller_amount',
         'currency',
         'payment_method',
+        'shipping_carrier',
+        'shipping_service',
+        'shipment_status',
         'shipping_address',
         'billing_address',
         'tracking_number',
+        'shipment_tracking_number',
+        'shipment_reference',
         'notes',
         'placed_at',
+        'shipped_at',
+        'delivered_at',
         'completed_at',
         'disputed_at',
         'buyer_confirmed_at',
@@ -45,6 +52,11 @@ class Order extends Model
         'released_at',
         'cancelled_at',
         'refunded_at',
+        'shipment_last_event_code',
+        'shipment_last_event_description',
+        'shipment_last_event_at',
+        'shipment_synced_at',
+        'shipment_metadata',
         'metadata',
     ];
 
@@ -58,8 +70,11 @@ class Order extends Model
         'seller_amount' => 'decimal:2',
         'shipping_address' => 'array',
         'billing_address' => 'array',
+        'shipment_metadata' => 'array',
         'metadata' => 'array',
         'placed_at' => 'datetime',
+        'shipped_at' => 'datetime',
+        'delivered_at' => 'datetime',
         'completed_at' => 'datetime',
         'disputed_at' => 'datetime',
         'buyer_confirmed_at' => 'datetime',
@@ -67,6 +82,8 @@ class Order extends Model
         'released_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'refunded_at' => 'datetime',
+        'shipment_last_event_at' => 'datetime',
+        'shipment_synced_at' => 'datetime',
     ];
 
     public function product(): BelongsTo
@@ -127,5 +144,10 @@ class Order extends Model
     public function isReleased(): bool
     {
         return $this->status === OrderStatus::Released->value;
+    }
+
+    public function trackingNumber(): ?string
+    {
+        return $this->shipment_tracking_number ?: $this->tracking_number;
     }
 }
