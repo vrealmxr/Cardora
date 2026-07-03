@@ -55,6 +55,13 @@ export const cardoraService = {
   deleteOrder: async (orderId) => apiClient.delete(`/orders/${orderId}`),
   startCheckoutSession: async (payload) =>
     unwrapData(await apiClient.post('/checkout/session', payload)),
+  confirmCheckoutSession: async (sessionId, orderId = null) =>
+    unwrapData(
+      await apiClient.post('/checkout/session/confirm', {
+        session_id: sessionId,
+        ...(orderId ? { order_id: Number(orderId) } : {}),
+      }),
+    ),
   startFeaturedListingCheckout: async (payload) =>
     unwrapData(await apiClient.post('/featured-listings/checkout', payload ?? {})),
   confirmFeaturedListingPayment: async (sessionId, listingId = null) =>

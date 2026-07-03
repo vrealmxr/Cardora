@@ -1600,8 +1600,8 @@ export function getListingFormData(locale = 'el') {
         ...DEFAULT_DOMESTIC_SHIPPING,
         note: text(
           locale,
-          'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
-          'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
+          'Για αποστολές Ελλάδας δηλώνεις ακριβές βάρος και διαστάσεις και το DHL κόστος υπολογίζεται αυτόματα από τον τιμοκατάλογο.',
+          'For domestic shipments you enter exact weight and dimensions and the DHL cost is calculated automatically from the rate card.',
         ),
       },
       domesticShippingByCategory: {
@@ -1609,32 +1609,32 @@ export function getListingFormData(locale = 'el') {
           ...DEFAULT_DOMESTIC_SHIPPING,
           note: text(
             locale,
-            'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
-            'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
+            'Για αποστολές Ελλάδας δηλώνεις ακριβές βάρος και διαστάσεις και το DHL κόστος υπολογίζεται αυτόματα από τον τιμοκατάλογο.',
+            'For domestic shipments you enter exact weight and dimensions and the DHL cost is calculated automatically from the rate card.',
           ),
         },
         figures: {
           ...DEFAULT_DOMESTIC_SHIPPING,
           note: text(
             locale,
-            'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
-            'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
+            'Για αποστολές Ελλάδας δηλώνεις ακριβές βάρος και διαστάσεις και το DHL κόστος υπολογίζεται αυτόματα από τον τιμοκατάλογο.',
+            'For domestic shipments you enter exact weight and dimensions and the DHL cost is calculated automatically from the rate card.',
           ),
         },
         misc: {
           ...DEFAULT_DOMESTIC_SHIPPING,
           note: text(
             locale,
-            'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
-            'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
+            'Για αποστολές Ελλάδας δηλώνεις ακριβές βάρος και διαστάσεις και το DHL κόστος υπολογίζεται αυτόματα από τον τιμοκατάλογο.',
+            'For domestic shipments you enter exact weight and dimensions and the DHL cost is calculated automatically from the rate card.',
           ),
         },
         comics: {
           ...DEFAULT_DOMESTIC_SHIPPING,
           note: text(
             locale,
-            'Για αποστολές Ελλάδας ορίζεις DHL χρέωση και ακριβή στοιχεία δέματος (βάρος και διαστάσεις) ώστε να δημιουργείται σωστά το label.',
-            'For domestic shipments you set the DHL fee and the exact parcel specs (weight and dimensions) so the label can be created correctly.',
+            'Για αποστολές Ελλάδας δηλώνεις ακριβές βάρος και διαστάσεις και το DHL κόστος υπολογίζεται αυτόματα από τον τιμοκατάλογο.',
+            'For domestic shipments you enter exact weight and dimensions and the DHL cost is calculated automatically from the rate card.',
           ),
         },
       },

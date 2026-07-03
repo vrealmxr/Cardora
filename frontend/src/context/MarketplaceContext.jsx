@@ -11,6 +11,7 @@ import {
   normalizeParcelType,
   parseAmountInput,
   resolveCyprusShippingFee,
+  resolveDhlDomesticShippingFee,
   resolveDomesticShippingFee,
 } from '@/utils/listingShipping'
 
@@ -26,6 +27,10 @@ const initialState = {
   categories: [],
   users: [],
   products: [],
+  shippingSettings: {
+    dhl: { enabled: false },
+    boxnow: { enabled: false, listing_edit_enabled: false },
+  },
   orders: [],
   conversations: [],
   reviews: [],
@@ -1816,7 +1821,12 @@ export function MarketplaceProvider({ children }) {
           .map((item) => item.trim())
           .filter(Boolean)
 
-    const usesParcelTypeDomesticShipping = payload.domesticShippingMode === 'legacy_boxnow'
+    const enabledDomesticCarriers = Array.isArray(payload.enabledDomesticCarriers)
+      ? payload.enabledDomesticCarriers.filter(Boolean)
+      : []
+    const hasDhlDomesticCarrier = enabledDomesticCarriers.includes('DHL Express')
+    const hasBoxNowDomesticCarrier = enabledDomesticCarriers.includes('BoxNow')
+    const usesParcelTypeDomesticShipping = hasBoxNowDomesticCarrier
     const domesticShippingConfig = getDomesticShippingConfig(payload.categoryId)
     const domesticParcelType = usesParcelTypeDomesticShipping
       ? normalizeParcelType(
@@ -1824,10 +1834,22 @@ export function MarketplaceProvider({ children }) {
           payload.domesticParcelType ?? 'small',
         )
       : null
-    const domesticShippingFee = resolveDomesticShippingFee({
-      ...payload,
-      domesticParcelType,
-    })
+    const dhlDomesticShippingFee = hasDhlDomesticCarrier
+      ? resolveDhlDomesticShippingFee({
+          ...payload,
+        })
+      : 0
+    const boxNowDomesticShippingFee = hasBoxNowDomesticCarrier
+      ? resolveDomesticShippingFee({
+          ...payload,
+          domesticShippingMode: 'legacy_boxnow',
+          domesticShippingCarrier: 'BoxNow',
+          domesticParcelType,
+        })
+      : 0
+    const domesticShippingFee = hasDhlDomesticCarrier
+      ? dhlDomesticShippingFee
+      : boxNowDomesticShippingFee
     const cyprusShippingFee = usesParcelTypeDomesticShipping
       ? resolveCyprusShippingFee({
           ...payload,
@@ -1836,9 +1858,11 @@ export function MarketplaceProvider({ children }) {
       : 0
     const packageDetails = normalizePackageDetails(payload)
     const domesticShippingCarrier =
-      payload.domesticShippingCarrier ||
-      domesticShippingConfig.carrier ||
-      (usesParcelTypeDomesticShipping ? 'BoxNow' : 'DHL Express')
+      hasDhlDomesticCarrier
+        ? 'DHL Express'
+        : payload.domesticShippingCarrier ||
+          domesticShippingConfig.carrier ||
+          (usesParcelTypeDomesticShipping ? 'BoxNow' : 'DHL Express')
     const shipInternational = Boolean(payload.shipInternational)
     const internationalCarrier = payload.internationalCarrier || 'DHL Express'
     const internationalRates = Object.fromEntries(
@@ -1853,50 +1877,79 @@ export function MarketplaceProvider({ children }) {
     const resolveListingMoney = (value) => {
       const numericValue = parseAmountInput(value)
       if (!numericValue || numericValue < 0) return 0
-      return usesParcelTypeDomesticShipping ? numericValue + domesticShippingFee : numericValue
+      return usesParcelTypeDomesticShipping && !hasDhlDomesticCarrier ? numericValue + domesticShippingFee : numericValue
     }
 
-    const shippingSummaryEl = usesParcelTypeDomesticShipping
+    const shippingSummaryEl = hasDhlDomesticCarrier && hasBoxNowDomesticCarrier
       ? shipInternational
-        ? `Ελλάδα/Κύπρος: BoxNow ανά τύπο δέματος (${parcelRateSummary}). Εξωτερικό: DHL με κόστος ανά ζώνη.`
-        : `Ελλάδα/Κύπρος: BoxNow ανά τύπο δέματος (${parcelRateSummary}).`
-      : shipInternational
-        ? `Ελλάδα: DHL Express με χρέωση ${roundMoney(domesticShippingFee)}€, βάρος ${packageDetails.weightKg}kg και διαστάσεις ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm. Εξωτερικό: DHL με κόστος ανά ζώνη.`
-        : `Ελλάδα: DHL Express με χρέωση ${roundMoney(domesticShippingFee)}€, βάρος ${packageDetails.weightKg}kg και διαστάσεις ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm.`
-    const shippingSummaryEn = usesParcelTypeDomesticShipping
+        ? `Ελλάδα: DHL Express ${roundMoney(dhlDomesticShippingFee)}€ ή BoxNow (${parcelRateSummary}). Εξωτερικό: DHL με κόστος ανά ζώνη.`
+        : `Ελλάδα: DHL Express ${roundMoney(dhlDomesticShippingFee)}€ ή BoxNow (${parcelRateSummary}).`
+      : usesParcelTypeDomesticShipping
+        ? shipInternational
+          ? `Ελλάδα/Κύπρος: BoxNow ανά τύπο δέματος (${parcelRateSummary}). Εξωτερικό: DHL με κόστος ανά ζώνη.`
+          : `Ελλάδα/Κύπρος: BoxNow ανά τύπο δέματος (${parcelRateSummary}).`
+        : shipInternational
+          ? `Ελλάδα: DHL Express με χρέωση ${roundMoney(domesticShippingFee)}€, βάρος ${packageDetails.weightKg}kg και διαστάσεις ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm. Εξωτερικό: DHL με κόστος ανά ζώνη.`
+          : `Ελλάδα: DHL Express με χρέωση ${roundMoney(domesticShippingFee)}€, βάρος ${packageDetails.weightKg}kg και διαστάσεις ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm.`
+    const shippingSummaryEn = hasDhlDomesticCarrier && hasBoxNowDomesticCarrier
       ? shipInternational
-        ? `Greece/Cyprus: BoxNow parcel rates (${parcelRateSummary}). International: DHL with zone-based pricing.`
-        : `Greece/Cyprus: BoxNow parcel rates (${parcelRateSummary}).`
-      : shipInternational
-        ? `Domestic: DHL Express with a ${roundMoney(domesticShippingFee)}€ fee, ${packageDetails.weightKg}kg weight and ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm parcel size. International: DHL with zone-based pricing.`
-        : `Domestic: DHL Express with a ${roundMoney(domesticShippingFee)}€ fee, ${packageDetails.weightKg}kg weight and ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm parcel size.`
+        ? `Domestic Greece: DHL Express ${roundMoney(dhlDomesticShippingFee)}€ or BoxNow (${parcelRateSummary}). International: DHL with zone-based pricing.`
+        : `Domestic Greece: DHL Express ${roundMoney(dhlDomesticShippingFee)}€ or BoxNow (${parcelRateSummary}).`
+      : usesParcelTypeDomesticShipping
+        ? shipInternational
+          ? `Greece/Cyprus: BoxNow parcel rates (${parcelRateSummary}). International: DHL with zone-based pricing.`
+          : `Greece/Cyprus: BoxNow parcel rates (${parcelRateSummary}).`
+        : shipInternational
+          ? `Domestic: DHL Express with a ${roundMoney(domesticShippingFee)}€ fee, ${packageDetails.weightKg}kg weight and ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm parcel size. International: DHL with zone-based pricing.`
+          : `Domestic: DHL Express with a ${roundMoney(domesticShippingFee)}€ fee, ${packageDetails.weightKg}kg weight and ${packageDetails.lengthCm}x${packageDetails.widthCm}x${packageDetails.heightCm}cm parcel size.`
     const shippingInfoEl = [shippingSummaryEl, payload.shippingNotes].filter(Boolean).join(' ')
     const shippingInfoEn = [shippingSummaryEn, payload.shippingNotes].filter(Boolean).join(' ')
     const shippingProfile = shipInternational
-      ? usesParcelTypeDomesticShipping
-        ? 'boxnow_domestic_dhl_international'
-        : 'dhl_domestic_dhl_international'
-      : usesParcelTypeDomesticShipping
-        ? 'boxnow_domestic_only'
-        : 'dhl_domestic_only'
+      ? hasDhlDomesticCarrier
+        ? 'dhl_domestic_dhl_international'
+        : 'boxnow_domestic_dhl_international'
+      : hasDhlDomesticCarrier
+        ? 'dhl_domestic_only'
+        : 'boxnow_domestic_only'
     const shippingMethods = shipInternational
-      ? [...new Set([domesticShippingCarrier, internationalCarrier].filter(Boolean))]
-      : [domesticShippingCarrier]
+      ? [...new Set([...enabledDomesticCarriers, internationalCarrier].filter(Boolean))]
+      : [...new Set(enabledDomesticCarriers.length ? enabledDomesticCarriers : [domesticShippingCarrier])]
     const domesticShippingPayload = {
       carrier: domesticShippingCarrier,
       fee: domesticShippingFee,
-      included_in_price: usesParcelTypeDomesticShipping,
+      included_in_price: usesParcelTypeDomesticShipping && !hasDhlDomesticCarrier,
+      available_carriers: shippingMethods.filter((method) => method === 'DHL Express' || method === 'BoxNow'),
       package: {
         weight_kg: packageDetails.weightKg,
         length_cm: packageDetails.lengthCm,
         width_cm: packageDetails.widthCm,
         height_cm: packageDetails.heightCm,
       },
+      ...(hasDhlDomesticCarrier
+        ? {
+            dhl: {
+              fee: dhlDomesticShippingFee,
+              package: {
+                weight_kg: packageDetails.weightKg,
+                length_cm: packageDetails.lengthCm,
+                width_cm: packageDetails.widthCm,
+                height_cm: packageDetails.heightCm,
+              },
+            },
+          }
+        : {}),
       ...(usesParcelTypeDomesticShipping
         ? {
+            boxnow: {
+              parcel_type: domesticParcelType,
+              rates: {
+                gr: boxNowDomesticShippingFee,
+                cy: cyprusShippingFee,
+              },
+            },
             parcel_type: domesticParcelType,
             rates: {
-              gr: domesticShippingFee,
+              gr: boxNowDomesticShippingFee,
               cy: cyprusShippingFee,
             },
           }
@@ -2864,5 +2917,3 @@ export const useMarketplaceContext = () => {
 
   return context
 }
-
-

@@ -98,6 +98,8 @@ Route::middleware('set.locale')->group(function (): void {
     Route::prefix('profiles')->group(function (): void {
         Route::get('/{profile:handle}', [PublicProfileController::class, 'show']);
     });
+
+    Route::get('/shipping/pickup-points', [ShippingPickupPointController::class, 'index']);
 });
 
 Route::middleware(['auth:sanctum', 'set.locale'])->group(function (): void {
@@ -145,9 +147,8 @@ Route::middleware(['auth:sanctum', 'set.locale'])->group(function (): void {
         Route::post('/{order}/confirm-received', [OrderReleaseController::class, 'confirmReceived']);
     });
 
-    Route::get('/shipping/pickup-points', [ShippingPickupPointController::class, 'index']);
-
     Route::post('/checkout/session', [StripeCheckoutController::class, 'store']);
+    Route::post('/checkout/session/confirm', [StripeCheckoutController::class, 'confirm']);
     Route::post('/featured-listings/checkout', [FeaturedListingPaymentController::class, 'startCheckout']);
     Route::post('/featured-listings/confirm', [FeaturedListingPaymentController::class, 'confirm']);
 

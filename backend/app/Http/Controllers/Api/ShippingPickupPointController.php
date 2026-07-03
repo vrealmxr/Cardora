@@ -87,6 +87,11 @@ class ShippingPickupPointController extends Controller
                 'countryCode' => $validated['country_code'] ?? null,
                 'postalCode' => $validated['postal_code'] ?? null,
                 'addressLocality' => $validated['city'] ?? null,
+                'address' => trim(implode(' ', array_filter([
+                    $validated['postal_code'] ?? null,
+                    $validated['city'] ?? null,
+                    $validated['query'] ?? null,
+                ], fn ($value) => $value !== null && $value !== ''))),
                 'latitude' => $validated['latitude'] ?? null,
                 'longitude' => $validated['longitude'] ?? null,
             ], fn ($value) => $value !== null && $value !== ''));
@@ -151,7 +156,7 @@ class ShippingPickupPointController extends Controller
                 }
 
                 $address = data_get($point, 'addressLine1')
-                    ?? data_get($point, 'address')
+                    ?? data_get($point, 'address.addressLine1')
                     ?? data_get($point, 'street')
                     ?? data_get($point, 'address.streetAddress')
                     ?? data_get($point, 'place.address.streetAddress');
@@ -160,6 +165,8 @@ class ShippingPickupPointController extends Controller
                     'id' => (string) $id,
                     'name' => (string) (
                         data_get($point, 'name')
+                        ?? data_get($point, 'localName')
+                        ?? data_get($point, 'servicePointName')
                         ?? data_get($point, 'title')
                         ?? data_get($point, 'displayName')
                         ?? data_get($point, 'place.name')
@@ -167,14 +174,17 @@ class ShippingPickupPointController extends Controller
                     ),
                     'address' => $address ? (string) $address : null,
                     'city' => data_get($point, 'city')
+                        ?? data_get($point, 'address.city')
                         ?? data_get($point, 'addressLocality')
                         ?? data_get($point, 'address.city')
                         ?? data_get($point, 'place.address.addressLocality'),
                     'postal_code' => data_get($point, 'postalCode')
+                        ?? data_get($point, 'address.zipCode')
                         ?? data_get($point, 'zip')
                         ?? data_get($point, 'address.postalCode')
                         ?? data_get($point, 'place.address.postalCode'),
                     'country_code' => data_get($point, 'countryCode')
+                        ?? data_get($point, 'address.country')
                         ?? data_get($point, 'address.countryCode')
                         ?? data_get($point, 'place.address.countryCode'),
                     'distance' => data_get($point, 'distance') ?? data_get($point, 'distanceInMeters'),

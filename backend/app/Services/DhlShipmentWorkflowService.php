@@ -65,6 +65,26 @@ class DhlShipmentWorkflowService extends AbstractShipmentWorkflowService
         $package = $context['package'];
 
         $plannedShipping = now()->addMinutes(15);
+        $shipperPostalAddress = [
+            'postalCode' => $sender['postal_code'],
+            'cityName' => $sender['city'],
+            'countryCode' => $sender['country_code'],
+            'addressLine1' => $sender['address_line_1'],
+        ];
+        $receiverPostalAddress = [
+            'postalCode' => $recipient['postal_code'],
+            'cityName' => $recipient['city'],
+            'countryCode' => $recipient['country_code'],
+            'addressLine1' => $recipient['address_line_1'],
+        ];
+
+        if (filled($sender['address_line_2'] ?? null)) {
+            $shipperPostalAddress['addressLine2'] = $sender['address_line_2'];
+        }
+
+        if (filled($recipient['address_line_2'] ?? null)) {
+            $receiverPostalAddress['addressLine2'] = $recipient['address_line_2'];
+        }
 
         return [
             // MyDHL API expects the "YYYY-MM-DDTHH:mm:ss GMT+hh:mm" pattern, not the ISO/atom format.
@@ -81,27 +101,17 @@ class DhlShipmentWorkflowService extends AbstractShipmentWorkflowService
             ],
             'customerDetails' => [
                 'shipperDetails' => [
-                    'postalAddress' => [
-                        'postalCode' => $sender['postal_code'],
-                        'cityName' => $sender['city'],
-                        'countryCode' => $sender['country_code'],
-                        'addressLine1' => $sender['address_line_1'],
-                        'addressLine2' => $sender['address_line_2'],
-                    ],
+                    'postalAddress' => $shipperPostalAddress,
                     'contactInformation' => [
+                        'companyName' => $sender['company_name'] ?? $sender['full_name'],
                         'fullName' => $sender['full_name'],
                         'phone' => $sender['phone'],
                     ],
                 ],
                 'receiverDetails' => [
-                    'postalAddress' => [
-                        'postalCode' => $recipient['postal_code'],
-                        'cityName' => $recipient['city'],
-                        'countryCode' => $recipient['country_code'],
-                        'addressLine1' => $recipient['address_line_1'],
-                        'addressLine2' => $recipient['address_line_2'],
-                    ],
+                    'postalAddress' => $receiverPostalAddress,
                     'contactInformation' => [
+                        'companyName' => $recipient['company_name'] ?? $recipient['full_name'],
                         'fullName' => $recipient['full_name'],
                         'phone' => $recipient['phone'],
                     ],
@@ -132,12 +142,6 @@ class DhlShipmentWorkflowService extends AbstractShipmentWorkflowService
                         'typeCode' => 'label',
                         'templateName' => 'ECOM26_84_A4_001',
                     ],
-                ],
-            ],
-            'references' => [
-                [
-                    'value' => (string) $order->order_number,
-                    'typeCode' => 'CU',
                 ],
             ],
         ];

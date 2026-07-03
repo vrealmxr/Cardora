@@ -136,6 +136,55 @@ class StripeMarketplaceService
         return $paidOrder->fresh(['items', 'buyer', 'seller', 'escrowTransaction']);
     }
 
+    public function confirmSession(string $sessionId, ?User $buyer = null, ?int $orderId = null): ?Order
+    {
+        try {
+            $session = $this->stripe()->checkout->sessions->retrieve($sessionId, []);
+        } catch (ApiErrorException $exception) {
+            Log::warning('Unable to confirm order payment from Stripe Checkout session.', [
+                'session_id' => $sessionId,
+                'order_id' => $orderId,
+                'buyer_id' => $buyer?->getKey(),
+                'error' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        if (($session->payment_status ?? null) !== 'paid') {
+            return null;
+        }
+
+        $order = $this->findOrderByStripeMetadata(
+            (array) ($session->metadata ?? []),
+            $session->payment_intent ?? null,
+            $session->id ?? null
+        );
+
+        if (! $order && $orderId) {
+            $order = Order::query()->find($orderId);
+        }
+
+        if (! $order) {
+            Log::warning('Paid Stripe Checkout session could not be matched to an order.', [
+                'session_id' => $sessionId,
+                'order_id' => $orderId,
+                'buyer_id' => $buyer?->getKey(),
+                'metadata' => $session->metadata ?? [],
+            ]);
+
+            return null;
+        }
+
+        if ($buyer && (int) $order->buyer_id !== (int) $buyer->getKey()) {
+            throw ValidationException::withMessages([
+                'session_id' => [__('api.errors.forbidden')],
+            ]);
+        }
+
+        return $this->handleCheckoutSessionCompleted($session);
+    }
+
     public function releaseFundsToSeller(Order $order, array $context = []): Order
     {
         $order->loadMissing(['seller.sellerPayoutAccount', 'escrowTransaction']);

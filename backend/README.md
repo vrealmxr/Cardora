@@ -55,6 +55,31 @@ Update `backend/.env` at least for:
   - `GOOGLE_CLIENT_ID`
   - `GOOGLE_CLIENT_SECRET`
   - `GOOGLE_REDIRECT_URI`
+- DHL Express MyDHL API:
+  - `DHL_API_ENABLED`
+  - `DHL_API_USE_TEST_ENVIRONMENT`
+  - `DHL_API_USERNAME`
+  - `DHL_API_PASSWORD`
+  - `DHL_API_ACCOUNT_NUMBER`
+  - `DHL_API_DEFAULT_PRODUCT_CODE`
+  - `DHL_API_DEFAULT_PACKAGE_WEIGHT_KG`
+  - `DHL_AUTO_RELEASE_DAYS_AFTER_DELIVERY`
+
+## DHL Notes
+
+- The current DHL setup can run against the MyDHL sandbox by setting `DHL_API_USE_TEST_ENVIRONMENT=true`.
+- Keep `DHL_API_ENABLED=false` until the provided DHL credentials are validated successfully against the selected environment.
+- Do not point production orders at the live DHL environment until production MyDHL credentials are issued.
+- Quote any DHL secret in `.env` when it contains special characters such as `#`.
+- The sandbox account tested on Cardora currently accepts `DHL_API_DEFAULT_PRODUCT_CODE=T`; `N` was rejected by DHL for this payer/account combination.
+- If BoxNow should remain unavailable for checkout and new listings, but still be selectable while editing an existing listing, set `BOXNOW_LISTING_EDIT_ENABLED=true` while keeping `BOXNOW_API_ENABLED=false`.
+- Sellers who create DHL shipments must have `shipping_origin` profile fields filled in:
+  - `full_name`
+  - `phone`
+  - `address_line_1`
+  - `city`
+  - `postal_code`
+  - `country_code`
 
 ## Run (Development)
 

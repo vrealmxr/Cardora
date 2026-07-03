@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StartCheckoutRequest;
 use App\Http\Resources\OrderResource;
+use App\Models\Order;
 use App\Models\ListingOffer;
 use App\Services\OrderCheckoutService;
 use App\Services\StripeMarketplaceService;
+use Illuminate\Http\Request;
 
 class StripeCheckoutController extends Controller
 {
@@ -36,5 +38,48 @@ class StripeCheckoutController extends Controller
                 'expires_at' => $checkoutSession['expires_at'],
             ],
         ], 201);
+    }
+
+    public function confirm(
+        Request $request,
+        StripeMarketplaceService $marketplaceService
+    ) {
+        $validated = $request->validate([
+            'session_id' => ['required', 'string'],
+            'order_id' => ['nullable', 'integer', 'exists:orders,id'],
+        ]);
+
+        $order = $marketplaceService->confirmSession(
+            $validated['session_id'],
+            $request->user(),
+            isset($validated['order_id']) ? (int) $validated['order_id'] : null
+        );
+
+        if (! $order) {
+            return response()->json([
+                'message' => 'Unable to confirm order payment from this Stripe session.',
+            ], 422);
+        }
+
+        if (
+            ! empty($validated['order_id'])
+            && (int) $order->getKey() !== (int) $validated['order_id']
+        ) {
+            $requestedOrder = Order::query()
+                ->whereKey((int) $validated['order_id'])
+                ->where('buyer_id', $request->user()->getKey())
+                ->first();
+
+            if (! $requestedOrder) {
+                abort(403, __('api.errors.forbidden'));
+            }
+        }
+
+        return response()->json([
+            'message' => 'Order payment confirmed.',
+            'data' => [
+                'order' => new OrderResource($order->load(['items', 'buyer', 'seller', 'escrowTransaction'])),
+            ],
+        ]);
     }
 }

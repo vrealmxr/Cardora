@@ -139,6 +139,15 @@ class MarketplaceBootstrapService
             'categories' => $categories,
             'users' => $users,
             'products' => $products,
+            'shippingSettings' => [
+                'dhl' => [
+                    'enabled' => (bool) config('services.dhl.enabled', false),
+                ],
+                'boxnow' => [
+                    'enabled' => (bool) config('services.boxnow.enabled', false),
+                    'listing_edit_enabled' => (bool) config('services.boxnow.listing_edit_enabled', false),
+                ],
+            ],
             'orders' => $authUser ? $this->buildOrders($authUser, $locale) : [],
             'conversations' => $authUser ? $this->buildConversations($authUser, $locale) : [],
             'reviews' => $homeContent['reviews'],
@@ -320,6 +329,7 @@ class MarketplaceBootstrapService
             'shippingCost' => (float) ($listing->shipping_cost ?? 0),
             'shippingProfile' => $listing->shipping_profile,
             'deliveryCarrier' => $this->resolveListingCarrier($listing),
+            'deliveryOptions' => $this->resolveListingCarriers($listing),
             'stock' => (int) ($listing->available_quantity ?? $listing->quantity ?? 0),
             'availability' => $this->localizedAvailability($listing->availability, $locale),
             'sellerId' => (int) $listing->seller_id,
@@ -701,19 +711,29 @@ class MarketplaceBootstrapService
 
     protected function resolveListingCarrier(Listing $listing): ?string
     {
+        return $this->resolveListingCarriers($listing)[0] ?? null;
+    }
+
+    protected function resolveListingCarriers(Listing $listing): array
+    {
         $shippingProfile = (string) ($listing->shipping_profile ?? '');
-        $shippingMethods = collect($listing->shipping_methods ?? [])
-            ->map(fn ($method) => Str::lower((string) $method));
+        $shippingMethods = collect(
+            is_string($listing->shipping_methods)
+                ? preg_split('/\s*,\s*/', $listing->shipping_methods, flags: PREG_SPLIT_NO_EMPTY)
+                : ($listing->shipping_methods ?? [])
+        )->map(fn ($method) => Str::lower(trim((string) $method)));
+
+        $carriers = [];
 
         if (Str::startsWith($shippingProfile, 'dhl_') || $shippingMethods->contains('dhl express')) {
-            return 'dhl_express';
+            $carriers[] = 'dhl_express';
         }
 
         if (Str::startsWith($shippingProfile, 'boxnow_') || $shippingMethods->contains('boxnow')) {
-            return 'boxnow';
+            $carriers[] = 'boxnow';
         }
 
-        return null;
+        return array_values(array_unique($carriers));
     }
 
     protected function orderWorkflowSummary(Order $order, string $locale, string $role): array
@@ -1741,10 +1761,6 @@ class MarketplaceBootstrapService
         return $appUrl . $path;
     }
 }
-
-
-
-
 
 
 

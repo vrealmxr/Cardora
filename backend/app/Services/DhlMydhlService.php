@@ -46,8 +46,25 @@ class DhlMydhlService
 
     public function findServicePoints(array $query = []): array
     {
+        $normalizedQuery = $query;
+        $address = trim((string) ($normalizedQuery['address'] ?? ''));
+
+        if ($address === '') {
+            $addressParts = array_filter([
+                $normalizedQuery['postalCode'] ?? null,
+                $normalizedQuery['addressLocality'] ?? null,
+            ], fn ($value) => filled($value));
+
+            if ($addressParts !== []) {
+                $normalizedQuery['address'] = implode(' ', $addressParts);
+            }
+        }
+
+        $normalizedQuery['servicePointResults'] = $normalizedQuery['servicePointResults'] ?? 10;
+        $normalizedQuery['language'] = $normalizedQuery['language'] ?? 'eng';
+
         return $this->request()
-            ->get('/servicepoints', $query)
+            ->get('/servicepoints', $normalizedQuery)
             ->throw()
             ->json() ?? [];
     }

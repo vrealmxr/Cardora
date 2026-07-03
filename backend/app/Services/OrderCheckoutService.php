@@ -13,6 +13,7 @@ use App\Models\ListingOffer;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\User;
+use App\Support\DhlDomesticRateCalculator;
 use App\Support\MarketplaceSellerFeeCalculator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -66,7 +67,8 @@ class OrderCheckoutService
             $sellerAmount = round(($subtotal + $shippingTotal) - $commissionAmount, 2);
             $total = round($subtotal + $shippingTotal + $buyerFeeAmount, 2);
             $primaryProductId = $lineItems->pluck('product')->filter()->first()?->getKey();
-            $shippingCarrier = $this->resolveShippingCarrier($lineItems);
+            $shippingCarrier = $this->resolveShippingCarrier($lineItems, $payload['shipping_address'] ?? null);
+            $this->assertShipmentReadiness($lineItems, $shippingCarrier, $payload['shipping_address'] ?? null);
             $shippingService = data_get($payload, 'shipping_address.delivery_type', 'home_delivery');
 
             $order = Order::create([
@@ -209,7 +211,8 @@ class OrderCheckoutService
             $buyerFeeAmount = $this->calculateBuyerFeeAmount($subtotal);
             $total = round($agreedTotal + $buyerFeeAmount, 2);
             $sellerAmount = round($agreedTotal - $commissionAmount, 2);
-            $shippingCarrier = $this->resolveShippingCarrier(collect([$lineItem]));
+            $shippingCarrier = $this->resolveShippingCarrier(collect([$lineItem]), $payload['shipping_address'] ?? null);
+            $this->assertShipmentReadiness(collect([$lineItem]), $shippingCarrier, $payload['shipping_address'] ?? null);
             $shippingService = data_get($payload, 'shipping_address.delivery_type', 'home_delivery');
 
             $order = Order::create([
@@ -737,15 +740,16 @@ class OrderCheckoutService
 
         $shippingAddress = $payload['shipping_address'] ?? null;
         $isDomestic = $this->isDomesticGreekAddress($shippingAddress);
+        $selectedCarrier = $this->resolveShippingCarrier($listingItems, $shippingAddress);
 
         if ($isDomestic) {
             return round(
-                $listingItems->sum(function (array $item) {
+                $listingItems->sum(function (array $item) use ($selectedCarrier) {
                     if (($item['metadata']['item_mode'] ?? null) === LotCardSelectionService::ITEM_MODE) {
                         return (float) ($item['metadata']['domestic_shipping_total'] ?? 0);
                     }
 
-                    return $this->resolveDomesticShippingCost($item['listing']) * $item['quantity'];
+                    return $this->resolveDomesticShippingCost($item['listing'], $selectedCarrier) * $item['quantity'];
                 }),
                 2
             );
@@ -764,15 +768,76 @@ class OrderCheckoutService
         );
     }
 
-    protected function resolveDomesticShippingCost(Listing $listing): float
+    protected function resolveDomesticShippingCost(Listing $listing, ?string $carrier = null): float
     {
         $shippingProfile = (string) ($listing->shipping_profile ?? '');
+        $normalizedCarrier = Str::lower(trim((string) ($carrier ?? 'dhl_express')));
+
+        if ($normalizedCarrier === 'boxnow') {
+            $configuredRate = data_get($listing->attributes, 'shipping.domestic.boxnow.rates.gr')
+                ?? data_get($listing->attributes, 'shipping.domestic.boxnow.rates.GR')
+                ?? data_get($listing->attributes, 'shipping.domestic.rates.gr')
+                ?? data_get($listing->attributes, 'shipping.domestic.rates.GR');
+
+            if (is_numeric($configuredRate) && (float) $configuredRate >= 0) {
+                return round((float) $configuredRate, 2);
+            }
+
+            return max(0.0, (float) ($listing->shipping_cost ?? 0));
+        }
 
         if (in_array($shippingProfile, ['boxnow_domestic_only', 'boxnow_domestic_dhl_international', 'calculated_domestic_only', 'calculated_domestic_dhl_international'], true)) {
             return 0.0;
         }
 
-        if (in_array($shippingProfile, ['dhl_domestic_only', 'dhl_domestic_dhl_international'], true)) {
+        if (in_array($shippingProfile, ['dhl_domestic_only', 'dhl_domestic_dhl_international'], true) || $normalizedCarrier === 'dhl_express') {
+            $configuredRate = data_get($listing->attributes, 'shipping.domestic.dhl.fee');
+
+            if (is_numeric($configuredRate) && (float) $configuredRate >= 0) {
+                return round((float) $configuredRate, 2);
+            }
+
+            $weightKg = (float) (
+                data_get($listing->attributes, 'shipping.domestic.dhl.package.weight_kg')
+                ?? data_get($listing->attributes, 'shipping.domestic.dhl.package.weightKg')
+                ?? data_get($listing->attributes, 'shipping.domestic.package.weight_kg')
+                ?? data_get($listing->attributes, 'shipping.domestic.package.weightKg')
+                ?? data_get($listing->attributes, 'shipping.package.weight_kg')
+                ?? data_get($listing->attributes, 'shipping.package.weightKg')
+                ?? 0
+            );
+            $lengthCm = (float) (
+                data_get($listing->attributes, 'shipping.domestic.dhl.package.length_cm')
+                ?? data_get($listing->attributes, 'shipping.domestic.dhl.package.lengthCm')
+                ?? data_get($listing->attributes, 'shipping.domestic.package.length_cm')
+                ?? data_get($listing->attributes, 'shipping.domestic.package.lengthCm')
+                ?? data_get($listing->attributes, 'shipping.package.length_cm')
+                ?? data_get($listing->attributes, 'shipping.package.lengthCm')
+                ?? 0
+            );
+            $widthCm = (float) (
+                data_get($listing->attributes, 'shipping.domestic.dhl.package.width_cm')
+                ?? data_get($listing->attributes, 'shipping.domestic.dhl.package.widthCm')
+                ?? data_get($listing->attributes, 'shipping.domestic.package.width_cm')
+                ?? data_get($listing->attributes, 'shipping.domestic.package.widthCm')
+                ?? data_get($listing->attributes, 'shipping.package.width_cm')
+                ?? data_get($listing->attributes, 'shipping.package.widthCm')
+                ?? 0
+            );
+            $heightCm = (float) (
+                data_get($listing->attributes, 'shipping.domestic.dhl.package.height_cm')
+                ?? data_get($listing->attributes, 'shipping.domestic.dhl.package.heightCm')
+                ?? data_get($listing->attributes, 'shipping.domestic.package.height_cm')
+                ?? data_get($listing->attributes, 'shipping.domestic.package.heightCm')
+                ?? data_get($listing->attributes, 'shipping.package.height_cm')
+                ?? data_get($listing->attributes, 'shipping.package.heightCm')
+                ?? 0
+            );
+
+            if ($weightKg > 0 && $lengthCm > 0 && $widthCm > 0 && $heightCm > 0) {
+                return DhlDomesticRateCalculator::calculate($weightKg, $lengthCm, $widthCm, $heightCm);
+            }
+
             $configuredRate = data_get($listing->attributes, 'shipping.domestic.fee');
 
             if (is_numeric($configuredRate) && (float) $configuredRate >= 0) {
@@ -823,7 +888,7 @@ class OrderCheckoutService
         return max(0.0, (float) ($listing->shipping_cost ?? 0));
     }
 
-    protected function resolveShippingCarrier(Collection $lineItems): ?string
+    protected function resolveShippingCarrier(Collection $lineItems, mixed $shippingAddress = null): ?string
     {
         $listing = $lineItems->pluck('listing')->filter()->first();
 
@@ -832,14 +897,63 @@ class OrderCheckoutService
         }
 
         $shippingProfile = (string) ($listing->shipping_profile ?? '');
-        $shippingMethods = collect($listing->shipping_methods ?? [])
-            ->map(fn ($method) => Str::lower((string) $method));
+        $shippingMethods = $this->normalizeShippingMethods($listing->shipping_methods);
+        $isDomestic = $this->isDomesticGreekAddress($shippingAddress);
+        $requestedCarrier = Str::lower(trim((string) data_get($shippingAddress, 'carrier', '')));
+        $availableCarriers = collect();
 
-        if (Str::startsWith($shippingProfile, 'dhl_') || $shippingMethods->contains('dhl express')) {
+        if (in_array($shippingProfile, ['dhl_domestic_only', 'dhl_domestic_dhl_international'], true)) {
+            $availableCarriers->push('dhl_express');
+        }
+
+        if (! $isDomestic && in_array($shippingProfile, [
+            'boxnow_domestic_dhl_international',
+            'calculated_domestic_dhl_international',
+            'dhl_domestic_dhl_international',
+        ], true)) {
+            $availableCarriers->push('dhl_express');
+        }
+
+        if (in_array($shippingProfile, [
+            'boxnow_domestic_only',
+            'boxnow_domestic_dhl_international',
+            'calculated_domestic_only',
+            'calculated_domestic_dhl_international',
+        ], true) || $shippingMethods->contains('boxnow')) {
+            $availableCarriers->push('boxnow');
+        }
+
+        if ($shippingMethods->contains('dhl express')) {
+            $availableCarriers->push('dhl_express');
+        }
+
+        $availableCarriers = $availableCarriers->unique()->values();
+
+        if ($requestedCarrier !== '' && $availableCarriers->contains($requestedCarrier)) {
+            if ($requestedCarrier === 'boxnow') {
+                if (! $isDomestic) {
+                    throw ValidationException::withMessages([
+                        'shipping_address' => [__('api.orders.international_not_supported', [
+                            'title' => $listing->title_snapshot ?: $listing->product?->title ?: __('api.orders.untitled_item'),
+                        ])],
+                    ]);
+                }
+
+                if (! config('services.boxnow.enabled', false)) {
+                    throw ValidationException::withMessages([
+                        'shipping_address' => [__('api.orders.carrier_unavailable', ['carrier' => 'BoxNow'])],
+                    ]);
+                }
+            }
+
+            return $requestedCarrier;
+        }
+
+        if ($availableCarriers->contains('dhl_express')) {
             return 'dhl_express';
         }
 
-        if (Str::startsWith($shippingProfile, 'boxnow_') || $shippingMethods->contains('boxnow')) {
+        if ($availableCarriers->contains('boxnow')) {
             if (! config('services.boxnow.enabled', false)) {
                 throw ValidationException::withMessages([
                     'shipping_address' => [__('api.orders.carrier_unavailable', ['carrier' => 'BoxNow'])],
@@ -850,6 +964,84 @@ class OrderCheckoutService
         }
 
         return null;
+    }
+
+    protected function normalizeShippingMethods(mixed $value): Collection
+    {
+        if (is_string($value)) {
+            $value = preg_split('/\s*,\s*/', $value, flags: PREG_SPLIT_NO_EMPTY);
+        }
+
+        return collect($value ?? [])
+            ->map(fn ($method) => Str::lower(trim((string) $method)))
+            ->filter();
+    }
+
+    protected function assertShipmentReadiness(Collection $lineItems, ?string $shippingCarrier, mixed $shippingAddress): void
+    {
+        if ($shippingCarrier === null) {
+            return;
+        }
+
+        $listingItems = $lineItems
+            ->filter(fn (array $item) => $item['item_type'] === 'listing')
+            ->values();
+
+        if ($listingItems->isEmpty()) {
+            return;
+        }
+
+        $servicePoint = is_array(data_get($shippingAddress, 'service_point'))
+            ? data_get($shippingAddress, 'service_point')
+            : [];
+        $servicePointCarrier = Str::lower(trim((string) ($servicePoint['carrier'] ?? '')));
+
+        if ($servicePointCarrier !== '' && $servicePointCarrier !== $shippingCarrier) {
+            throw ValidationException::withMessages([
+                'shipping_address' => [__('api.orders.pickup_point_mismatch')],
+            ]);
+        }
+
+        $servicePointName = Str::lower(trim((string) ($servicePoint['name'] ?? '')));
+        if ($shippingCarrier === 'dhl_express' && $servicePointName !== '' && Str::contains($servicePointName, ['box now', 'boxnow'])) {
+            throw ValidationException::withMessages([
+                'shipping_address' => [__('api.orders.pickup_point_mismatch')],
+            ]);
+        }
+
+        if ($shippingCarrier !== 'dhl_express') {
+            return;
+        }
+
+        $seller = $listingItems->pluck('listing.seller')->filter()->first();
+        $origin = is_array($seller?->shipping_origin) ? $seller->shipping_origin : [];
+        $missingFields = [];
+
+        $senderPhone = $origin['phone'] ?? $seller?->phone;
+        $senderAddressLine1 = $origin['address_line_1'] ?? null;
+        $senderPostalCode = $origin['postal_code'] ?? null;
+
+        if (blank($senderPhone)) {
+            $missingFields[] = 'phone';
+        }
+
+        if (blank($senderAddressLine1)) {
+            $missingFields[] = 'address_line_1';
+        }
+
+        if (blank($senderPostalCode)) {
+            $missingFields[] = 'postal_code';
+        }
+
+        if ($missingFields === []) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'shipping_address' => [__('api.orders.seller_shipping_origin_required', [
+                'fields' => implode(', ', $missingFields),
+            ])],
+        ]);
     }
 
     protected function extractCyprusParcelRate(Listing $listing): float

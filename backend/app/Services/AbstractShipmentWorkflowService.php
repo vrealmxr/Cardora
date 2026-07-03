@@ -214,6 +214,10 @@ abstract class AbstractShipmentWorkflowService
 
     public function orderUsesCarrier(Order $order): bool
     {
+        if ((string) ($order->shipping_carrier ?? '') === $this->carrierCode()) {
+            return true;
+        }
+
         $order->loadMissing(['items.listing']);
 
         return $order->items
@@ -221,11 +225,22 @@ abstract class AbstractShipmentWorkflowService
             ->filter()
             ->contains(function (Listing $listing) {
                 $profile = (string) ($listing->shipping_profile ?? '');
-                $methods = collect($listing->shipping_methods ?? [])->map(fn ($value) => Str::lower((string) $value));
+                $methods = $this->normalizeShippingMethods($listing->shipping_methods);
 
                 return Str::startsWith($profile, $this->shippingProfilePrefix())
                     || $methods->contains($this->shippingMethodKeyword());
             });
+    }
+
+    protected function normalizeShippingMethods(mixed $value): \Illuminate\Support\Collection
+    {
+        if (is_string($value)) {
+            $value = preg_split('/\s*,\s*/', $value, flags: PREG_SPLIT_NO_EMPTY);
+        }
+
+        return collect($value ?? [])
+            ->map(fn ($method) => Str::lower(trim((string) $method)))
+            ->filter();
     }
 
     protected function markShipmentPending(Order $order, string $reason, array $context = []): Order
@@ -319,18 +334,59 @@ abstract class AbstractShipmentWorkflowService
         $listing = $order->items->pluck('listing')->filter()->first();
         $shipping = data_get($listing?->attributes, 'shipping', []);
         $package = data_get($shipping, 'package', []);
+        $attributes = is_array($listing?->attributes) ? $listing->attributes : [];
 
         $dimensions = $this->legacyParcelDimensions(
-            data_get($shipping, 'domestic.parcel_type') ?: data_get($shipping, 'domestic.parcelType')
+            data_get($shipping, 'domestic.parcel_type')
+            ?: data_get($shipping, 'domestic.parcelType')
+            ?: $this->attributePathValue($attributes, 'shipping.domestic.parcel_type')
+            ?: $this->attributePathValue($attributes, 'shipping.domestic.parcelType')
         );
         $defaultWeight = $this->defaultPackageWeightKg();
 
         return [
-            'weight_kg' => $this->positiveFloat($package['weight_kg'] ?? $package['weightKg'] ?? null) ?: $defaultWeight,
-            'length_cm' => $this->positiveFloat($package['length_cm'] ?? $package['lengthCm'] ?? null) ?: ($dimensions['length_cm'] ?? null),
-            'width_cm' => $this->positiveFloat($package['width_cm'] ?? $package['widthCm'] ?? null) ?: ($dimensions['width_cm'] ?? null),
-            'height_cm' => $this->positiveFloat($package['height_cm'] ?? $package['heightCm'] ?? null) ?: ($dimensions['height_cm'] ?? null),
+            'weight_kg' => $this->positiveFloat(
+                $package['weight_kg']
+                ?? $package['weightKg']
+                ?? data_get($shipping, 'domestic.package.weight_kg')
+                ?? data_get($shipping, 'domestic.package.weightKg')
+                ?? $this->attributePathValue($attributes, 'shipping.domestic.package.weight_kg')
+                ?? $this->attributePathValue($attributes, 'shipping.domestic.package.weightKg')
+                ?? null
+            ) ?: $defaultWeight,
+            'length_cm' => $this->positiveFloat(
+                $package['length_cm']
+                ?? $package['lengthCm']
+                ?? data_get($shipping, 'domestic.package.length_cm')
+                ?? data_get($shipping, 'domestic.package.lengthCm')
+                ?? $this->attributePathValue($attributes, 'shipping.domestic.package.length_cm')
+                ?? $this->attributePathValue($attributes, 'shipping.domestic.package.lengthCm')
+                ?? null
+            ) ?: ($dimensions['length_cm'] ?? null),
+            'width_cm' => $this->positiveFloat(
+                $package['width_cm']
+                ?? $package['widthCm']
+                ?? data_get($shipping, 'domestic.package.width_cm')
+                ?? data_get($shipping, 'domestic.package.widthCm')
+                ?? $this->attributePathValue($attributes, 'shipping.domestic.package.width_cm')
+                ?? $this->attributePathValue($attributes, 'shipping.domestic.package.widthCm')
+                ?? null
+            ) ?: ($dimensions['width_cm'] ?? null),
+            'height_cm' => $this->positiveFloat(
+                $package['height_cm']
+                ?? $package['heightCm']
+                ?? data_get($shipping, 'domestic.package.height_cm')
+                ?? data_get($shipping, 'domestic.package.heightCm')
+                ?? $this->attributePathValue($attributes, 'shipping.domestic.package.height_cm')
+                ?? $this->attributePathValue($attributes, 'shipping.domestic.package.heightCm')
+                ?? null
+            ) ?: ($dimensions['height_cm'] ?? null),
         ];
+    }
+
+    protected function attributePathValue(array $attributes, string $path): mixed
+    {
+        return $attributes[$path] ?? data_get($attributes, $path);
     }
 
     protected function latestTrackingEvent(array $events): ?array

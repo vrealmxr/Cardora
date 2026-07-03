@@ -1,5 +1,5 @@
 ﻿import { Home, Package, ShieldCheck, Ticket } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import PickupPointPicker from '@/components/checkout/PickupPointPicker'
 import Button from '@/components/ui/Button'
@@ -33,6 +33,7 @@ function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deliveryType, setDeliveryType] = useState('home')
   const [selectedPoint, setSelectedPoint] = useState(null)
+  const [selectedCarrier, setSelectedCarrier] = useState(null)
   const [searchParams] = useSearchParams()
   const acceptedOfferId = Number(searchParams.get('offer') ?? 0) || null
   const acceptedOffer = acceptedOfferId
@@ -52,11 +53,21 @@ function CheckoutPage() {
     : null
   const isPrivateOfferCheckout = Boolean(acceptedOffer)
   const requiresShipping = isPrivateOfferCheckout ? true : cartSummary.containsPhysicalItems
-  const checkoutCarrier = isPrivateOfferCheckout
-    ? acceptedOfferProduct?.deliveryCarrier ?? null
-    : cartDetailed.find((item) => item.itemType === 'listing')?.product?.deliveryCarrier ?? null
+  const checkoutProduct = isPrivateOfferCheckout
+    ? acceptedOfferProduct ?? null
+    : cartDetailed.find((item) => item.itemType === 'listing')?.product ?? null
+  const availableCarriers = useMemo(() => {
+    const options = Array.isArray(checkoutProduct?.deliveryOptions)
+      ? checkoutProduct.deliveryOptions.filter(Boolean)
+      : []
+
+    if (options.length) return options
+    return checkoutProduct?.deliveryCarrier ? [checkoutProduct.deliveryCarrier] : []
+  }, [checkoutProduct])
+  const checkoutCarrier = selectedCarrier ?? availableCarriers[0] ?? null
   const carrierSupportsPickup = requiresShipping && Boolean(checkoutCarrier)
-  const isPickupDelivery = carrierSupportsPickup && deliveryType === 'pickup'
+  const carrierSupportsHomeDelivery = checkoutCarrier !== 'boxnow'
+  const isPickupDelivery = carrierSupportsPickup && (checkoutCarrier === 'boxnow' || deliveryType === 'pickup')
   const checkoutCancelled = searchParams.get('cancelled') === '1'
   const cancelledOrderId = searchParams.get('order_id')
   const cancelledCleanupRef = useRef(false)
@@ -83,6 +94,23 @@ function CheckoutPage() {
   const checkoutBlockedMessage = invalidOfferMessage || (hasOwnCartItems ? ownItemsMessage : marketplaceBlockedMessage)
   const checkoutBlocked = Boolean(checkoutBlockedMessage)
 
+  useEffect(() => {
+    if (!availableCarriers.length) {
+      setSelectedCarrier(null)
+      return
+    }
+
+    setSelectedCarrier((current) => (current && availableCarriers.includes(current) ? current : availableCarriers[0]))
+  }, [availableCarriers])
+
+  useEffect(() => {
+    if (checkoutCarrier === 'boxnow') {
+      setDeliveryType('pickup')
+    }
+
+    setSelectedPoint(null)
+  }, [checkoutCarrier])
+
   const copy = normalizeTextTree(
     locale === 'en'
       ? {
@@ -100,6 +128,7 @@ function CheckoutPage() {
           city: 'City',
           postalCode: 'Postal code',
           country: 'Country',
+          carrier: 'Carrier',
           deliveryMethod: 'Delivery method',
           homeDelivery: 'Home delivery',
           pickupPoint: checkoutCarrier === 'boxnow' ? 'BoxNow locker' : 'DHL service point',
@@ -153,6 +182,7 @@ function CheckoutPage() {
           city: 'Πόλη',
           postalCode: 'Ταχυδρομικός κώδικας',
           country: 'Χώρα',
+          carrier: 'Μεταφορέας',
           deliveryMethod: 'Τρόπος παράδοσης',
           homeDelivery: 'Παράδοση στη διεύθυνση',
           pickupPoint: checkoutCarrier === 'boxnow' ? 'Locker BoxNow' : 'Σημείο DHL Service Point',
@@ -241,6 +271,7 @@ function CheckoutPage() {
       postal_code: String(form.get('postal_code') || ''),
       country_code: countryCode === 'OTHER' ? '' : countryCode,
       country: countryLabel,
+      carrier: checkoutCarrier,
       delivery_type: 'home_delivery',
     }
 
@@ -256,6 +287,7 @@ function CheckoutPage() {
         city: selectedPoint.city,
         postal_code: selectedPoint.postal_code,
         country_code: selectedPoint.country_code,
+        carrier: selectedPoint.carrier || checkoutCarrier,
       }
     }
 
@@ -346,36 +378,51 @@ function CheckoutPage() {
                   <Input name="phone" defaultValue="" required />
                 </div>
 
-                {carrierSupportsPickup ? (
-                  <div className="md:col-span-2">
-                    <label className="mb-2 block text-sm text-mist">{copy.deliveryMethod}</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryType('home')}
-                        className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                          deliveryType === 'home'
-                            ? 'border-gold-300/40 bg-gold-300/10 text-white'
-                            : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
-                        }`}
-                      >
-                        <Home className="h-4 w-4" />
-                        {copy.homeDelivery}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryType('pickup')}
-                        className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                          deliveryType === 'pickup'
-                            ? 'border-gold-300/40 bg-gold-300/10 text-white'
-                            : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
-                        }`}
-                      >
-                        <Package className="h-4 w-4" />
-                        {copy.pickupPoint}
-                      </button>
-                    </div>
-                  </div>
+	                {carrierSupportsPickup ? (
+	                  <div className="md:col-span-2">
+	                    {availableCarriers.length > 1 ? (
+	                      <div className="mb-4">
+	                        <label className="mb-2 block text-sm text-mist">{copy.carrier}</label>
+	                        <Select value={checkoutCarrier ?? ''} onChange={(event) => setSelectedCarrier(event.target.value)}>
+	                          {availableCarriers.map((carrier) => (
+	                            <option key={carrier} value={carrier}>
+	                              {carrier === 'boxnow' ? 'BoxNow' : 'DHL Express'}
+	                            </option>
+	                          ))}
+	                        </Select>
+	                      </div>
+	                    ) : null}
+	
+	                    <label className="mb-2 block text-sm text-mist">{copy.deliveryMethod}</label>
+	                    <div className={`grid gap-3 ${carrierSupportsHomeDelivery ? 'grid-cols-2' : 'grid-cols-1'}`}>
+	                      {carrierSupportsHomeDelivery ? (
+	                        <button
+	                          type="button"
+	                          onClick={() => setDeliveryType('home')}
+	                          className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+	                            deliveryType === 'home'
+	                              ? 'border-gold-300/40 bg-gold-300/10 text-white'
+	                              : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
+	                          }`}
+	                        >
+	                          <Home className="h-4 w-4" />
+	                          {copy.homeDelivery}
+	                        </button>
+	                      ) : null}
+	                      <button
+	                        type="button"
+	                        onClick={() => setDeliveryType('pickup')}
+	                        className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+	                          isPickupDelivery
+	                            ? 'border-gold-300/40 bg-gold-300/10 text-white'
+	                            : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
+	                        }`}
+	                      >
+	                        <Package className="h-4 w-4" />
+	                        {copy.pickupPoint}
+	                      </button>
+	                    </div>
+	                  </div>
                 ) : null}
 
                 {!isPickupDelivery ? (
@@ -407,6 +454,7 @@ function CheckoutPage() {
                 {isPickupDelivery ? (
                   <div className="md:col-span-2">
                     <PickupPointPicker
+                      key={checkoutCarrier ?? 'pickup-point'}
                       carrier={checkoutCarrier}
                       locale={locale}
                       selectedPoint={selectedPoint}

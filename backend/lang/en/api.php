@@ -55,10 +55,12 @@ return [
         'invalid_items' => 'Some checkout items are invalid or no longer available.',
         'auction_checkout_not_supported' => 'Auction listings must be purchased through bidding, not cart checkout.',
         'insufficient_stock' => 'The requested quantity for :title is no longer available.',
-        'international_not_supported' => 'The listing :title ships within Greece only via BoxNow.',
+        'international_not_supported' => 'The listing :title ships within Greece only.',
         'international_rate_missing' => 'The listing :title has no DHL rate configured for the selected destination.',
         'self_checkout_not_allowed' => 'You cannot checkout your own listing or raffle entries. Use a different buyer account to test checkout.',
         'carrier_unavailable' => ':carrier shipping is temporarily on hold, so this listing cannot be purchased right now.',
+        'pickup_point_mismatch' => 'The selected pickup point does not match the chosen shipping carrier. Please search again and select a valid point.',
+        'seller_shipping_origin_required' => 'This seller has not completed the required DHL sender details yet (:fields). Please ask the seller to update their private shipping origin first.',
         'untitled_item' => 'Untitled item',
     ],
     'messages' => [

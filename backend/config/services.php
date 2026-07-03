@@ -70,6 +70,7 @@ return [
         // BoxNow shipping is on hold until the BoxNow API credentials are provisioned.
         // Keep this disabled so buyers are not able to check out orders we cannot yet fulfil or track.
         'enabled' => (bool) env('BOXNOW_API_ENABLED', false),
+        'listing_edit_enabled' => (bool) env('BOXNOW_LISTING_EDIT_ENABLED', false),
         'use_test_environment' => (bool) env('BOXNOW_API_USE_TEST_ENVIRONMENT', true),
         'base_url' => env('BOXNOW_API_BASE_URL', 'https://api-production.boxnow.gr'),
         'test_base_url' => env('BOXNOW_API_TEST_BASE_URL', 'https://api-stage.boxnow.gr'),

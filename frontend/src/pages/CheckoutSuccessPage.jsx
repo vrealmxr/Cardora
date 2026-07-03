@@ -1,6 +1,6 @@
 ﻿import { CheckCircle2, CreditCard, PackageCheck, ShieldCheck } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
 import { usePageLoader } from '@/hooks/usePageLoader'
+import { cardoraService } from '@/services/cardoraService'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 import { getOrderRole, getOrderStage } from '@/utils/orderWorkflow'
 import { normalizeTextTree } from '@/utils/textEncoding'
@@ -21,6 +22,9 @@ function CheckoutSuccessPage() {
   const [isRefreshing, setIsRefreshing] = useState(true)
   const [searchParams] = useSearchParams()
   const orderNumber = searchParams.get('order')
+  const orderId = searchParams.get('order_id')
+  const sessionId = searchParams.get('session_id')
+  const syncedKeysRef = useRef(new Set())
 
   const copy = normalizeTextTree(
     locale === 'en'
@@ -66,10 +70,29 @@ function CheckoutSuccessPage() {
       return undefined
     }
 
+    const syncKey = `${orderNumber ?? 'latest'}:${orderId ?? 'no-order-id'}:${sessionId ?? 'no-session'}`
+
+    if (syncedKeysRef.current.has(syncKey)) {
+      setIsRefreshing(false)
+      return undefined
+    }
+
+    syncedKeysRef.current.add(syncKey)
+
     let mounted = true
 
-    withPageLoader(() => refreshBootstrap().catch(() => {}), {
-      key: `checkout-success:${orderNumber ?? 'latest'}`,
+    withPageLoader(async () => {
+      if (sessionId) {
+        try {
+          await cardoraService.confirmCheckoutSession(sessionId, orderId)
+        } catch (_) {
+          // Webhooks remain the primary source of truth; this is a best-effort fallback.
+        }
+      }
+
+      await refreshBootstrap().catch(() => {})
+    }, {
+      key: `checkout-success:${syncKey}`,
     }).finally(() => {
       if (mounted) {
         setIsRefreshing(false)
@@ -79,20 +102,31 @@ function CheckoutSuccessPage() {
     return () => {
       mounted = false
     }
-  }, [currentUser, isAuthReady, orderNumber, refreshBootstrap, withPageLoader])
+  }, [currentUser, isAuthReady, orderId, orderNumber, refreshBootstrap, sessionId, withPageLoader])
 
   const latestOrder = useMemo(() => {
     if (!orders.length) return null
 
+    if (orderId) {
+      const matchedByDatabaseId =
+        orders.find((order) => Number(order.databaseId ?? order.id) === Number(orderId)) ?? null
+      if (matchedByDatabaseId) return matchedByDatabaseId
+    }
+
     if (orderNumber) {
-      const matchedOrder = orders.find((order) => order.id === orderNumber)
+      const matchedOrder =
+        orders.find(
+          (order) =>
+            String(order.id ?? '') === String(orderNumber) ||
+            String(order.orderNumber ?? order.order_number ?? '') === String(orderNumber),
+        ) ?? null
       if (matchedOrder) return matchedOrder
     }
 
     return [...orders]
       .filter((order) => getOrderRole(order, currentUser?.id) === 'buyer')
       .sort((a, b) => new Date(b.orderedAt ?? 0) - new Date(a.orderedAt ?? 0))[0] ?? null
-  }, [currentUser?.id, orderNumber, orders])
+  }, [currentUser?.id, orderId, orderNumber, orders])
 
   const latestOrderStage = latestOrder
     ? getOrderStage(latestOrder, getOrderRole(latestOrder, currentUser?.id), locale)

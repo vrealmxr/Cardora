@@ -144,7 +144,7 @@ function PickupPointPicker({
             <li key={point.id}>
               <button
                 type="button"
-                onClick={() => onSelect?.(point)}
+                onClick={() => onSelect?.({ ...point, carrier })}
                 className="flex w-full items-start justify-between gap-3 rounded-xl border border-white/10 bg-[#0d1523] px-3 py-2 text-left transition hover:border-gold-300/40"
               >
                 <span>
