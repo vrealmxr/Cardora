@@ -12,22 +12,27 @@ class UserNotificationPreferenceService
             'messages' => [
                 'in_app' => true,
                 'email' => true,
+                'push' => true,
             ],
             'orders' => [
                 'in_app' => true,
                 'email' => true,
+                'push' => true,
             ],
             'follows' => [
                 'in_app' => true,
                 'email' => true,
+                'push' => true,
             ],
             'support' => [
                 'in_app' => true,
                 'email' => true,
+                'push' => true,
             ],
             'security' => [
                 'in_app' => true,
                 'email' => true,
+                'push' => true,
                 'locked' => true,
             ],
         ];
@@ -48,12 +53,16 @@ class UserNotificationPreferenceService
                 'email' => array_key_exists('email', $section)
                     ? (bool) $section['email']
                     : (bool) ($defaultSection['email'] ?? true),
+                'push' => array_key_exists('push', $section)
+                    ? (bool) $section['push']
+                    : (bool) ($defaultSection['push'] ?? true),
             ];
 
             if (! empty($defaultSection['locked'])) {
                 $normalized[$category]['locked'] = true;
                 $normalized[$category]['in_app'] = true;
                 $normalized[$category]['email'] = true;
+                $normalized[$category]['push'] = true;
             }
         }
 
@@ -95,5 +104,16 @@ class UserNotificationPreferenceService
         $preferences = $this->forUser($user);
 
         return (bool) data_get($preferences, sprintf('%s.email', $category), true);
+    }
+
+    public function allowsPush(User|int|null $user, ?string $category): bool
+    {
+        if (! $category) {
+            return true;
+        }
+
+        $preferences = $this->forUser($user);
+
+        return (bool) data_get($preferences, sprintf('%s.push', $category), true);
     }
 }

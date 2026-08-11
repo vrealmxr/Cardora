@@ -11,7 +11,8 @@ use Throwable;
 class MarketplaceNotificationService
 {
     public function __construct(
-        protected UserNotificationPreferenceService $preferences
+        protected UserNotificationPreferenceService $preferences,
+        protected ApnsPushNotificationService $push
     ) {
     }
 
@@ -24,16 +25,22 @@ class MarketplaceNotificationService
         ?string $preferenceCategory = null
     ): ?Notification {
         if ($preferenceCategory && ! $this->preferences->allowsInApp($userId, $preferenceCategory)) {
+            $this->push->sendIfAllowed($userId, $type, $title, $body, $data, $preferenceCategory);
+
             return null;
         }
 
-        return Notification::create([
+        $notification = Notification::create([
             'user_id' => $userId,
             'type' => $type,
             'title' => $title,
             'body' => $body,
             'data' => $data !== [] ? $data : null,
         ]);
+
+        $this->push->sendIfAllowed($userId, $type, $title, $body, $data, $preferenceCategory);
+
+        return $notification;
     }
 
     public function createForUsers(

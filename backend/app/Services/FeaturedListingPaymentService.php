@@ -15,7 +15,7 @@ class FeaturedListingPaymentService
 {
     protected ?StripeClient $client = null;
 
-    public function createCheckout(User $user, ?Listing $listing = null): FeaturedListingPayment
+    public function createCheckout(User $user, ?Listing $listing = null, string $client = 'web'): FeaturedListingPayment
     {
         $amount = (float) config('services.stripe.featured_listing_price', 2);
         $currency = strtoupper((string) config('services.stripe.featured_listing_currency', 'EUR'));
@@ -42,8 +42,8 @@ class FeaturedListingPaymentService
         $session = $this->stripe()->checkout->sessions->create(
             [
                 'mode' => 'payment',
-                'success_url' => $this->successUrl($listingId),
-                'cancel_url' => $this->cancelUrl($listingId),
+                'success_url' => $this->successUrl($listingId, $client),
+                'cancel_url' => $this->cancelUrl($listingId, $client),
                 'customer_email' => $user->email,
                 'client_reference_id' => (string) $payment->getKey(),
                 'metadata' => $metadata,
@@ -216,8 +216,25 @@ class FeaturedListingPaymentService
         $this->attachPaymentToListing($payment, $listing);
     }
 
-    protected function successUrl(?int $listingId = null): string
+    protected function successUrl(?int $listingId = null, string $client = 'web'): string
     {
+        if ($client === 'ios') {
+            $base = (string) config(
+                'services.stripe.featured_ios_success_url',
+                'cardora://featured/confirm'
+            );
+            $params = [
+                'featured' => 'success',
+                'session_id' => '{CHECKOUT_SESSION_ID}',
+            ];
+
+            if ($listingId) {
+                $params['listing_id'] = (string) $listingId;
+            }
+
+            return $this->appendQueryParams($base, $params);
+        }
+
         $base = rtrim((string) config('services.stripe.featured_success_url', config('app.frontend_url', 'http://localhost:5173').'/oi-aggelies-mou'), '/');
         $params = [
             'featured' => 'success',
@@ -231,8 +248,22 @@ class FeaturedListingPaymentService
         return $this->appendQueryParams($base, $params);
     }
 
-    protected function cancelUrl(?int $listingId = null): string
+    protected function cancelUrl(?int $listingId = null, string $client = 'web'): string
     {
+        if ($client === 'ios') {
+            $base = (string) config(
+                'services.stripe.featured_ios_cancel_url',
+                'cardora://featured/cancel'
+            );
+            $params = ['featured' => 'cancelled'];
+
+            if ($listingId) {
+                $params['listing_id'] = (string) $listingId;
+            }
+
+            return $this->appendQueryParams($base, $params);
+        }
+
         $base = rtrim((string) config('services.stripe.featured_cancel_url', config('app.frontend_url', 'http://localhost:5173').'/oi-aggelies-mou'), '/');
         $params = ['featured' => 'cancelled'];
 

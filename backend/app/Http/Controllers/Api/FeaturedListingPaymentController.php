@@ -14,6 +14,7 @@ class FeaturedListingPaymentController extends Controller
     {
         $validated = $request->validate([
             'listing_id' => ['required', 'integer', 'exists:listings,id'],
+            'client' => ['nullable', 'string', 'in:ios,web'],
         ]);
 
         $listing = Listing::query()->findOrFail((int) $validated['listing_id']);
@@ -25,7 +26,8 @@ class FeaturedListingPaymentController extends Controller
             ]);
         }
 
-        $payment = $featuredService->createCheckout($request->user(), $listing);
+        $client = $validated['client'] ?? 'web';
+        $payment = $featuredService->createCheckout($request->user(), $listing, $client);
 
         return response()->json([
             'message' => 'Featured listing checkout session created.',
@@ -34,6 +36,7 @@ class FeaturedListingPaymentController extends Controller
                 'listing_id' => $listing->getKey(),
                 'checkout_session_id' => $payment->stripe_checkout_session_id,
                 'checkout_url' => $payment->checkout_session?->url,
+                'app_return_url' => $client === 'ios',
             ],
         ], 201);
     }
