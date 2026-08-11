@@ -148,14 +148,6 @@ a {
   text-shadow: none;
 }
 
-/* Cardora Binder / Cardora Scanner run on a dark navy shell, not the light
-   cream marketplace background — headings need to stay light there instead
-   of inheriting the marketplace's dark-ink title color above. */
-.binder-shell :is(h1, h2, h3, h4, h5, h6, .font-display) {
-  color: #fdf8ee !important;
-  text-shadow: none;
-}
-
 button,
 input,
 select,

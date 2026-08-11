@@ -2,6 +2,7 @@ import { Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import BinderShell from '@/components/binder/BinderShell'
 import SetCard from '@/components/binder/SetCard'
+import { Input } from '@/components/ui/Input'
 import { BINDER_CATEGORIES, BINDER_SETS, MY_BINDER } from '@/data/binderMockData'
 import { useI18n } from '@/hooks/useI18n'
 import { cn, localizePath } from '@/utils/helpers'
@@ -53,20 +54,20 @@ function BinderSetCatalogPage() {
   return (
     <BinderShell>
       <div className="mb-6 max-w-2xl">
-        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#f3d385]/80">{copy.eyebrow}</p>
-        <h2 className="mt-2 font-display text-3xl font-semibold text-white sm:text-4xl">{copy.title}</h2>
-        <p className="mt-2 text-sm leading-6 text-white/55">{copy.description}</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">{copy.eyebrow}</p>
+        <h2 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">{copy.title}</h2>
+        <p className="mt-2 text-sm leading-6 text-mist">{copy.description}</p>
       </div>
 
-      <div className="mb-6 flex flex-col gap-3 rounded-[20px] border border-white/10 bg-white/[0.04] p-3 sm:flex-row sm:items-center">
+      <div className="mb-6 flex flex-col gap-3 rounded-[20px] border border-[#eadab7] bg-white p-3 shadow-glass sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-          <input
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={copy.searchPlaceholder}
-            className="w-full rounded-xl border border-white/10 bg-black/20 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#f3d385]/40"
+            className="pl-9"
           />
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -76,8 +77,8 @@ function BinderSetCatalogPage() {
             className={cn(
               'rounded-full border px-3 py-1.5 text-xs font-semibold transition',
               category === 'all'
-                ? 'border-[#f3d385]/50 bg-[#f3d385]/15 text-[#f3d385]'
-                : 'border-white/12 text-white/55 hover:border-white/25 hover:text-white',
+                ? 'border-[#d8b06a] bg-[linear-gradient(145deg,rgba(255,247,229,0.98)_0%,rgba(243,229,193,0.96)_100%)] text-[#6b4718]'
+                : 'border-[#eadab7] bg-white text-slate-700 hover:border-[#d8b06a] hover:bg-[#fff8ec] hover:text-[#6b4718]',
             )}
           >
             {copy.all}
@@ -90,8 +91,8 @@ function BinderSetCatalogPage() {
               className={cn(
                 'rounded-full border px-3 py-1.5 text-xs font-semibold transition',
                 category === cat.value
-                  ? 'border-[#f3d385]/50 bg-[#f3d385]/15 text-[#f3d385]'
-                  : 'border-white/12 text-white/55 hover:border-white/25 hover:text-white',
+                  ? 'border-[#d8b06a] bg-[linear-gradient(145deg,rgba(255,247,229,0.98)_0%,rgba(243,229,193,0.96)_100%)] text-[#6b4718]'
+                  : 'border-[#eadab7] bg-white text-slate-700 hover:border-[#d8b06a] hover:bg-[#fff8ec] hover:text-[#6b4718]',
               )}
             >
               {cat.label[locale] ?? cat.label.el}
@@ -100,7 +101,7 @@ function BinderSetCatalogPage() {
         </div>
       </div>
 
-      <p className="mb-4 text-xs font-semibold text-white/40">
+      <p className="mb-4 text-xs font-semibold text-slate-400">
         {filtered.length} {copy.results}
       </p>
 
@@ -119,8 +120,8 @@ function BinderSetCatalogPage() {
           })}
         </div>
       ) : (
-        <div className="rounded-[24px] border border-dashed border-white/15 p-12 text-center">
-          <p className="mx-auto max-w-md text-sm text-white/50">{copy.empty}</p>
+        <div className="rounded-[24px] border border-dashed border-[#eadab7] p-12 text-center">
+          <p className="mx-auto max-w-md text-sm text-mist">{copy.empty}</p>
         </div>
       )}
     </BinderShell>

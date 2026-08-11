@@ -1,6 +1,9 @@
-import { Camera, ImagePlus, Loader2, ScanLine, Search, Sparkles, TrendingUp, X } from 'lucide-react'
+import { Camera, ImagePlus, Loader2, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import BinderShell from '@/components/binder/BinderShell'
+import Button from '@/components/ui/Button'
+import CardSurface from '@/components/ui/CardSurface'
+import { Input } from '@/components/ui/Input'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/utils/helpers'
 
@@ -104,20 +107,20 @@ function CardoraScannerPage() {
   return (
     <BinderShell>
       <div className="mb-8 max-w-2xl">
-        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#f3d385]/80">{copy.eyebrow}</p>
-        <h2 className="mt-2 font-display text-3xl font-semibold text-white sm:text-4xl">{copy.title}</h2>
-        <p className="mt-2 text-sm leading-6 text-white/55">{copy.description}</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">{copy.eyebrow}</p>
+        <h2 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">{copy.title}</h2>
+        <p className="mt-2 text-sm leading-6 text-mist">{copy.description}</p>
       </div>
 
-      <div className="mb-5 inline-flex rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
+      <div className="mb-5 inline-flex rounded-2xl border border-[#eadab7] bg-white p-1.5 shadow-glass">
         <button
           type="button"
           onClick={() => setMode('search')}
           className={cn(
             'flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition',
             mode === 'search'
-              ? 'bg-[linear-gradient(135deg,#3a2708_0%,#6b4a15_100%)] text-[#ffedc2] shadow-[0_6px_16px_rgba(120,80,20,0.35)]'
-              : 'text-white/55 hover:text-white',
+              ? 'border border-[#d8b06a] bg-[linear-gradient(145deg,rgba(255,247,229,0.98)_0%,rgba(243,229,193,0.96)_100%)] text-[#6b4718]'
+              : 'text-slate-600 hover:text-[#6b4718]',
           )}
         >
           <Search className="h-3.5 w-3.5" />
@@ -129,8 +132,8 @@ function CardoraScannerPage() {
           className={cn(
             'flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition',
             mode === 'upload'
-              ? 'bg-[linear-gradient(135deg,#3a2708_0%,#6b4a15_100%)] text-[#ffedc2] shadow-[0_6px_16px_rgba(120,80,20,0.35)]'
-              : 'text-white/55 hover:text-white',
+              ? 'border border-[#d8b06a] bg-[linear-gradient(145deg,rgba(255,247,229,0.98)_0%,rgba(243,229,193,0.96)_100%)] text-[#6b4718]'
+              : 'text-slate-600 hover:text-[#6b4718]',
           )}
         >
           <Camera className="h-3.5 w-3.5" />
@@ -138,7 +141,7 @@ function CardoraScannerPage() {
         </button>
       </div>
 
-      <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+      <CardSurface hover={false}>
         {mode === 'search' ? (
           <form
             onSubmit={(event) => {
@@ -148,23 +151,19 @@ function CardoraScannerPage() {
             className="flex flex-col gap-3 sm:flex-row"
           >
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-              <input
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={copy.searchPlaceholder}
-                className="w-full rounded-xl border border-white/10 bg-black/20 py-3 pl-10 pr-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#f3d385]/40"
+                className="py-3 pl-10"
               />
             </div>
-            <button
-              type="submit"
-              disabled={isSearching || !query.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#d7b57b]/70 bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] px-5 py-3 text-sm font-semibold text-[#231508] shadow-[0_10px_26px_rgba(199,157,98,0.36)] transition hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-50"
-            >
-              {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
+            <Button type="submit" disabled={isSearching || !query.trim()}>
+              {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               {copy.searchCta}
-            </button>
+            </Button>
           </form>
         ) : (
           <div>
@@ -181,7 +180,7 @@ function CardoraScannerPage() {
                   <img
                     src={imagePreview}
                     alt={imageName}
-                    className="h-36 w-28 rounded-[14px] border border-white/15 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.35)]"
+                    className="h-36 w-28 rounded-[14px] border border-[#eadab7] object-cover shadow-glass"
                   />
                   <button
                     type="button"
@@ -191,27 +190,25 @@ function CardoraScannerPage() {
                       setResults(null)
                       if (fileInputRef.current) fileInputRef.current.value = ''
                     }}
-                    className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white/70 hover:text-white"
+                    className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-[#eadab7] bg-white text-slate-500 shadow-glass hover:text-slate-800"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
                 <div className="flex-1 text-center sm:text-left">
-                  <p className="truncate text-sm font-medium text-white/70">{imageName}</p>
+                  <p className="truncate text-sm font-medium text-slate-600">{imageName}</p>
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => runSearch(imageName.replace(/\.[a-z0-9]+$/i, '') || 'card')}
                       disabled={isSearching}
-                      className="inline-flex items-center gap-2 rounded-xl border border-[#d7b57b]/70 bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] px-4 py-2.5 text-sm font-semibold text-[#231508] shadow-[0_10px_26px_rgba(199,157,98,0.36)] transition hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-50"
                     >
-                      {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                       {copy.analyzeCta}
-                    </button>
+                    </Button>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="text-xs font-semibold text-white/50 underline decoration-dotted underline-offset-4 hover:text-white/80"
+                      className="text-xs font-semibold text-slate-500 underline decoration-dotted underline-offset-4 hover:text-slate-700"
                     >
                       {copy.change}
                     </button>
@@ -222,20 +219,20 @@ function CardoraScannerPage() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center gap-3 rounded-[18px] border-2 border-dashed border-white/15 py-12 text-white/50 transition hover:border-[#f3d385]/35 hover:text-white/75"
+                className="flex w-full flex-col items-center gap-3 rounded-[18px] border-2 border-dashed border-[#eadab7] py-12 text-slate-500 transition hover:border-[#d8b06a] hover:text-[#6b4718]"
               >
                 <ImagePlus className="h-8 w-8" />
-                <span className="text-sm font-semibold text-white">{copy.dropTitle}</span>
-                <span className="text-xs text-white/40">{copy.dropHint}</span>
+                <span className="text-sm font-semibold text-ink">{copy.dropTitle}</span>
+                <span className="text-xs text-slate-400">{copy.dropHint}</span>
               </button>
             )}
           </div>
         )}
-      </div>
+      </CardSurface>
 
       {isSearching ? (
-        <div className="mt-8 flex items-center gap-3 text-sm text-white/50">
-          <Loader2 className="h-4 w-4 animate-spin text-[#f3d385]" />
+        <div className="mt-8 flex items-center gap-3 text-sm text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin text-[#9d6a17]" />
           {copy.scanning}
         </div>
       ) : null}
@@ -244,17 +241,16 @@ function CardoraScannerPage() {
         <div className="mt-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="font-display text-xl font-semibold text-white">{copy.resultsTitle}</h3>
-              <p className="text-xs text-white/45">
-                {copy.resultsFor} <span className="font-semibold text-white/70">“{searchedTerm}”</span>
+              <h3 className="font-display text-xl font-semibold text-ink">{copy.resultsTitle}</h3>
+              <p className="text-xs text-slate-500">
+                {copy.resultsFor} <span className="font-semibold text-slate-700">“{searchedTerm}”</span>
               </p>
             </div>
             {suggestedAverage !== null ? (
-              <div className="flex items-center gap-2 rounded-xl border border-[#f3d385]/25 bg-[#f3d385]/10 px-4 py-2.5">
-                <TrendingUp className="h-4 w-4 text-[#f3d385]" />
+              <div className="flex items-center gap-2 rounded-xl border border-[#eadab7] bg-[#fff8ec] px-4 py-2.5">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#f3d385]/70">{copy.suggested}</p>
-                  <p className="font-display text-lg font-bold text-[#f3d385]">€{suggestedAverage.toFixed(2)}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9d6a17]/80">{copy.suggested}</p>
+                  <p className="font-display text-lg font-bold text-[#6b4718]">€{suggestedAverage.toFixed(2)}</p>
                 </div>
               </div>
             ) : null}
@@ -264,20 +260,20 @@ function CardoraScannerPage() {
             {results.map((r) => (
               <div
                 key={r.source}
-                className="flex items-center justify-between rounded-[16px] border border-white/10 bg-white/[0.04] px-4 py-3.5"
+                className="flex items-center justify-between rounded-[16px] border border-[#ead9b1] bg-white px-4 py-3.5 shadow-glass"
               >
                 <div>
-                  <p className="text-sm font-semibold text-white">{r.source}</p>
-                  <p className="text-[11px] text-white/40">
+                  <p className="text-sm font-semibold text-ink">{r.source}</p>
+                  <p className="text-[11px] text-slate-400">
                     {r.listings} {copy.listings}
                   </p>
                 </div>
-                <p className="font-display text-lg font-bold text-[#f3d385]">€{r.price.toFixed(2)}</p>
+                <p className="font-display text-lg font-bold text-[#9d6a17]">€{r.price.toFixed(2)}</p>
               </div>
             ))}
           </div>
 
-          <p className="mt-4 text-[11px] text-white/30">{copy.disclaimer}</p>
+          <p className="mt-4 text-[11px] text-slate-400">{copy.disclaimer}</p>
         </div>
       ) : null}
     </BinderShell>

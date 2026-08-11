@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import BinderShell from '@/components/binder/BinderShell'
 import SetCard from '@/components/binder/SetCard'
+import Button from '@/components/ui/Button'
 import { getMyRegisteredSets } from '@/data/binderMockData'
 import { useI18n } from '@/hooks/useI18n'
 import { localizePath } from '@/utils/helpers'
@@ -37,17 +38,14 @@ function BinderLibraryPage() {
     <BinderShell>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-xl">
-          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#f3d385]/80">{copy.eyebrow}</p>
-          <h2 className="mt-2 font-display text-3xl font-semibold text-white sm:text-4xl">{copy.title}</h2>
-          <p className="mt-2 text-sm leading-6 text-white/55">{copy.description}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">{copy.eyebrow}</p>
+          <h2 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">{copy.title}</h2>
+          <p className="mt-2 text-sm leading-6 text-mist">{copy.description}</p>
         </div>
-        <Link
-          to={localized('/cardora-binder/sets')}
-          className="inline-flex items-center gap-2 self-start rounded-xl border border-[#d7b57b]/70 bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] px-4 py-2.5 text-sm font-semibold text-[#231508] shadow-[0_10px_26px_rgba(199,157,98,0.36)] transition hover:-translate-y-0.5"
-        >
+        <Button as={Link} to={localized('/cardora-binder/sets')} className="self-start">
           <Plus className="h-4 w-4" />
           {copy.register}
-        </Link>
+        </Button>
       </div>
 
       {mySets.length ? (
@@ -57,15 +55,12 @@ function BinderLibraryPage() {
           ))}
         </div>
       ) : (
-        <div className="rounded-[24px] border border-dashed border-white/15 p-12 text-center">
-          <p className="mx-auto max-w-md text-sm text-white/50">{copy.empty}</p>
-          <Link
-            to={localized('/cardora-binder/sets')}
-            className="mt-5 inline-flex items-center gap-2 rounded-xl border border-[#d7b57b]/70 bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] px-4 py-2.5 text-sm font-semibold text-[#231508] shadow-[0_10px_26px_rgba(199,157,98,0.36)] transition hover:-translate-y-0.5"
-          >
+        <div className="rounded-[24px] border border-dashed border-[#eadab7] p-12 text-center">
+          <p className="mx-auto max-w-md text-sm text-mist">{copy.empty}</p>
+          <Button as={Link} to={localized('/cardora-binder/sets')} className="mt-5">
             <Plus className="h-4 w-4" />
             {copy.register}
-          </Link>
+          </Button>
         </div>
       )}
     </BinderShell>

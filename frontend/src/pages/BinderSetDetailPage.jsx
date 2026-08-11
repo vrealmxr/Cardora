@@ -5,6 +5,8 @@ import BinderShell from '@/components/binder/BinderShell'
 import CardTile from '@/components/binder/CardTile'
 import CompletionBar from '@/components/binder/CompletionBar'
 import PlaceholderSetArt from '@/components/binder/PlaceholderSetArt'
+import Button from '@/components/ui/Button'
+import { Input, Select } from '@/components/ui/Input'
 import { RARITY_OPTIONS, getCardsForSet, getSetById, isCardOwned, MY_BINDER } from '@/data/binderMockData'
 import { useI18n } from '@/hooks/useI18n'
 import { cn, localizePath } from '@/utils/helpers'
@@ -35,7 +37,6 @@ function BinderSetDetailPage() {
 
   const copy = isEnglish
     ? {
-        back: 'All sets',
         register: 'Register this set',
         registered: 'In your binder',
         searchPlaceholder: 'Search a card…',
@@ -48,7 +49,6 @@ function BinderSetDetailPage() {
         results: 'cards',
       }
     : {
-        back: 'Όλα τα σετ',
         register: 'Καταχώρισε αυτό το σετ',
         registered: 'Στο binder σου',
         searchPlaceholder: 'Αναζήτησε μια κάρτα…',
@@ -93,35 +93,31 @@ function BinderSetDetailPage() {
 
         <div className="flex flex-col justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#f3d385]/80">
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">
               {set.brandLabel} · {set.year}
             </p>
-            <h2 className="mt-1 font-display text-3xl font-semibold text-white sm:text-4xl">{set.name}</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">{set.description[locale] ?? set.description.el}</p>
+            <h2 className="mt-1 font-display text-3xl font-semibold text-ink sm:text-4xl">{set.name}</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-mist">{set.description[locale] ?? set.description.el}</p>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-4">
             <div className="min-w-[180px] flex-1">
               <CompletionBar percent={completionPercent} label={`${copy.completion} · ${ownedCount}/${cards.length}`} />
             </div>
-            <div className="flex items-center gap-2 rounded-xl border border-[#f3d385]/25 bg-[#f3d385]/10 px-4 py-2.5">
-              <Wallet className="h-4 w-4 text-[#f3d385]" />
+            <div className="flex items-center gap-2 rounded-xl border border-[#eadab7] bg-[#fff8ec] px-4 py-2.5">
+              <Wallet className="h-4 w-4 text-[#9d6a17]" />
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#f3d385]/70">{copy.totalValue}</p>
-                <p className="font-display text-lg font-bold text-[#f3d385]">€{totalValue.toFixed(2)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9d6a17]/80">{copy.totalValue}</p>
+                <p className="font-display text-lg font-bold text-[#6b4718]">€{totalValue.toFixed(2)}</p>
               </div>
             </div>
             {!registered ? (
-              <button
-                type="button"
-                onClick={() => setRegistered(true)}
-                className="inline-flex items-center gap-2 rounded-xl border border-[#d7b57b]/70 bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] px-4 py-2.5 text-sm font-semibold text-[#231508] shadow-[0_10px_26px_rgba(199,157,98,0.36)] transition hover:-translate-y-0.5"
-              >
+              <Button onClick={() => setRegistered(true)}>
                 <Plus className="h-4 w-4" />
                 {copy.register}
-              </button>
+              </Button>
             ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3.5 py-2.5 text-xs font-semibold text-emerald-300">
+              <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3.5 py-2.5 text-xs font-semibold text-emerald-700">
                 <Check className="h-3.5 w-3.5" />
                 {copy.registered}
               </span>
@@ -130,30 +126,26 @@ function BinderSetDetailPage() {
         </div>
       </div>
 
-      <div className="mb-5 flex flex-col gap-3 rounded-[20px] border border-white/10 bg-white/[0.04] p-3 sm:flex-row sm:items-center">
+      <div className="mb-5 flex flex-col gap-3 rounded-[20px] border border-[#eadab7] bg-white p-3 shadow-glass sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-          <input
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={copy.searchPlaceholder}
-            className="w-full rounded-xl border border-white/10 bg-black/20 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#f3d385]/40"
+            className="pl-9"
           />
         </div>
 
-        <select
-          value={rarityFilter}
-          onChange={(event) => setRarityFilter(event.target.value)}
-          className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-xs font-semibold text-white outline-none focus:border-[#f3d385]/40"
-        >
-          <option value="all" className="text-ink">{copy.allRarities}</option>
+        <Select value={rarityFilter} onChange={(event) => setRarityFilter(event.target.value)} className="sm:w-56">
+          <option value="all">{copy.allRarities}</option>
           {RARITY_OPTIONS.map((r) => (
-            <option key={r.value} value={r.value} className="text-ink">
+            <option key={r.value} value={r.value}>
               {r.label[locale] ?? r.label.el}
             </option>
           ))}
-        </select>
+        </Select>
 
         <div className="flex gap-1.5">
           {[
@@ -168,8 +160,8 @@ function BinderSetDetailPage() {
               className={cn(
                 'rounded-full border px-3 py-1.5 text-xs font-semibold transition',
                 statusFilter === opt.value
-                  ? 'border-[#f3d385]/50 bg-[#f3d385]/15 text-[#f3d385]'
-                  : 'border-white/12 text-white/55 hover:border-white/25 hover:text-white',
+                  ? 'border-[#d8b06a] bg-[linear-gradient(145deg,rgba(255,247,229,0.98)_0%,rgba(243,229,193,0.96)_100%)] text-[#6b4718]'
+                  : 'border-[#eadab7] bg-white text-slate-700 hover:border-[#d8b06a] hover:bg-[#fff8ec] hover:text-[#6b4718]',
               )}
             >
               {opt.label}
@@ -178,7 +170,7 @@ function BinderSetDetailPage() {
         </div>
       </div>
 
-      <p className="mb-4 text-xs font-semibold text-white/40">
+      <p className="mb-4 text-xs font-semibold text-slate-400">
         {filteredCards.length} {copy.results}
       </p>
 

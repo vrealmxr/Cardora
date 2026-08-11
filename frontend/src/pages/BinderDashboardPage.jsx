@@ -1,33 +1,32 @@
 import { Album, ArrowRight, Layers, ScanLine, Sparkles, Wallet } from 'lucide-react'
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import CardSurface from '@/components/ui/CardSurface'
+import PlaceholderCardArt from '@/components/binder/PlaceholderCardArt'
 import BinderShell from '@/components/binder/BinderShell'
 import CompletionBar from '@/components/binder/CompletionBar'
-import PlaceholderCardArt from '@/components/binder/PlaceholderCardArt'
 import StatTile from '@/components/binder/StatTile'
-import { useEffect } from 'react'
-import { useI18n } from '@/hooks/useI18n'
 import { getMyRegisteredSets, getPortfolioTotals, getTopValueOwnedCards } from '@/data/binderMockData'
+import { useI18n } from '@/hooks/useI18n'
 import { localizePath } from '@/utils/helpers'
 
 function LaunchCard({ to, icon: Icon, eyebrow, title, description, cta }) {
   return (
-    <Link
-      to={to}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] p-6 transition duration-200 hover:-translate-y-1 hover:border-[#f3d385]/35 hover:bg-white/[0.06] hover:shadow-[0_20px_44px_rgba(0,0,0,0.35)]"
-    >
-      <span className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[#f3d385]/10 blur-3xl transition group-hover:bg-[#f3d385]/16" />
-      <div className="relative">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-[#f3d385]/30 bg-[linear-gradient(135deg,#1c1204_0%,#3a2708_45%,#6b4a15_100%)] shadow-[0_10px_24px_rgba(120,80,20,0.35)]">
-          <Icon className="h-5.5 w-5.5 text-[#f3d385]" />
+    <Link to={to} className="group block">
+      <CardSurface className="flex h-full flex-col justify-between">
+        <div>
+          <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d7b57b]/70 bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)]">
+            <Icon className="h-5 w-5 text-[#5a3a13]" />
+          </div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">{eyebrow}</p>
+          <h3 className="mt-1.5 font-display text-2xl font-semibold text-ink">{title}</h3>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-mist">{description}</p>
         </div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#f3d385]/80">{eyebrow}</p>
-        <h3 className="mt-1.5 font-display text-2xl font-semibold text-white">{title}</h3>
-        <p className="mt-2 max-w-sm text-sm leading-6 text-white/55">{description}</p>
-      </div>
-      <div className="relative mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-[#f3d385]">
-        {cta}
-        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
-      </div>
+        <div className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-[#9d6a17]">
+          {cta}
+          <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+        </div>
+      </CardSurface>
     </Link>
   )
 }
@@ -100,9 +99,9 @@ function BinderDashboardPage() {
   return (
     <BinderShell>
       <div className="mb-8 max-w-2xl">
-        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#f3d385]/80">{copy.eyebrow}</p>
-        <h2 className="mt-2 font-display text-3xl font-semibold leading-tight text-white sm:text-4xl">{copy.title}</h2>
-        <p className="mt-3 text-sm leading-6 text-white/55 sm:text-[15px]">{copy.description}</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">{copy.eyebrow}</p>
+        <h2 className="mt-2 font-display text-3xl font-semibold leading-tight text-ink sm:text-4xl">{copy.title}</h2>
+        <p className="mt-3 text-sm leading-6 text-mist sm:text-[15px]">{copy.description}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -127,34 +126,25 @@ function BinderDashboardPage() {
       <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile icon={Wallet} label={copy.statValue} value={`€${totals.totalValue.toFixed(2)}`} hint={copy.statValueHint} />
         <StatTile icon={Layers} label={copy.statSets} value={totals.setsRegistered} hint={copy.statSetsHint} />
-        <StatTile
-          icon={Sparkles}
-          label={copy.statCompletion}
-          value={`${totals.avgCompletion}%`}
-          hint={copy.statCompletionHint}
-          accent="emerald"
-        />
+        <StatTile icon={Sparkles} label={copy.statCompletion} value={`${totals.avgCompletion}%`} hint={copy.statCompletionHint} />
         <StatTile icon={Album} label={copy.statCards} value={`${totals.totalOwned}/${totals.totalCards}`} hint={copy.statCardsHint} />
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[1.1fr_1fr]">
         <div>
-          <h3 className="mb-4 font-display text-xl font-semibold text-white">{copy.topValueTitle}</h3>
+          <h3 className="mb-4 font-display text-xl font-semibold text-ink">{copy.topValueTitle}</h3>
           {topCards.length ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
               {topCards.map((card) => (
-                <div
-                  key={card.id}
-                  className="rounded-[16px] border border-white/10 bg-white/[0.04] p-2"
-                >
+                <div key={card.id} className="rounded-[16px] border border-[#ead9b1] bg-white p-2 shadow-glass">
                   <PlaceholderCardArt category={card.category} name={card.name} number={card.number} rarity={card.rarity} compact />
-                  <p className="mt-2 truncate text-[11px] text-white/45">{card.setName}</p>
-                  <p className="text-[11px] font-bold text-[#f3d385]">€{card.estimatedPrice.toFixed(2)}</p>
+                  <p className="mt-2 truncate text-[11px] text-slate-500">{card.setName}</p>
+                  <p className="text-[11px] font-bold text-[#9d6a17]">€{card.estimatedPrice.toFixed(2)}</p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="rounded-[16px] border border-dashed border-white/15 p-6 text-center text-sm text-white/45">
+            <p className="rounded-[16px] border border-dashed border-[#eadab7] p-6 text-center text-sm text-slate-500">
               {copy.topValueEmpty}
             </p>
           )}
@@ -162,11 +152,8 @@ function BinderDashboardPage() {
 
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-display text-xl font-semibold text-white">{copy.setsTitle}</h3>
-            <Link
-              to={localized('/cardora-binder/sets')}
-              className="text-xs font-semibold text-[#f3d385] hover:underline"
-            >
+            <h3 className="font-display text-xl font-semibold text-ink">{copy.setsTitle}</h3>
+            <Link to={localized('/cardora-binder/sets')} className="text-xs font-semibold text-[#9d6a17] hover:underline">
               {copy.registerCta}
             </Link>
           </div>
@@ -176,11 +163,11 @@ function BinderDashboardPage() {
                 <Link
                   key={set.id}
                   to={localized(`/cardora-binder/sets/${set.id}`)}
-                  className="block rounded-[16px] border border-white/10 bg-white/[0.04] p-4 transition hover:border-[#f3d385]/25 hover:bg-white/[0.06]"
+                  className="block rounded-[16px] border border-[#ead9b1] bg-white p-4 shadow-glass transition hover:border-[#d8b06a]"
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-sm font-semibold text-white">{set.name}</p>
-                    <p className="text-xs text-white/45">
+                    <p className="text-sm font-semibold text-ink">{set.name}</p>
+                    <p className="text-xs text-slate-500">
                       {completion.owned}/{completion.total}
                     </p>
                   </div>
@@ -189,7 +176,7 @@ function BinderDashboardPage() {
               ))}
             </div>
           ) : (
-            <p className="rounded-[16px] border border-dashed border-white/15 p-6 text-center text-sm text-white/45">
+            <p className="rounded-[16px] border border-dashed border-[#eadab7] p-6 text-center text-sm text-slate-500">
               {copy.setsEmpty}
             </p>
           )}
