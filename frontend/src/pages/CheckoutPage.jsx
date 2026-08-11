@@ -111,6 +111,23 @@ function CheckoutPage() {
     setSelectedPoint(null)
   }, [checkoutCarrier])
 
+  useEffect(() => {
+    if (!selectedPoint || !checkoutCarrier) {
+      return
+    }
+
+    const pointCarrier = String(selectedPoint.carrier || '').trim().toLowerCase()
+    const pointName = String(selectedPoint.name || '').trim().toLowerCase()
+
+    const mismatchedCarrier = pointCarrier && pointCarrier !== checkoutCarrier
+    const dhlWithBoxNowPoint =
+      checkoutCarrier === 'dhl_express' && (pointName.includes('box now') || pointName.includes('boxnow'))
+
+    if (mismatchedCarrier || dhlWithBoxNowPoint) {
+      setSelectedPoint(null)
+    }
+  }, [checkoutCarrier, selectedPoint])
+
   const copy = normalizeTextTree(
     locale === 'en'
       ? {
@@ -498,7 +515,7 @@ function CheckoutPage() {
             ) : null}
 
             {checkoutBlocked ? (
-              <div className="md:col-span-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <div className="md:col-span-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
                 <p className="font-semibold">{copy.lockedTitle}</p>
                 <p className="mt-2 leading-7">{checkoutBlockedMessage}</p>
                 {marketplaceBlockedMessage ? (
@@ -515,7 +532,7 @@ function CheckoutPage() {
             ) : null}
 
             {checkoutCancelled || submitError ? (
-              <div className="md:col-span-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <div className="md:col-span-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
                 {submitError || copy.cancelledMessage}
               </div>
             ) : null}

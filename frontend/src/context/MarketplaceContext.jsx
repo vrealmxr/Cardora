@@ -999,7 +999,7 @@ export function MarketplaceProvider({ children }) {
           likedByCurrentUser: currentUser ? likedByUserIds.includes(currentUser.id) : false,
           followedByCurrentUser: currentUser ? followedByUserIds.includes(currentUser.id) : false,
           totalCollectionValue: collectionProducts.reduce((sum, product) => sum + Number(product?.price ?? 0), 0),
-          collectionCount: collectionEntries.length,
+          collectionCount: Number(configuredProfile?.collectionEntriesCount ?? collectionEntries.length),
           user,
         }
       }),

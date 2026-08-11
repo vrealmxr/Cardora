@@ -248,14 +248,14 @@ function DsaNoticeActionPage() {
             <p className="mt-4 text-sm leading-7 text-mist">{copy.formDescription}</p>
 
             {createdTicket ? (
-              <div className="mt-5 rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+              <div className="mt-5 rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-800">
                 <p className="font-semibold">{copy.successTitle}</p>
                 <p className="mt-2">{copy.successText(createdTicket.id)}</p>
               </div>
             ) : null}
 
             {submitError ? (
-              <div className="mt-5 rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+              <div className="mt-5 rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-800">
                 {submitError}
               </div>
             ) : null}

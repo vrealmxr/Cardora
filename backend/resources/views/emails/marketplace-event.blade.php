@@ -7,7 +7,7 @@
 <body style="margin:0;padding:0;background:#060d1a;color:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
     @php
         $baseUrl = rtrim((string) (config('app.url') ?: config('services.frontend.url')), '/');
-        $logoUrl = ($baseUrl !== '' ? $baseUrl : '') . '/asset.php?f=logo.png';
+        $logoUrl = ($baseUrl !== '' ? $baseUrl : '') . '/asset.php?f=logo-20260716.png';
     @endphp
 
     <div style="max-width:680px;margin:0 auto;padding:28px 16px;">

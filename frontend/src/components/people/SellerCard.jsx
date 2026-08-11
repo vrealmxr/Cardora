@@ -31,7 +31,7 @@ function SellerCard({ seller, hover = true }) {
         <div className="flex items-center gap-3">
           <UserAvatar user={seller} size="md" />
           <div>
-            <Link to={collectorRoute} className="text-base font-semibold text-white transition hover:text-gold-100">
+            <Link to={collectorRoute} className="text-base font-semibold text-ink transition hover:text-gold-600">
               {getUserDisplayName(seller)}
             </Link>
             <p className="text-sm text-mist">{seller.city}</p>
@@ -41,16 +41,16 @@ function SellerCard({ seller, hover = true }) {
       </div>
       <p className="mt-3 text-sm leading-6 text-mist">{seller.bio}</p>
       <div className="mt-4 grid grid-cols-2 gap-2.5">
-        <div className="rounded-xl border border-white/8 bg-white/5 p-2.5">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">{copy.rating}</p>
-          <p className="mt-1.5 flex items-center gap-2 text-base font-semibold text-white">
+        <div className="rounded-xl border border-[#eadab7] bg-white p-2.5">
+          <p className="text-xs uppercase tracking-[0.3em] text-[#927f5f]">{copy.rating}</p>
+          <p className="mt-1.5 flex items-center gap-2 text-base font-semibold text-ink">
             <Star className="h-4 w-4 fill-current text-gold-200" />
             {seller.rating}
           </p>
         </div>
-        <div className="rounded-xl border border-white/8 bg-white/5 p-2.5">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">{copy.sales}</p>
-          <p className="mt-1.5 text-base font-semibold text-white">{formatNumber(seller.salesCount)}</p>
+        <div className="rounded-xl border border-[#eadab7] bg-white p-2.5">
+          <p className="text-xs uppercase tracking-[0.3em] text-[#927f5f]">{copy.sales}</p>
+          <p className="mt-1.5 text-base font-semibold text-ink">{formatNumber(seller.salesCount)}</p>
         </div>
       </div>
       <div className="mt-3.5 flex flex-wrap gap-2">
@@ -60,13 +60,13 @@ function SellerCard({ seller, hover = true }) {
           </Badge>
         ))}
       </div>
-      <div className="mt-3.5 flex items-center gap-2 text-sm text-gold-100">
+      <div className="mt-3.5 flex items-center gap-2 text-sm text-gold-700">
         <ShieldCheck className="h-4 w-4" />
         {seller.responseTime}
       </div>
       <Link
         to={collectorRoute}
-        className="mt-3 inline-flex text-sm font-semibold text-gold-100 transition hover:text-gold-50"
+        className="mt-3 inline-flex text-sm font-semibold text-gold-700 transition hover:text-gold-500"
       >
         {copy.viewCollection}
       </Link>

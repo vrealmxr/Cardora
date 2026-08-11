@@ -7,7 +7,7 @@ import CardSurface from '@/components/ui/CardSurface'
 import { Input, Textarea } from '@/components/ui/Input'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
-import { resolveApiUrl } from '@/services/apiClient'
+import { cardoraService } from '@/services/cardoraService'
 import { toSlug } from '@/utils/helpers'
 
 const initialForm = {
@@ -46,10 +46,35 @@ const GoogleMark = ({ className = '' }) => (
   </svg>
 )
 
+const GOOGLE_CLIENT_ID = String(
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ??
+    '1011372526327-m3rr35h9hj6gpe5u50d0i06rr3g0u9t2.apps.googleusercontent.com',
+).trim()
+
+const getGoogleAuthErrorMessage = (error, locale) => {
+  const defaultMessage =
+    locale === 'en'
+      ? 'Google sign in failed. Please try again in a moment.'
+      : 'Η σύνδεση με Google απέτυχε. Δοκίμασε ξανά σε λίγο.'
+
+  const rawMessage = typeof error?.message === 'string' ? error.message.trim() : ''
+  const normalizedMessage = rawMessage.toLowerCase()
+
+  if (
+    !rawMessage ||
+    normalizedMessage.startsWith('api request failed for ') ||
+    /^unexpected token /i.test(rawMessage)
+  ) {
+    return defaultMessage
+  }
+
+  return rawMessage
+}
+
 function AuthPage({ mode = 'login' }) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { isAuthenticating, isAuthenticated, isAuthReady, login, register } = useAuth()
+  const { isAuthenticating, isAuthenticated, isAuthReady, login, register, authenticateWithToken } = useAuth()
   const { locale } = useI18n()
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
@@ -62,6 +87,8 @@ function AuthPage({ mode = 'login' }) {
   const cityDebounceRef = useRef(null)
   const cityRequestAbortRef = useRef(null)
   const skipNextCityLookupRef = useRef(false)
+  const googleCodeClientRef = useRef(null)
+  const googleScriptRef = useRef(null)
 
   const isRegister = mode === 'register'
   const passwordResetSuccess = searchParams.get('reset') === '1'
@@ -147,6 +174,96 @@ function AuthPage({ mode = 'login' }) {
       }
     }
   }, [isRegister, locale, form.city])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    if (!GOOGLE_CLIENT_ID) return undefined
+
+    let isCancelled = false
+
+    const completeGoogleCodeAuth = async (code) => {
+      setAuthError('')
+      setIsGoogleRedirecting(true)
+
+      try {
+        const response = await cardoraService.googleAuthenticateWithCode({ code })
+        await authenticateWithToken(response.token)
+        navigate(
+          response.newUser ? '/profil?welcome=1&google=1' : '/profil?activation=1&google=1',
+          { replace: true },
+        )
+      } catch (error) {
+        if (isCancelled) return
+
+        setAuthError(getGoogleAuthErrorMessage(error, locale))
+      } finally {
+        if (!isCancelled) {
+          setIsGoogleRedirecting(false)
+        }
+      }
+    }
+
+    const initializeGoogle = () => {
+      if (isCancelled || !window.google?.accounts?.oauth2) return
+
+      googleCodeClientRef.current = window.google.accounts.oauth2.initCodeClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'openid profile email',
+        ux_mode: 'popup',
+        select_account: true,
+        callback: (response) => {
+          if (response?.code) {
+            completeGoogleCodeAuth(response.code)
+            return
+          }
+
+          setIsGoogleRedirecting(false)
+          setAuthError(
+            locale === 'en'
+              ? 'Google sign in was cancelled or could not be completed.'
+              : 'Η σύνδεση με Google ακυρώθηκε ή δεν ολοκληρώθηκε.',
+          )
+        },
+        error_callback: () => {
+          setIsGoogleRedirecting(false)
+          setAuthError(
+            locale === 'en'
+              ? 'Unable to open the Google sign in window.'
+              : 'Δεν ήταν δυνατή η εκκίνηση της σύνδεσης Google.',
+          )
+        },
+      })
+    }
+
+    if (window.google?.accounts?.oauth2) {
+      initializeGoogle()
+      return () => {
+        isCancelled = true
+      }
+    }
+
+    const existingScript = document.querySelector('script[data-cardora-google-auth="true"]')
+    if (existingScript) {
+      googleScriptRef.current = existingScript
+      existingScript.addEventListener('load', initializeGoogle, { once: true })
+      return () => {
+        isCancelled = true
+      }
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.dataset.cardoraGoogleAuth = 'true'
+    script.addEventListener('load', initializeGoogle, { once: true })
+    document.head.appendChild(script)
+    googleScriptRef.current = script
+
+    return () => {
+      isCancelled = true
+    }
+  }, [authenticateWithToken, locale, navigate])
 
   const copy =
     locale === 'en'
@@ -415,7 +532,28 @@ function AuthPage({ mode = 'login' }) {
   const handleGoogleAuth = () => {
     setAuthError('')
     setIsGoogleRedirecting(true)
-    window.location.assign(resolveApiUrl('/auth/google/redirect'))
+
+    if (!GOOGLE_CLIENT_ID) {
+      setIsGoogleRedirecting(false)
+      setAuthError(
+        locale === 'en'
+          ? 'Google sign in is not configured yet.'
+          : 'Η σύνδεση με Google δεν έχει ρυθμιστεί ακόμη.',
+      )
+      return
+    }
+
+    if (!googleCodeClientRef.current) {
+      setIsGoogleRedirecting(false)
+      setAuthError(
+        locale === 'en'
+          ? 'Google sign in is still loading. Please try again in a moment.'
+          : 'Η σύνδεση με Google φορτώνει ακόμη. Δοκίμασε ξανά σε λίγο.',
+      )
+      return
+    }
+
+    googleCodeClientRef.current.requestCode()
   }
 
   return (
@@ -445,18 +583,21 @@ function AuthPage({ mode = 'login' }) {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {passwordResetSuccess ? (
-              <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800">
                 {locale === 'en'
                   ? 'Your password was updated successfully. You can now sign in with the new one.'
                   : 'Ο κωδικός σου ενημερώθηκε επιτυχώς. Μπορείς τώρα να συνδεθείς με τον νέο κωδικό.'}
               </div>
             ) : null}
 
-            {authError ? (
-              <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                {authError}
-              </div>
-            ) : null}
+          {authError ? (
+            <div
+              className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm"
+              role="alert"
+            >
+              {authError}
+            </div>
+          ) : null}
 
             <div className="space-y-3">
               <Button
@@ -501,7 +642,7 @@ function AuthPage({ mode = 'login' }) {
                         onChange={(event) => updateField('name', event.target.value)}
                         placeholder={copy.placeholders.fullName}
                       />
-                      {errors.name ? <p className="mt-2 text-xs text-rose-200">{errors.name}</p> : null}
+                      {errors.name ? <p className="mt-2 text-xs font-medium text-rose-700">{errors.name}</p> : null}
                     </div>
 
                     <div>
@@ -511,7 +652,7 @@ function AuthPage({ mode = 'login' }) {
                         onChange={(event) => updateField('displayName', event.target.value)}
                         placeholder={copy.placeholders.nickname}
                       />
-                      {errors.displayName ? <p className="mt-2 text-xs text-rose-200">{errors.displayName}</p> : null}
+                      {errors.displayName ? <p className="mt-2 text-xs font-medium text-rose-700">{errors.displayName}</p> : null}
                     </div>
 
                     <div>
@@ -522,7 +663,7 @@ function AuthPage({ mode = 'login' }) {
                         placeholder={copy.placeholders.handle}
                       />
                       <p className="mt-2 text-xs text-gold-100">cardora.gr/sylloges/{previewHandle}</p>
-                      {errors.handle ? <p className="mt-2 text-xs text-rose-200">{errors.handle}</p> : null}
+                      {errors.handle ? <p className="mt-2 text-xs font-medium text-rose-700">{errors.handle}</p> : null}
                     </div>
 
                     <div>
@@ -533,7 +674,7 @@ function AuthPage({ mode = 'login' }) {
                         onChange={(event) => updateField('email', event.target.value)}
                         placeholder={copy.placeholders.email}
                       />
-                      {errors.email ? <p className="mt-2 text-xs text-rose-200">{errors.email}</p> : null}
+                      {errors.email ? <p className="mt-2 text-xs font-medium text-rose-700">{errors.email}</p> : null}
                     </div>
 
                     <div className="relative md:col-span-2">
@@ -576,7 +717,7 @@ function AuthPage({ mode = 'login' }) {
                             : null}
                         </div>
                       ) : null}
-                      {errors.city ? <p className="mt-2 text-xs text-rose-200">{errors.city}</p> : null}
+                      {errors.city ? <p className="mt-2 text-xs font-medium text-rose-700">{errors.city}</p> : null}
                     </div>
                   </div>
                 </div>
@@ -597,7 +738,7 @@ function AuthPage({ mode = 'login' }) {
                         placeholder={copy.placeholders.tagline}
                       />
                       {errors.collectorTagline ? (
-                        <p className="mt-2 text-xs text-rose-200">{errors.collectorTagline}</p>
+                        <p className="mt-2 text-xs font-medium text-rose-700">{errors.collectorTagline}</p>
                       ) : null}
                     </div>
 
@@ -627,7 +768,7 @@ function AuthPage({ mode = 'login' }) {
                         })}
                       </div>
                       {errors.favoriteCategories ? (
-                        <p className="mt-2 text-xs text-rose-200">{errors.favoriteCategories}</p>
+                        <p className="mt-2 text-xs font-medium text-rose-700">{errors.favoriteCategories}</p>
                       ) : null}
                     </div>
                   </div>
@@ -674,7 +815,7 @@ function AuthPage({ mode = 'login' }) {
                       onChange={(event) => updateField('password', event.target.value)}
                       placeholder={copy.placeholders.password}
                     />
-                    {errors.password ? <p className="mt-2 text-xs text-rose-200">{errors.password}</p> : null}
+                    {errors.password ? <p className="mt-2 text-xs font-medium text-rose-700">{errors.password}</p> : null}
                   </div>
 
                   <div>
@@ -686,7 +827,7 @@ function AuthPage({ mode = 'login' }) {
                       placeholder={copy.placeholders.passwordConfirmation}
                     />
                     {errors.passwordConfirmation ? (
-                      <p className="mt-2 text-xs text-rose-200">{errors.passwordConfirmation}</p>
+                      <p className="mt-2 text-xs font-medium text-rose-700">{errors.passwordConfirmation}</p>
                     ) : null}
                   </div>
                 </div>
@@ -706,7 +847,7 @@ function AuthPage({ mode = 'login' }) {
                       {locale === 'en' ? 'Read the Terms of Use' : 'Διάβασε τους Όρους Χρήσης'}
                     </Link>
                   </p>
-                  {errors.terms ? <p className="text-xs text-rose-200">{errors.terms}</p> : null}
+                  {errors.terms ? <p className="text-xs font-medium text-rose-700">{errors.terms}</p> : null}
 
                   <label className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-white/80">
                     <input
@@ -717,7 +858,7 @@ function AuthPage({ mode = 'login' }) {
                     />
                     <span>{copy.privacy}</span>
                   </label>
-                  {errors.privacy ? <p className="text-xs text-rose-200">{errors.privacy}</p> : null}
+                  {errors.privacy ? <p className="text-xs font-medium text-rose-700">{errors.privacy}</p> : null}
 
                   <label className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-white/80">
                     <input
@@ -759,4 +900,3 @@ function AuthPage({ mode = 'login' }) {
 }
 
 export default AuthPage
-

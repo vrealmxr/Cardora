@@ -288,10 +288,9 @@ function HomePage() {
       <section className="container">
         <div className="grid gap-4 lg:gap-6 xl:grid-cols-[1.2fr,0.8fr]">
           <CardSurface className="relative overflow-hidden p-4 sm:p-6 md:p-7">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(243,202,87,0.18),transparent_35%)]" />
             <div className="relative z-10 max-w-2xl">
               <Badge tone="gold">{copy.heroBadge}</Badge>
-              <h1 className="mt-4 max-w-3xl font-display text-3xl leading-[1.06] text-white sm:text-4xl md:text-5xl xl:text-6xl">
+              <h1 className="mt-4 max-w-3xl font-display text-3xl leading-[1.06] text-ink sm:text-4xl md:text-5xl xl:text-6xl">
                 {copy.heroTitle}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-mist sm:mt-5 sm:text-base sm:leading-7">
@@ -310,18 +309,18 @@ function HomePage() {
 
               <div className="mt-5 hidden gap-2.5 sm:grid sm:grid-cols-3">
                 {platformStats.slice(0, 3).map((stat) => (
-                  <div key={stat.label} className="rounded-[20px] border border-white/8 bg-white/5 p-3.5">
-                    <p className="text-[10px] uppercase tracking-[0.26em] text-white/50">
+                  <div key={stat.label} className="rounded-[20px] border border-[#eadab7] bg-white p-3.5">
+                    <p className="text-[10px] uppercase tracking-[0.26em] text-[#968565]">
                       {stat.label}
                     </p>
-                    <p className="mt-1.5 text-xl font-semibold text-white">
+                    <p className="mt-1.5 text-xl font-semibold text-ink">
                       {stat.format === 'currency' ? formatCurrency(stat.value ?? 0) : typeof stat.value === 'number' ? formatNumber(stat.value) : stat.value}
                     </p>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-5 hidden items-center gap-3 rounded-[20px] border border-gold-300/20 bg-gold-300/10 px-3.5 py-3.5 text-[13px] text-gold-50 sm:flex">
+              <div className="mt-5 hidden items-center gap-3 rounded-[20px] border border-gold-300/20 bg-gold-300/10 px-3.5 py-3.5 text-[13px] text-[#7a6440] sm:flex">
                 <ShieldCheck className="h-5 w-5 shrink-0" />
                 {copy.trustStrip}
               </div>
@@ -333,16 +332,21 @@ function HomePage() {
           <CardSurface className="hidden flex-col justify-between overflow-hidden p-0 xl:flex">
             <div className="relative overflow-hidden rounded-[24px] p-5">
               <img
-                src="/asset.php?f=brand-hero.png"
+                src="/asset.php?f=home-banner-20260716-960.jpg"
                 alt="Cardora brand hero"
-                className="w-full rounded-[20px] border border-white/10 object-cover shadow-card-hover"
+                width="960"
+                height="535"
+                className="banner-image-glow w-full rounded-[20px] border border-[#eadab7] object-cover"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
               />
             </div>
 
             <div className="grid gap-2.5 px-5 pb-5 sm:grid-cols-3 xl:grid-cols-1">
               {copy.rightCards.map((item) => (
-                <div key={item.title} className="rounded-[20px] border border-white/8 bg-white/5 p-3.5">
-                  <p className="text-xs uppercase tracking-[0.3em] text-gold-100">{item.title}</p>
+                <div key={item.title} className="rounded-[20px] border border-[#eadab7] bg-white p-3.5">
+                  <p className="text-xs uppercase tracking-[0.3em] text-gold-700">{item.title}</p>
                   <p className="mt-2 text-sm leading-7 text-mist">{item.text}</p>
                 </div>
               ))}
@@ -385,7 +389,7 @@ function HomePage() {
                 <Badge tone="gold">{copy.managedByCardora}</Badge>
                 <Badge tone="info">{copy.officialBadge}</Badge>
               </div>
-              <h3 className="mt-4 font-display text-3xl text-white">
+              <h3 className="mt-4 font-display text-3xl text-ink">
                 {copy.drawHeadline}
               </h3>
               <p className="mt-3 text-sm leading-6 text-mist">
@@ -393,30 +397,30 @@ function HomePage() {
               </p>
 
               <div className="mt-5 grid gap-3 md:grid-cols-3">
-                <div className="rounded-[18px] border border-white/8 bg-white/5 p-3.5">
-                  <div className="flex items-center gap-2 text-gold-100">
+                <div className="rounded-[18px] border border-[#eadab7] bg-white p-3.5">
+                  <div className="flex items-center gap-2 text-gold-700">
                     <Ticket className="h-4 w-4" />
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">{copy.yourEntries}</p>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-[#968565]">{copy.yourEntries}</p>
                   </div>
-                  <p className="mt-2 text-base font-semibold text-white">
+                  <p className="mt-2 text-base font-semibold text-ink">
                     {formatNumber(officialEntries)}
                   </p>
                 </div>
-                <div className="rounded-[18px] border border-white/8 bg-white/5 p-3.5">
-                  <div className="flex items-center gap-2 text-gold-100">
+                <div className="rounded-[18px] border border-[#eadab7] bg-white p-3.5">
+                  <div className="flex items-center gap-2 text-gold-700">
                     <Trophy className="h-4 w-4" />
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">{copy.activeVolume}</p>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-[#968565]">{copy.activeVolume}</p>
                   </div>
-                  <p className="mt-2 text-base font-semibold text-white">
+                  <p className="mt-2 text-base font-semibold text-ink">
                     {formatCurrency(officialTrackedVolume)}
                   </p>
                 </div>
-                <div className="rounded-[18px] border border-white/8 bg-white/5 p-3.5">
-                  <div className="flex items-center gap-2 text-gold-100">
+                <div className="rounded-[18px] border border-[#eadab7] bg-white p-3.5">
+                  <div className="flex items-center gap-2 text-gold-700">
                     <ShieldCheck className="h-4 w-4" />
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">{copy.activeCampaigns}</p>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-[#968565]">{copy.activeCampaigns}</p>
                   </div>
-                  <p className="mt-2 text-base font-semibold text-white">
+                  <p className="mt-2 text-base font-semibold text-ink">
                     {formatNumber(liveOfficialCampaigns)}
                   </p>
                 </div>
@@ -456,7 +460,7 @@ function HomePage() {
           title={copy.trendingTitle}
           description={copy.trendingDescription}
         />
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {trendingProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
@@ -475,7 +479,7 @@ function HomePage() {
               <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-gold-300/15 text-base font-semibold text-gold-100">
                 0{index + 1}
               </div>
-              <h3 className="text-lg font-semibold text-white">{step.title}</h3>
+              <h3 className="text-lg font-semibold text-ink">{step.title}</h3>
               <p className="mt-2.5 text-sm leading-6 text-mist">{step.text}</p>
             </CardSurface>
           ))}
@@ -494,13 +498,13 @@ function HomePage() {
               {trustHighlights.map((item) => (
                 <div
                   key={item}
-                  className="rounded-[20px] border border-white/8 bg-white/5 p-3.5"
+                  className="rounded-[20px] border border-[#eadab7] bg-white p-3.5"
                 >
                   <div className="flex items-center gap-3">
                     <div className="rounded-xl bg-gold-300/12 p-2 text-gold-100">
                       <ShieldCheck className="h-4 w-4" />
                     </div>
-                    <p className="font-semibold text-white">{item}</p>
+                    <p className="font-semibold text-ink">{item}</p>
                   </div>
                 </div>
               ))}
@@ -508,15 +512,15 @@ function HomePage() {
           </CardSurface>
 
           <CardSurface className="h-full">
-            <h3 className="font-display text-3xl text-white">{copy.paymentTitle}</h3>
+            <h3 className="font-display text-3xl text-ink">{copy.paymentTitle}</h3>
             <div className="mt-5 space-y-3">
               {copy.paymentCards.map((item) => {
                 const Icon = item.icon
                 return (
-                  <div key={item.title} className="rounded-[20px] border border-white/8 bg-white/5 p-3.5">
+                  <div key={item.title} className="rounded-[20px] border border-[#eadab7] bg-white p-3.5">
                     <div className="flex items-center gap-3">
-                      <Icon className="h-5 w-5 text-gold-100" />
-                      <p className="font-semibold text-white">{item.title}</p>
+                      <Icon className="h-5 w-5 text-gold-700" />
+                      <p className="font-semibold text-ink">{item.title}</p>
                     </div>
                     <p className="mt-2 text-sm leading-7 text-mist">{item.text}</p>
                   </div>
@@ -546,7 +550,7 @@ function HomePage() {
           title={copy.recentTitle}
           description={copy.recentDescription}
         />
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {recentProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
@@ -564,9 +568,9 @@ function HomePage() {
           {reviews.map((review) => (
             <CardSurface key={review.id} className="h-full">
               <p className="font-display text-2xl text-gold-200">&ldquo;</p>
-              <p className="mt-2.5 text-sm leading-7 text-white/80">{review.quote}</p>
+              <p className="mt-2.5 text-sm leading-7 text-[#5f6b7a]">{review.quote}</p>
               <div className="mt-5">
-                <p className="font-semibold text-white">{review.author}</p>
+                <p className="font-semibold text-ink">{review.author}</p>
                 <p className="text-sm text-mist">{review.role}</p>
               </div>
             </CardSurface>
@@ -574,32 +578,8 @@ function HomePage() {
         </div>
       </section>
 
-      <section className="container mt-16">
-        <CardSurface className="overflow-hidden p-6 sm:p-7">
-          <div className="grid gap-5 lg:grid-cols-[1fr,auto] lg:items-center">
-            <div>
-              <Badge tone="gold">{copy.finalBadge}</Badge>
-              <h2 className="mt-4 font-display text-4xl text-white sm:text-5xl">
-                {copy.finalTitle}
-              </h2>
-              <p className="mt-3.5 max-w-2xl text-base leading-7 text-mist">
-                {copy.finalDescription}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2.5">
-              <Button as={Link} to="/dimiourgia-aggelias" size="lg">
-                {copy.finalCta}
-              </Button>
-              <Button as={Link} to="/cardora" variant="secondary" size="lg">
-                {copy.finalSecondary}
-              </Button>
-            </div>
-          </div>
-        </CardSurface>
-      </section>
     </div>
   )
 }
 
 export default HomePage
-

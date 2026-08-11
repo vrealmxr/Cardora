@@ -82,8 +82,10 @@ function ProductCard({ product, className, renderFooter }) {
             'absolute right-3 top-3 z-[6] flex h-9 w-9 items-center justify-center rounded-xl border p-2 backdrop-blur-sm transition',
             isFavorite
               ? 'border-gold-300/45 bg-gold-300/22 text-gold-100'
-              : 'border-white/25 bg-[#091425]/78 text-white/90 hover:border-gold-300/45 hover:bg-[#0d1a31]/88 hover:text-gold-100',
+              : 'border-[#e4d2ab] bg-white/88 text-ink hover:border-gold-300/45 hover:bg-[#fff8ea] hover:text-gold-600',
           )}
+          aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
         >
           <Heart className={cn('h-4 w-4', isFavorite && 'fill-current')} />
         </button>
@@ -102,7 +104,7 @@ function ProductCard({ product, className, renderFooter }) {
         <div>
           <Link
             to={`/proion/${product.slug}`}
-            className="text-balance text-[1.05rem] font-semibold text-white transition group-hover:text-gold-100"
+            className="text-balance text-[1.05rem] font-semibold text-ink transition group-hover:text-gold-600"
           >
             {product.title}
           </Link>
@@ -110,26 +112,26 @@ function ProductCard({ product, className, renderFooter }) {
         </div>
 
         {lot ? (
-          <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+          <div className="rounded-2xl border border-[#eadab7] bg-white p-3">
             <div className="flex flex-wrap gap-2">
               <Badge tone="gold">{lot.totalCards} {copy.cards}</Badge>
               {lot.guaranteedHits ? <Badge tone="info">{lot.guaranteedHits} {copy.hits}</Badge> : null}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {lot.previewCards.slice(0, 3).map((item, index) => (
-                <span key={`${item}-${index}`} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-white/72">
+                <span key={`${item}-${index}`} className="rounded-full border border-[#eadab7] bg-white px-2.5 py-1 text-[11px] text-mist">
                   {item}
                 </span>
               ))}
               {lot.overflowCount > 0 ? (
-                <span className="rounded-full border border-gold-300/20 bg-gold-300/12 px-2.5 py-1 text-[11px] text-gold-100">
+                <span className="rounded-full border border-gold-300/20 bg-gold-300/12 px-2.5 py-1 text-[11px] text-gold-700">
                   +{lot.overflowCount} {copy.more}
                 </span>
               ) : null}
             </div>
             {lot.allowsIndividualPurchase ? (
-              <div className="mt-3 rounded-xl border border-gold-300/15 bg-gold-300/10 px-3 py-2 text-[11px] leading-6 text-gold-50">
-                <p className="font-semibold text-gold-100">{copy.individualPurchase}</p>
+              <div className="mt-3 rounded-xl border border-gold-300/18 bg-gold-300/10 px-3 py-2 text-[11px] leading-6 text-[#7a6440]">
+                <p className="font-semibold text-gold-700">{copy.individualPurchase}</p>
                 <p className="mt-1">
                   {lot.availableIndividualCardsCount} {copy.availableCards} • {copy.individualShipping}
                 </p>
@@ -140,16 +142,16 @@ function ProductCard({ product, className, renderFooter }) {
 
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.26em] text-white/45">
+            <p className="text-[11px] uppercase tracking-[0.26em] text-[#8d7a58]">
               {isAuction ? copy.currentBid : isTrade ? copy.trade : copy.price}
             </p>
-            <p className="mt-1 text-xl font-semibold text-white">{formatCurrency(product.price)}</p>
+            <p className="mt-1 text-xl font-semibold text-ink">{formatCurrency(product.price)}</p>
             {isAuction && product.auction ? (
               <p className="text-xs text-mist">
                 {product.auction.bidCount} {copy.bids} • {copy.step} {formatCurrency(product.auction.bidIncrement)}
               </p>
             ) : product.oldPrice ? (
-              <p className="text-sm text-white/45 line-through">{formatCurrency(product.oldPrice)}</p>
+              <p className="text-sm text-[#9f9071] line-through">{formatCurrency(product.oldPrice)}</p>
             ) : null}
           </div>
 
@@ -182,28 +184,28 @@ function ProductCard({ product, className, renderFooter }) {
         </div>
 
         {buyBlocked ? (
-          <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs leading-6 text-amber-100">
+          <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs leading-6 text-[#8b5f18]">
             {buyBlockedMessage}
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#eadab7] bg-white px-3 py-2.5">
           <Link to={collectorRoute} className="flex min-w-0 items-center gap-3">
             <UserAvatar user={product.seller} size="sm" />
             <div>
-              <p className="text-sm font-semibold text-white transition hover:text-gold-100">
+              <p className="text-sm font-semibold text-ink transition hover:text-gold-600">
                 {getUserDisplayName(product.seller)}
               </p>
               <p className="text-xs text-mist">{product.seller?.city}</p>
             </div>
           </Link>
-          <div className="flex items-center gap-1 text-sm text-gold-100">
+          <div className="flex items-center gap-1 text-sm text-gold-700">
             <Star className="h-4 w-4 fill-current" />
             {product.sellerRating}
           </div>
         </div>
 
-        {renderFooter ? <div className="border-t border-white/8 pt-3">{renderFooter(product)}</div> : null}
+        {renderFooter ? <div className="border-t border-[#eadab7] pt-3">{renderFooter(product)}</div> : null}
       </div>
     </CardSurface>
   )

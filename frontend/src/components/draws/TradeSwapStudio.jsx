@@ -325,13 +325,13 @@ function TradeSwapStudio({
         onClick={() => (source === 'mine-pool' ? addMine(item) : addTarget(item))}
         className={`group w-full rounded-[20px] border p-2.5 text-left transition ${
           isDragging
-            ? 'border-gold-300/40 bg-gold-300/15 opacity-75'
+            ? 'border-[#d4b074] bg-[#f6ead0] opacity-75'
             : isSelected
-              ? 'border-gold-300/40 bg-gold-300/12 shadow-gold-soft'
-              : 'border-white/10 bg-white/5 hover:border-gold-300/35 hover:bg-gold-300/10'
+              ? 'border-[#d4b074] bg-[#fbf3e4] shadow-gold-soft'
+              : 'border-[#eadab7] bg-white hover:border-[#d4b074] hover:bg-[#fbf6ec]'
         }`}
       >
-        <div className="relative overflow-hidden rounded-[14px] border border-white/12 bg-[#091426]">
+        <div className="relative overflow-hidden rounded-[14px] border border-[#eadab7] bg-[#fffaf2]">
           <div className="aspect-[0.76]">
             {imageUrl ? (
               <>
@@ -349,37 +349,37 @@ function TradeSwapStudio({
                 />
               </>
             ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-[#22466d] via-[#152844] to-[#081426]" />
+              <div className="absolute inset-0 bg-gradient-to-br from-[#f8efd9] via-[#efe2c3] to-[#e1c792]" />
             )}
           </div>
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] bg-gradient-to-t from-[#050c18] via-[#050c18]/85 to-transparent px-2 py-2">
-            <p className="line-clamp-1 text-xs font-semibold text-white">{item?.title ?? 'Trade card'}</p>
-            <p className="text-[11px] text-gold-100">{formatCurrency(Number(item?.price ?? 0))}</p>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] bg-gradient-to-t from-[rgba(255,249,239,0.96)] via-[rgba(255,249,239,0.84)] to-transparent px-2 py-2">
+            <p className="line-clamp-1 text-xs font-semibold text-slate-900">{item?.title ?? 'Trade card'}</p>
+            <p className="text-[11px] text-gold-700">{formatCurrency(Number(item?.price ?? 0))}</p>
           </div>
 
-          <span className="absolute right-1.5 top-1.5 z-[2] inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/12 bg-[#0a1424]/80">
-            <GripVertical className="h-3.5 w-3.5 text-white/55 transition group-hover:text-gold-100" />
+          <span className="absolute right-1.5 top-1.5 z-[2] inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#eadab7] bg-[rgba(255,252,245,0.96)]">
+            <GripVertical className="h-3.5 w-3.5 text-slate-500 transition group-hover:text-gold-700" />
           </span>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-white/70">
-          <span className="rounded-full border border-white/12 px-2 py-0.5">{listingRarityOf(item)}</span>
-          <span className="rounded-full border border-white/12 px-2 py-0.5">{listingConditionOf(item)}</span>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+          <span className="rounded-full border border-[#eadab7] bg-[#fffaf2] px-2 py-0.5">{listingRarityOf(item)}</span>
+          <span className="rounded-full border border-[#eadab7] bg-[#fffaf2] px-2 py-0.5">{listingConditionOf(item)}</span>
           {isSelected ? (
-            <span className="rounded-full border border-gold-300/35 bg-gold-300/12 px-2 py-0.5 text-gold-100">
+            <span className="rounded-full border border-[#d4b074] bg-[#f6ead0] px-2 py-0.5 text-gold-700">
               {copy.picked}
             </span>
           ) : null}
         </div>
 
         {source === 'target-pool' ? (
-          <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#0a1525]/75 px-2 py-1.5 text-[11px] text-white/82">
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-[#eadab7] bg-[#fffaf2] px-2 py-1.5 text-[11px] text-slate-700">
             <div className="flex min-w-0 items-center gap-2">
               <UserAvatar user={seller} size="xs" className="h-6 w-6 text-[10px]" />
               <span className="truncate">{listingSellerNameOf(item)}</span>
             </div>
-            <span className="shrink-0 text-mist">
+            <span className="shrink-0 text-slate-500">
               {copy.rating}: {sellerRating.toFixed(1)}
             </span>
           </div>
@@ -395,10 +395,10 @@ function TradeSwapStudio({
     return (
       <div
         key={`${side}-selected-${listingId}`}
-        className="flex items-center justify-between gap-2 rounded-xl border border-white/12 bg-[#0d182a] px-2.5 py-2"
+        className="flex items-center justify-between gap-2 rounded-xl border border-[#eadab7] bg-white px-2.5 py-2"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <div className="relative h-12 w-9 shrink-0 overflow-hidden rounded-lg border border-white/12 bg-[#071224]">
+          <div className="relative h-12 w-9 shrink-0 overflow-hidden rounded-lg border border-[#eadab7] bg-[#fffaf2]">
             {imageUrl ? (
               <img
                 src={imageUrl}
@@ -407,18 +407,18 @@ function TradeSwapStudio({
                 loading="lazy"
               />
             ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-[#22466d] via-[#152844] to-[#081426]" />
+              <div className="absolute inset-0 bg-gradient-to-br from-[#f8efd9] via-[#efe2c3] to-[#e1c792]" />
             )}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold text-white">{item?.title ?? 'Trade card'}</p>
-            <p className="text-[11px] text-mist">{formatCurrency(Number(item?.price ?? 0))}</p>
+            <p className="truncate text-[13px] font-semibold text-slate-900">{item?.title ?? 'Trade card'}</p>
+            <p className="text-[11px] text-gold-700">{formatCurrency(Number(item?.price ?? 0))}</p>
           </div>
         </div>
         <button
           type="button"
           onClick={() => (side === 'mine' ? removeMine(listingId) : removeTarget(listingId))}
-          className="inline-flex items-center gap-1 rounded-full border border-white/12 px-2 py-1 text-[10px] text-white/80 transition hover:border-rose-300/40 hover:text-rose-100"
+          className="inline-flex items-center gap-1 rounded-full border border-[#eadab7] px-2 py-1 text-[10px] text-slate-600 transition hover:border-rose-300/40 hover:bg-rose-50 hover:text-rose-600"
         >
           <X className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{copy.remove}</span>
@@ -431,37 +431,37 @@ function TradeSwapStudio({
     <CardSurface
       id="trade-studio"
       hover={false}
-      className="relative mb-8 overflow-hidden border-gold-300/20 bg-gradient-to-br from-[#09142a]/95 via-[#08162d]/95 to-[#060f1f]/96 p-0"
+      className="relative mb-8 overflow-hidden border-[#eadab7] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(252,247,238,0.98))] p-0"
     >
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-40 -top-40 h-[280px] w-[280px] rounded-full bg-[#3b6998]/24 blur-3xl" />
-        <div className="absolute -right-28 top-10 h-[220px] w-[220px] rounded-full bg-[#325b8c]/22 blur-3xl" />
-        <div className="absolute bottom-0 left-0 right-0 h-[220px] bg-[radial-gradient(circle_at_50%_0%,rgba(96,132,188,0.15),transparent_58%)]" />
+        <div className="absolute -left-40 -top-40 h-[280px] w-[280px] rounded-full bg-[#f5e6c6]/45 blur-3xl" />
+        <div className="absolute -right-28 top-10 h-[220px] w-[220px] rounded-full bg-[#f1dcc0]/35 blur-3xl" />
+        <div className="absolute bottom-0 left-0 right-0 h-[220px] bg-[radial-gradient(circle_at_50%_0%,rgba(218,185,120,0.16),transparent_58%)]" />
       </div>
 
-      <div className="relative z-[1] border-b border-white/10 px-5 py-5 md:px-7 md:py-6">
+      <div className="relative z-[1] border-b border-[#eadab7] px-5 py-5 md:px-7 md:py-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-gold-300/25 bg-gold-300/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-gold-100">
+            <p className="inline-flex items-center gap-2 rounded-full border border-[#d4b074] bg-[#f6ead0] px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-gold-700">
               <Sparkles className="h-3.5 w-3.5" /> {copy.studioBadge}
             </p>
-            <h3 className="mt-3 font-display text-2xl text-white md:text-3xl">{copy.title}</h3>
-            <p className="mt-2 max-w-4xl text-sm leading-7 text-mist">{copy.subtitle}</p>
+            <h3 className="mt-3 font-display text-2xl text-slate-900 md:text-3xl">{copy.title}</h3>
+            <p className="mt-2 max-w-4xl text-sm leading-7 text-slate-600">{copy.subtitle}</p>
           </div>
 
-          <div className="rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-right">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-white/55">{copy.depositPreview}</p>
-            <p className="mt-1 text-2xl font-semibold text-gold-50">{formatCurrency(depositPreview)}</p>
+          <div className="rounded-2xl border border-[#eadab7] bg-[#fffaf2] px-4 py-3 text-right">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{copy.depositPreview}</p>
+            <p className="mt-1 text-2xl font-semibold text-gold-700">{formatCurrency(depositPreview)}</p>
           </div>
         </div>
       </div>
 
       <div className="relative z-[1] px-5 pb-5 pt-5 md:px-7 md:pb-7">
         <div className="grid gap-4 xl:grid-cols-[1fr_1.1fr_1fr]">
-          <section className="rounded-[22px] border border-white/10 bg-white/5 p-3.5">
+          <section className="rounded-[22px] border border-[#eadab7] bg-[rgba(255,255,255,0.96)] p-3.5">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-xs uppercase tracking-[0.22em] text-gold-100">{copy.yourPool}</p>
-              <span className="rounded-full border border-white/12 bg-[#0b1627] px-2.5 py-1 text-[10px] text-white/75">
+              <p className="text-xs uppercase tracking-[0.22em] text-gold-700">{copy.yourPool}</p>
+              <span className="rounded-full border border-[#eadab7] bg-[#fffaf2] px-2.5 py-1 text-[10px] text-slate-600">
                 {myListings.length} {copy.poolCount}
               </span>
             </div>
@@ -476,13 +476,13 @@ function TradeSwapStudio({
             </div>
           </section>
 
-          <section className="rounded-[22px] border border-gold-300/20 bg-[radial-gradient(circle_at_50%_0%,rgba(96,132,188,0.13),transparent_58%),linear-gradient(180deg,rgba(17,31,55,0.78),rgba(8,16,31,0.92))] p-3.5">
-            <div className="rounded-2xl border border-white/10 bg-[#0a1629]/88 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.22em] text-gold-100">{copy.swapArena}</p>
-              <p className="mt-1 text-xs leading-6 text-white/70">{copy.arenaHint}</p>
+          <section className="rounded-[22px] border border-[#eadab7] bg-[linear-gradient(180deg,rgba(255,250,242,0.98),rgba(247,238,222,0.98))] p-3.5">
+            <div className="rounded-2xl border border-[#eadab7] bg-white px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.22em] text-gold-700">{copy.swapArena}</p>
+              <p className="mt-1 text-xs leading-6 text-slate-600">{copy.arenaHint}</p>
             </div>
 
-            <div className="mt-3 rounded-[20px] border border-white/10 bg-[#081425]/85 p-3">
+            <div className="mt-3 rounded-[20px] border border-[#eadab7] bg-[rgba(255,255,255,0.82)] p-3">
               <div className="grid items-start gap-3 xl:grid-cols-[1fr_auto_1fr]">
                 <div
                   onDragOver={(event) => {
@@ -493,13 +493,13 @@ function TradeSwapStudio({
                   onDrop={(event) => onDropToZone(event, 'mine')}
                   className={`min-h-[170px] rounded-2xl border p-3 transition sm:min-h-[220px] ${
                     dragZone === 'mine'
-                      ? 'border-gold-300/45 bg-gold-300/12 shadow-[0_0_40px_rgba(227,191,105,0.2)]'
-                      : 'border-white/12 bg-white/5'
+                      ? 'border-[#d4b074] bg-[#f6ead0] shadow-[0_0_40px_rgba(212,176,116,0.18)]'
+                      : 'border-[#eadab7] bg-white'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-white">{copy.yourBasket}</p>
-                    <span className="text-[11px] text-gold-100">{formatCurrency(mineTotal)}</span>
+                    <p className="text-sm font-semibold text-slate-900">{copy.yourBasket}</p>
+                    <span className="text-[11px] text-gold-700">{formatCurrency(mineTotal)}</span>
                   </div>
                   <div className="mt-2 space-y-2">
                     {selectedMine.length ? (
@@ -510,8 +510,8 @@ function TradeSwapStudio({
                   </div>
                 </div>
 
-                <div className="mx-auto mt-1 flex h-9 w-9 items-center justify-center rounded-full border border-gold-300/28 bg-gold-300/12 xl:mt-[92px]">
-                  <ArrowRightLeft className="h-4 w-4 text-gold-100" />
+                <div className="mx-auto mt-1 flex h-9 w-9 items-center justify-center rounded-full border border-[#d4b074] bg-[#f6ead0] xl:mt-[92px]">
+                  <ArrowRightLeft className="h-4 w-4 text-gold-700" />
                 </div>
 
                 <div
@@ -523,20 +523,20 @@ function TradeSwapStudio({
                   onDrop={(event) => onDropToZone(event, 'target')}
                   className={`min-h-[170px] rounded-2xl border p-3 transition sm:min-h-[220px] ${
                     dragZone === 'target'
-                      ? 'border-gold-300/45 bg-gold-300/12 shadow-[0_0_40px_rgba(227,191,105,0.2)]'
-                      : 'border-white/12 bg-white/5'
+                      ? 'border-[#d4b074] bg-[#f6ead0] shadow-[0_0_40px_rgba(212,176,116,0.18)]'
+                      : 'border-[#eadab7] bg-white'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-white">{copy.targetBasket}</p>
-                    <span className="text-[11px] text-gold-100">{formatCurrency(targetTotal)}</span>
+                    <p className="text-sm font-semibold text-slate-900">{copy.targetBasket}</p>
+                    <span className="text-[11px] text-gold-700">{formatCurrency(targetTotal)}</span>
                   </div>
 
                   {targetOwnerId ? (
-                    <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/12 bg-[#0a1628] px-2.5 py-1 text-[11px] text-white/85">
-                      <UserStar className="h-3.5 w-3.5 text-gold-100" />
+                    <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#eadab7] bg-[#fffaf2] px-2.5 py-1 text-[11px] text-slate-700">
+                      <UserStar className="h-3.5 w-3.5 text-gold-700" />
                       {copy.owner}: {targetOwnerName}
-                      <span className="text-mist">{copy.rating}: {targetOwnerRating.toFixed(1)}</span>
+                      <span className="text-slate-500">{copy.rating}: {targetOwnerRating.toFixed(1)}</span>
                     </div>
                   ) : null}
 
@@ -551,13 +551,13 @@ function TradeSwapStudio({
               </div>
             </div>
 
-            <p className="mt-3 text-[11px] leading-5 text-white/55">{copy.addTip}</p>
+            <p className="mt-3 text-[11px] leading-5 text-slate-500">{copy.addTip}</p>
           </section>
 
-          <section className="rounded-[22px] border border-white/10 bg-white/5 p-3.5">
+          <section className="rounded-[22px] border border-[#eadab7] bg-[rgba(255,255,255,0.96)] p-3.5">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-xs uppercase tracking-[0.22em] text-gold-100">{copy.marketPool}</p>
-              <span className="rounded-full border border-white/12 bg-[#0b1627] px-2.5 py-1 text-[10px] text-white/75">
+              <p className="text-xs uppercase tracking-[0.22em] text-gold-700">{copy.marketPool}</p>
+              <span className="rounded-full border border-[#eadab7] bg-[#fffaf2] px-2.5 py-1 text-[10px] text-slate-600">
                 {marketListings.length} {copy.poolCount}
               </span>
             </div>
@@ -574,10 +574,10 @@ function TradeSwapStudio({
         </div>
 
         <div className="mt-4">
-          <section className="rounded-[22px] border border-white/10 bg-white/5 p-4">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-white/55">{copy.diffToCover}</p>
-            <p className="mt-1 text-3xl font-semibold text-white">{formatCurrency(Math.abs(valueDelta))}</p>
-            <p className="mt-2 text-xs text-mist">
+          <section className="rounded-[22px] border border-[#eadab7] bg-white p-4">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{copy.diffToCover}</p>
+            <p className="mt-1 text-3xl font-semibold text-slate-900">{formatCurrency(Math.abs(valueDelta))}</p>
+            <p className="mt-2 text-xs text-slate-600">
               {valueDelta > 0
                 ? copy.valueHigherRequest
                 : valueDelta < 0
@@ -585,7 +585,7 @@ function TradeSwapStudio({
                   : copy.valueBalanced}
             </p>
 
-            <p className="mt-4 text-[11px] uppercase tracking-[0.22em] text-white/55">{copy.requestMessage}</p>
+            <p className="mt-4 text-[11px] uppercase tracking-[0.22em] text-slate-500">{copy.requestMessage}</p>
             <Input
               className="mt-2"
               value={requestMessage}
@@ -593,18 +593,18 @@ function TradeSwapStudio({
               placeholder={copy.requestPlaceholder}
             />
 
-            <label className="mt-3 flex items-start gap-2 rounded-xl border border-white/10 bg-[#0b1320] px-3 py-2 text-xs text-mist">
+            <label className="mt-3 flex items-start gap-2 rounded-xl border border-[#eadab7] bg-[#fffaf2] px-3 py-2 text-xs text-slate-600">
               <input
                 type="checkbox"
                 checked={termsAccepted}
                 onChange={(event) => setTermsAccepted(event.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-white/30 bg-white/10 text-gold-300"
+                className="mt-0.5 h-4 w-4 rounded border-[#d4b074] bg-white text-[#c79d62]"
               />
               <span>{copy.terms}</span>
             </label>
 
             {localError ? (
-              <div className="mt-3 rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
+              <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                 {localError}
               </div>
             ) : null}

@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
 
 class CreateDhlShipmentForOrderJob implements ShouldQueue
 {
@@ -26,6 +27,14 @@ class CreateDhlShipmentForOrderJob implements ShouldQueue
             return;
         }
 
-        $workflow->createShipmentForOrder($order);
+        $shipmentOrder = $workflow->createShipmentForOrder($order);
+
+        if (blank($shipmentOrder->shipment_tracking_number ?: $shipmentOrder->tracking_number)) {
+            return;
+        }
+
+        SyncDhlShipmentTrackingJob::dispatch($shipmentOrder->getKey());
+        SyncDhlShipmentTrackingJob::dispatch($shipmentOrder->getKey())->delay(Carbon::now()->addMinutes(5));
+        SyncDhlShipmentTrackingJob::dispatch($shipmentOrder->getKey())->delay(Carbon::now()->addMinutes(15));
     }
 }

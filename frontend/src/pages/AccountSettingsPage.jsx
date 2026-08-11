@@ -26,7 +26,7 @@ function FeedbackBox({ feedback }) {
     <div
       className={`rounded-2xl border px-4 py-3 text-sm ${
         feedback.tone === 'success'
-          ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+          ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-800'
           : 'border-rose-400/25 bg-rose-500/10 text-rose-100'
       }`}
     >
@@ -261,8 +261,8 @@ function AccountSettingsPage() {
               <span
                 className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                   emailVerified
-                    ? 'border border-emerald-300/40 bg-emerald-500/15 text-emerald-100'
-                    : 'border border-amber-300/40 bg-amber-500/15 text-amber-100'
+                    ? 'border border-emerald-300/40 bg-emerald-500/15 text-emerald-800'
+                    : 'border border-amber-300/40 bg-amber-500/15 text-amber-800'
                 }`}
               >
                 {emailVerified ? copy.verified : copy.notVerified}
@@ -428,4 +428,3 @@ function AccountSettingsPage() {
 }
 
 export default AccountSettingsPage
-

@@ -24,9 +24,9 @@ export default {
           600: '#b97812',
           700: '#87550f',
         },
-        ink: '#d9e3f5',
-        mist: '#8da2c4',
-        panel: 'rgba(10, 20, 38, 0.78)',
+        ink: '#1f2a37',
+        mist: '#5f6b7a',
+        panel: 'rgba(255, 255, 255, 0.92)',
       },
       fontFamily: {
         sans: ['Manrope', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -41,8 +41,7 @@ export default {
       backgroundImage: {
         'gold-radial':
           'radial-gradient(circle at top, rgba(243, 202, 87, 0.26), transparent 42%)',
-        'navy-panel':
-          'linear-gradient(160deg, rgba(14, 25, 46, 0.88), rgba(7, 14, 28, 0.92))',
+        'navy-panel': 'linear-gradient(160deg, rgba(255, 255, 255, 0.995), rgba(255, 255, 255, 0.988))',
       },
       animation: {
         shimmer: 'shimmer 3s linear infinite',

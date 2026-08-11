@@ -64,7 +64,7 @@ class OrderCheckoutService
             $shippingTotal = $this->calculateShippingTotal($lineItems, $payload);
             $commissionAmount = $this->calculateCommissionAmount($subtotal);
             $buyerFeeAmount = $this->calculateBuyerFeeAmount($subtotal);
-            $sellerAmount = round(($subtotal + $shippingTotal) - $commissionAmount, 2);
+            $sellerAmount = round($subtotal - $commissionAmount, 2);
             $total = round($subtotal + $shippingTotal + $buyerFeeAmount, 2);
             $primaryProductId = $lineItems->pluck('product')->filter()->first()?->getKey();
             $shippingCarrier = $this->resolveShippingCarrier($lineItems, $payload['shipping_address'] ?? null);
@@ -210,7 +210,7 @@ class OrderCheckoutService
             $agreedTotal = round((float) $lockedOffer->total_amount, 2);
             $buyerFeeAmount = $this->calculateBuyerFeeAmount($subtotal);
             $total = round($agreedTotal + $buyerFeeAmount, 2);
-            $sellerAmount = round($agreedTotal - $commissionAmount, 2);
+            $sellerAmount = round($subtotal - $commissionAmount, 2);
             $shippingCarrier = $this->resolveShippingCarrier(collect([$lineItem]), $payload['shipping_address'] ?? null);
             $this->assertShipmentReadiness(collect([$lineItem]), $shippingCarrier, $payload['shipping_address'] ?? null);
             $shippingService = data_get($payload, 'shipping_address.delivery_type', 'home_delivery');
@@ -1014,24 +1014,9 @@ class OrderCheckoutService
         }
 
         $seller = $listingItems->pluck('listing.seller')->filter()->first();
-        $origin = is_array($seller?->shipping_origin) ? $seller->shipping_origin : [];
-        $missingFields = [];
-
-        $senderPhone = $origin['phone'] ?? $seller?->phone;
-        $senderAddressLine1 = $origin['address_line_1'] ?? null;
-        $senderPostalCode = $origin['postal_code'] ?? null;
-
-        if (blank($senderPhone)) {
-            $missingFields[] = 'phone';
-        }
-
-        if (blank($senderAddressLine1)) {
-            $missingFields[] = 'address_line_1';
-        }
-
-        if (blank($senderPostalCode)) {
-            $missingFields[] = 'postal_code';
-        }
+        $missingFields = $seller
+            ? $this->marketplaceAccess->missingSellerShippingOriginFields($seller)
+            : ['phone', 'address_line_1', 'city', 'postal_code'];
 
         if ($missingFields === []) {
             return;

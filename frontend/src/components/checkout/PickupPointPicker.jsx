@@ -83,7 +83,7 @@ function PickupPointPicker({
   if (selectedPoint) {
     return (
       <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4">
-        <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-100/80">{copy.selected}</p>
+        <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-800">{copy.selected}</p>
         <div className="mt-2 flex items-start justify-between gap-3">
           <div className="flex items-start gap-2">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-200" />
@@ -129,7 +129,7 @@ function PickupPointPicker({
       {!hasSearched && !error ? <p className="mt-3 text-xs leading-6 text-mist">{copy.hint}</p> : null}
 
       {hasSearched && !available ? (
-        <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+        <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-800">
           {copy.unavailable}
         </p>
       ) : null}

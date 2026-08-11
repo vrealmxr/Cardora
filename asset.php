@@ -49,4 +49,6 @@ $mime = $mimeByExt[$ext] ?? (mime_content_type($source) ?: 'application/octet-st
 
 header('Content-Type: ' . $mime);
 header('Content-Length: ' . (string) filesize($source));
+header('Cache-Control: public, max-age=31536000, immutable');
+header('X-Content-Type-Options: nosniff');
 readfile($source);

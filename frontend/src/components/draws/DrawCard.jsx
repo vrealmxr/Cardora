@@ -37,11 +37,9 @@ function DrawCard({
   const communityDrawSubtitle = !isPlatform
     ? `${formatNumber(draw.targetEntries ?? 0)} x ${formatCurrency(draw.entryPrice ?? 0)}`
     : draw.subtitle
-  const visual = {
-    gradient: 'from-[#29465d] via-[#182033] to-[#09111d]',
-    label: isPlatform ? 'Cardora Draw' : 'Collector Draw',
-    ...(draw.visual ?? {}),
-  }
+  const visual = draw.visual ?? {}
+  const panelGradient = 'from-[#fffefd] via-[#fbf7ef] to-[#f5eddd]'
+  const visualLabel = visual.label ?? (isPlatform ? 'Cardora Draw' : 'Collector Draw')
   const galleryImages = Array.isArray(visual.gallery) ? visual.gallery.filter(Boolean) : []
   const coverImage = draw.imageUrl ?? visual.imageUrl ?? galleryImages[0] ?? null
   const hasCoverImage = Boolean(coverImage)
@@ -127,12 +125,12 @@ function DrawCard({
     <CardSurface className={cn('group overflow-hidden p-0', className)}>
       <div
         className={cn(
-          'relative overflow-hidden rounded-[24px] border-b border-white/8',
+          'relative overflow-hidden rounded-[24px] border-b border-[#eadab7]',
           compact ? 'min-h-[220px]' : 'min-h-[260px]',
         )}
       >
-        <div className={cn('absolute inset-0 bg-gradient-to-br opacity-95', visual.gradient)} />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(243,202,87,0.16),transparent_35%)]" />
+        <div className={cn('absolute inset-0 bg-gradient-to-br opacity-95', panelGradient)} />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.92),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(243,202,87,0.16),transparent_35%)]" />
         <div className={cn('relative flex h-full flex-col justify-between', compact ? 'p-4' : 'p-5')}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -141,8 +139,8 @@ function DrawCard({
               </Badge>
               {draw.requiresVerification ? <Badge tone="warning">{copy.verifiedOnly}</Badge> : null}
             </div>
-            <span className="text-[10px] uppercase tracking-[0.28em] text-white/55">
-              {visual.label}
+            <span className="text-[10px] uppercase tracking-[0.28em] text-[#8f7a58]">
+              {visualLabel}
             </span>
           </div>
 
@@ -158,7 +156,12 @@ function DrawCard({
               )}
             >
               {hasCoverImage ? (
-                <div className={cn('overflow-hidden rounded-[18px] border border-white/12 bg-black/18', compact ? 'min-h-[150px]' : 'min-h-[178px]')}>
+                <div
+                  className={cn(
+                    'banner-image-glow overflow-hidden rounded-[18px] border border-[#eadab7] bg-white',
+                    compact ? 'min-h-[150px]' : 'min-h-[178px]',
+                  )}
+                >
                   <img
                     src={coverImage}
                     alt={draw.prizeTitle || draw.title}
@@ -167,17 +170,17 @@ function DrawCard({
                   />
                 </div>
               ) : null}
-              <div className={cn('rounded-[18px] border border-white/10 bg-black/10', compact ? 'p-3.5' : 'p-4')}>
-                <p className="text-[11px] uppercase tracking-[0.24em] text-white/50">{draw.prizeCategory}</p>
+              <div className={cn('rounded-[18px] border border-[#eadab7] bg-white', compact ? 'p-3.5' : 'p-4')}>
+                <p className="text-[11px] uppercase tracking-[0.24em] text-[#968565]">{draw.prizeCategory}</p>
                 <h3
                   className={cn(
-                    'mt-3 text-balance font-display text-white transition group-hover:text-gold-100',
+                    'mt-3 text-balance font-display text-ink transition group-hover:text-gold-600',
                     compact ? 'text-[1.8rem] leading-tight' : 'text-3xl',
                   )}
                 >
                   {draw.title}
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-white/72">{communityDrawSubtitle}</p>
+                <p className="mt-2 text-sm leading-6 text-mist">{communityDrawSubtitle}</p>
               </div>
             </div>
 
@@ -185,7 +188,7 @@ function DrawCard({
               {metaTags.map((tag, index) => (
                 <span
                   key={`${tag}-${index}`}
-                  className="inline-flex items-center rounded-full border border-white/16 bg-black/30 px-2.5 py-1 text-[10px] font-semibold tracking-[0.07em] text-white/92"
+                  className="inline-flex items-center rounded-full border border-[#eadab7] bg-white px-2.5 py-1 text-[10px] font-semibold tracking-[0.07em] text-[#7c6742]"
                 >
                   {tag}
                 </span>
@@ -199,12 +202,12 @@ function DrawCard({
       <div className={cn('space-y-4', compact ? 'p-4' : 'p-5')}>
         <div>
           <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-            <span className="text-white/75">
+            <span className="text-mist">
               {isPlatform ? copy.targetProgress : copy.entriesProgress}
             </span>
-            <span className="font-semibold text-gold-100">{draw.progressPercentage}%</span>
+            <span className="font-semibold text-gold-700">{draw.progressPercentage}%</span>
           </div>
-          <div className="h-2 rounded-full bg-white/8">
+          <div className="h-2 rounded-full bg-[#efe4cc]">
             <div
               className="h-2 rounded-full bg-gradient-to-r from-gold-300 to-gold-500"
               style={{ width: `${draw.progressPercentage}%` }}
@@ -222,27 +225,27 @@ function DrawCard({
             const Icon = item.icon
 
             return (
-              <div key={item.label} className="min-w-0 rounded-[18px] border border-white/8 bg-white/5 p-3.5">
-                <div className="flex min-w-0 items-start gap-2 text-gold-100">
+              <div key={item.label} className="min-w-0 rounded-[18px] border border-[#eadab7] bg-white p-3.5">
+                <div className="flex min-w-0 items-start gap-2 text-gold-700">
                   <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p className="min-w-0 text-[11px] leading-4 text-white/58">{item.label}</p>
+                  <p className="min-w-0 text-[11px] leading-4 text-[#968565]">{item.label}</p>
                 </div>
-                <p className="mt-2 text-sm font-semibold text-white">{item.value}</p>
+                <p className="mt-2 text-sm font-semibold text-ink">{item.value}</p>
               </div>
             )
           })}
         </div>
 
-        <div className="rounded-[20px] border border-white/8 bg-white/5 px-4 py-3.5">
-          <div className="flex items-center gap-2 text-gold-100">
+        <div className="rounded-[20px] border border-[#eadab7] bg-white px-4 py-3.5">
+          <div className="flex items-center gap-2 text-gold-700">
             <Trophy className="h-4 w-4" />
-            <p className="text-[11px] uppercase tracking-[0.24em] text-white/55">{copy.prize}</p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-[#968565]">{copy.prize}</p>
           </div>
-          <p className="mt-2 font-semibold text-white">{draw.prizeTitle}</p>
+          <p className="mt-2 font-semibold text-ink">{draw.prizeTitle}</p>
           <p className="mt-1 text-sm text-mist">{draw.prizeCondition}</p>
         </div>
 
-        <div className="space-y-2 text-sm text-white/78">
+        <div className="space-y-2 text-sm text-[#6b7280]">
           <div className="flex items-start gap-2">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gold-100" />
             <span>{draw.fairnessNote}</span>
@@ -286,4 +289,3 @@ function DrawCard({
 }
 
 export default DrawCard
-

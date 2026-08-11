@@ -1,6 +1,40 @@
 import clsx from 'clsx'
 
 export const cn = (...inputs) => clsx(inputs)
+export const VALID_LOCALES = ['el', 'en']
+export const DEFAULT_LOCALE = 'el'
+
+export const isValidLocale = (value = '') => VALID_LOCALES.includes(String(value).toLowerCase())
+
+export const getLocaleFromPathname = (pathname = '/') => {
+  const [, firstSegment = ''] = String(pathname).split('/')
+  const normalized = firstSegment.toLowerCase()
+
+  return isValidLocale(normalized) ? normalized : null
+}
+
+export const stripLocaleFromPathname = (pathname = '/') => {
+  const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`
+  const locale = getLocaleFromPathname(normalizedPath)
+
+  if (!locale) {
+    return normalizedPath || '/'
+  }
+
+  const stripped = normalizedPath.replace(new RegExp(`^/${locale}(?=/|$)`), '')
+  return stripped || '/'
+}
+
+export const localizePath = (path = '/', locale = DEFAULT_LOCALE) => {
+  const safeLocale = isValidLocale(locale) ? locale : DEFAULT_LOCALE
+  const normalizedPath = stripLocaleFromPathname(path || '/')
+
+  if (normalizedPath === '/') {
+    return `/${safeLocale}`
+  }
+
+  return `/${safeLocale}${normalizedPath}`
+}
 
 export const getInitials = (name = '') =>
   name
@@ -26,7 +60,7 @@ export const toSlug = (value = '') =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 
-export const getCategoryRoute = (slug) => {
+export const getCategoryRoute = (slug, locale = DEFAULT_LOCALE) => {
   const map = {
     cards: '/kartes',
     figures: '/figoures',
@@ -34,10 +68,11 @@ export const getCategoryRoute = (slug) => {
     misc: '/diafora',
   }
 
-  return map[slug] ?? '/'
+  return localizePath(map[slug] ?? '/', locale)
 }
 
-export const getCollectorProfileRoute = (handle = '') => `/sylloges/${handle}`
+export const getCollectorProfileRoute = (handle = '', locale = DEFAULT_LOCALE) =>
+  localizePath(`/sylloges/${handle}`, locale)
 
 export const getStatusTone = (status = '') => {
   const normalized = String(status)
@@ -100,5 +135,4 @@ export const priceInRange = (price, range) => {
 
   return true
 }
-
 

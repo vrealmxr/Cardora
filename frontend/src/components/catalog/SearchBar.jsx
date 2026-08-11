@@ -215,7 +215,7 @@ function SearchBar({
         className={cn(
           'pl-9',
           compact &&
-            'h-[44px] rounded-[14px] border-white/15 bg-[#0c1830]/85 pr-3.5 text-[14px] shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset]',
+            'h-[44px] rounded-[14px] border-[#e3d0a8] bg-white pr-3.5 text-[14px] shadow-[0_10px_24px_rgba(199,168,103,0.12)]',
         )}
         placeholder={resolvedPlaceholder}
       />
@@ -223,10 +223,10 @@ function SearchBar({
       {showSuggestions ? (
         <div
           className={cn(
-            'absolute top-[calc(100%+8px)] z-30 overflow-hidden rounded-2xl border bg-[#0b1628]/95 p-2 shadow-glass backdrop-blur-xl',
+            'absolute top-[calc(100%+8px)] z-30 overflow-hidden rounded-2xl border bg-white/95 p-2 shadow-[0_24px_40px_rgba(160,130,73,0.18)] backdrop-blur-xl',
             compact
-              ? 'left-0 w-[min(430px,calc(100vw-20px))] border-gold-300/25 shadow-[0_24px_40px_rgba(2,8,20,0.65)]'
-              : 'left-0 right-0 border-white/12',
+              ? 'left-0 w-[min(430px,calc(100vw-20px))] border-gold-300/25'
+              : 'left-0 right-0 border-[#eadab7]',
           )}
         >
           {suggestions.length ? (
@@ -244,10 +244,10 @@ function SearchBar({
                     'flex w-full items-center gap-2.5 rounded-xl border border-transparent px-2.5 py-2 text-left transition',
                     activeSuggestionIndex === index
                       ? 'border-gold-300/28 bg-gold-300/10'
-                      : 'hover:border-white/10 hover:bg-white/5',
+                      : 'hover:border-[#eadab7] hover:bg-[#fffaf0]',
                   )}
                 >
-                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#091425]">
+                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#eadab7] bg-[#fffaf0]">
                     {item.mediaUrl ? (
                       <img
                         src={item.mediaUrl}
@@ -258,7 +258,7 @@ function SearchBar({
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+                    <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
                     <p className="truncate text-xs text-mist">
                       {[item.subtitle, item.franchise, item.categoryName].filter(Boolean).join(' \u2022 ')}
                     </p>
@@ -268,7 +268,7 @@ function SearchBar({
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-white/10 bg-white/5 px-3 py-2.5 text-sm text-mist">
+            <div className="rounded-xl border border-dashed border-[#eadab7] bg-white px-3 py-2.5 text-sm text-mist">
               {copy.noMatches}
             </div>
           )}
@@ -280,7 +280,7 @@ function SearchBar({
               'mt-2 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm transition',
               activeSuggestionIndex === suggestions.length
                 ? 'border-gold-300/32 bg-gold-300/12 text-gold-100'
-                : 'border-white/10 bg-white/5 text-white/85 hover:border-gold-300/28 hover:bg-gold-300/10 hover:text-gold-100',
+                : 'border-[#eadab7] bg-white text-ink hover:border-gold-300/28 hover:bg-gold-300/10 hover:text-gold-700',
             )}
           >
             <span className="truncate font-medium">{copy.viewAll}</span>

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -30,10 +31,23 @@ class DhlMydhlService
 
     public function createShipment(array $payload): array
     {
-        return $this->request()
-            ->post('/shipments', $payload)
-            ->throw()
-            ->json() ?? [];
+        try {
+            return $this->request()
+                ->post('/shipments', $payload)
+                ->throw()
+                ->json() ?? [];
+        } catch (RequestException $exception) {
+            $responseBody = $exception->response?->body();
+
+            throw new RuntimeException(
+                sprintf(
+                    'DHL createShipment failed with status %s: %s',
+                    $exception->response?->status() ?? 'unknown',
+                    $responseBody ?: $exception->getMessage()
+                ),
+                previous: $exception
+            );
+        }
     }
 
     public function trackShipment(string $trackingNumber): array

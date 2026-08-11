@@ -13,9 +13,60 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
+import { cardoraService } from '@/services/cardoraService'
 import { formatCurrency, formatShortDateTime } from '@/utils/formatters'
 import { calculateLotSelectionDomesticShipping } from '@/utils/listingShipping'
 import { normalizeTextTree } from '@/utils/textEncoding'
+
+const mapListingDetailsToProduct = (listing, fallbackProduct) => {
+  if (!listing || !fallbackProduct) return fallbackProduct
+
+  const attributes = listing.attributes ?? {}
+  const productPayload = listing.product ?? {}
+  const metadata = productPayload.metadata ?? {}
+
+  return {
+    ...fallbackProduct,
+    publisher: attributes.publisher ?? productPayload.brand ?? fallbackProduct.publisher ?? '',
+    issueNumber: attributes.issue_number ?? productPayload.item_number ?? fallbackProduct.issueNumber ?? '',
+    printing: attributes.printing ?? fallbackProduct.printing ?? '',
+    characterName: attributes.character_name ?? fallbackProduct.characterName ?? '',
+    manufacturerLine: attributes.manufacturer_line ?? fallbackProduct.manufacturerLine ?? '',
+    scale: attributes.scale ?? fallbackProduct.scale ?? '',
+    figureHeight: attributes.figure_height ?? fallbackProduct.figureHeight ?? '',
+    material: attributes.material ?? fallbackProduct.material ?? '',
+    miniatureSubtype: attributes.miniature_subtype ?? fallbackProduct.miniatureSubtype ?? '',
+    displayStatus: attributes.display_status ?? fallbackProduct.displayStatus ?? '',
+    boxCondition: attributes.box_condition ?? fallbackProduct.boxCondition ?? '',
+    edition: attributes.edition ?? fallbackProduct.edition ?? '',
+    accessories: attributes.accessories ?? fallbackProduct.accessories ?? '',
+    serialReference: attributes.serial_reference ?? fallbackProduct.serialReference ?? '',
+    bundleContents: attributes.bundle_contents ?? fallbackProduct.bundleContents ?? '',
+    writer: attributes.writer ?? fallbackProduct.writer ?? '',
+    artist: attributes.artist ?? fallbackProduct.artist ?? '',
+    coverArtist: attributes.cover_artist ?? fallbackProduct.coverArtist ?? '',
+    signedBy: attributes.signed_by ?? fallbackProduct.signedBy ?? '',
+    pageCount: attributes.page_count ?? fallbackProduct.pageCount ?? '',
+    isbn: attributes.isbn ?? fallbackProduct.isbn ?? '',
+    authenticity:
+      productPayload.authenticity_notes ??
+      attributes.authenticity ??
+      fallbackProduct.authenticity ??
+      '',
+    shortDescription:
+      fallbackProduct.shortDescription ??
+      productPayload.subtitle ??
+      productPayload.description ??
+      '',
+    description: productPayload.description ?? fallbackProduct.description ?? '',
+    shippingInfo:
+      listing.packaging_notes ??
+      metadata.shipping_info ??
+      fallbackProduct.shippingInfo ??
+      '',
+    returns: metadata.returns ?? fallbackProduct.returns ?? '',
+  }
+}
 
 function ProductDetailPage() {
   const { currentUser } = useAuth()
@@ -34,7 +85,9 @@ function ProductDetailPage() {
     startConversationForListing,
     toggleFavorite,
   } = useMarketplace()
-  const product = productsWithSellers.find((item) => item.slug === slug)
+  const summaryProduct = productsWithSellers.find((item) => item.slug === slug)
+  const [hydratedProduct, setHydratedProduct] = useState(null)
+  const product = hydratedProduct ?? summaryProduct
   const [activeMediaIndex, setActiveMediaIndex] = useState(0)
   const [isZoomPinned, setIsZoomPinned] = useState(false)
   const [isImageHovering, setIsImageHovering] = useState(false)
@@ -221,6 +274,32 @@ function ProductDetailPage() {
   )
 
   useEffect(() => {
+    let isActive = true
+
+    if (!summaryProduct?.listingId) {
+      setHydratedProduct(null)
+      return undefined
+    }
+
+    const hydrateProduct = async () => {
+      try {
+        const listing = await cardoraService.getListing(summaryProduct.listingId)
+        if (!isActive) return
+        setHydratedProduct(mapListingDetailsToProduct(listing, summaryProduct))
+      } catch (error) {
+        if (!isActive) return
+        setHydratedProduct(summaryProduct)
+      }
+    }
+
+    hydrateProduct()
+
+    return () => {
+      isActive = false
+    }
+  }, [summaryProduct])
+
+  useEffect(() => {
     if (!product?.id) return
     const normalizedProductId = String(product.id)
 
@@ -306,6 +385,9 @@ function ProductDetailPage() {
   const lotIndividualCards = Array.isArray(product.lot?.individualCards)
     ? product.lot.individualCards
     : []
+  const productHighlights = Array.isArray(product.highlights) ? product.highlights.filter(Boolean) : []
+  const lotThemes = Array.isArray(product.lot?.themes) ? product.lot.themes.filter(Boolean) : []
+  const lotPreviewCards = Array.isArray(product.lot?.previewCards) ? product.lot.previewCards.filter(Boolean) : []
   const selectedLotCards = lotIndividualCards.filter((card) => selectedLotCardIds.includes(card.id))
   const selectedLotCardsCount = selectedLotCards.length
   const selectedLotCardsSubtotal = selectedLotCards.reduce(
@@ -595,7 +677,7 @@ function ProductDetailPage() {
       <div className="mt-5 grid items-start gap-6 xl:grid-cols-[1fr,0.9fr]">
         <CardSurface className="space-y-4" hover={false}>
           <div
-            className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#061022]"
+            className="relative overflow-hidden rounded-[24px] border border-[#eadab7] bg-[linear-gradient(160deg,rgba(255,251,241,0.82),rgba(247,236,210,0.58))]"
             onMouseMove={handleImagePointerMove}
             onMouseEnter={() => setIsImageHovering(true)}
             onMouseLeave={() => setIsImageHovering(false)}
@@ -610,10 +692,11 @@ function ProductDetailPage() {
             {activeMedia?.url ? (
               <>
                 <img
-                  src={activeMedia.url}
+                  src={activeMedia.thumbUrl ?? activeMedia.url}
                   alt={activeMedia.alt ?? product.title}
-                  className="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 blur-xl"
+                  className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-xl"
                   loading="lazy"
+                  decoding="async"
                 />
                 <img
                   src={activeMedia.url}
@@ -623,21 +706,22 @@ function ProductDetailPage() {
                   }`}
                   style={{ transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%` }}
                   loading="lazy"
+                  decoding="async"
                 />
               </>
             ) : (
-              <div className="flex h-[min(68vh,640px)] w-full items-center justify-center bg-gradient-to-br from-[#1f3f74] via-[#0e1d35] to-[#0a1120] p-6 text-center text-sm text-white/80">
+              <div className="flex h-[min(68vh,640px)] w-full items-center justify-center bg-[linear-gradient(160deg,rgba(255,251,241,0.92),rgba(247,236,210,0.7))] p-6 text-center text-sm text-[#7a6440]">
                 {locale === 'en' ? 'No photos have been uploaded yet for this listing.' : 'Δεν έχουν ανέβει ακόμα φωτογραφίες για αυτή την αγγελία.'}
               </div>
             )}
 
-            <div className="pointer-events-none absolute inset-0 z-[2] bg-[linear-gradient(180deg,rgba(6,11,20,0.08),rgba(6,11,20,0.38)_100%)]" />
+            <div className="pointer-events-none absolute inset-0 z-[2] bg-[linear-gradient(180deg,rgba(255,248,234,0.04),rgba(215,181,123,0.14)_100%)]" />
 
             {activeMedia?.url ? (
               <button
                 type="button"
                 onClick={() => setIsZoomPinned((previous) => !previous)}
-                className="absolute right-3 top-3 z-[3] inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#0b162c]/80 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-gold-300/40 hover:text-gold-100"
+                className="absolute right-3 top-3 z-[3] inline-flex items-center gap-1.5 rounded-full border border-[#e3c78f] bg-[rgba(255,250,241,0.9)] px-3 py-1.5 text-xs font-semibold text-[#6b4718] transition hover:border-[#d8b06a] hover:bg-[rgba(255,247,232,0.96)] hover:text-[#8a5a11]"
                 aria-pressed={isZoomPinned}
               >
                 <ZoomIn className="h-3.5 w-3.5" />
@@ -670,11 +754,11 @@ function ProductDetailPage() {
                   }}
                   className={`rounded-[16px] border p-2 transition ${
                     index === activeMediaIndex
-                      ? 'border-gold-300/50 bg-gold-300/12'
-                      : 'border-white/12 bg-white/5 hover:border-white/24'
+                      ? 'border-gold-300/60 bg-gold-300/14'
+                      : 'border-[#eadab7] bg-[rgba(255,251,242,0.8)] hover:border-gold-300/40 hover:bg-[rgba(255,247,232,0.92)]'
                   }`}
                 >
-                  <div className="overflow-hidden rounded-[12px] border border-white/10 bg-[#081327]">
+                  <div className="overflow-hidden rounded-[12px] border border-[#eadab7] bg-[linear-gradient(160deg,rgba(255,251,241,0.86),rgba(247,236,210,0.62))]">
                     <img
                       src={media.thumbUrl ?? media.url}
                       alt={media.alt ?? `${product.title}-${index + 1}`}
@@ -754,7 +838,7 @@ function ProductDetailPage() {
             {isAuction ? (
               <div className="mt-5 space-y-4">
                 {buyGateMessage ? (
-                  <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
                     {buyGateMessage}
                     <div className="mt-3 flex flex-wrap gap-3">
                       <Button as={Link} to="/epalithefsi-logariasmou" size="sm" variant="secondary">
@@ -799,8 +883,8 @@ function ProductDetailPage() {
                   <div
                     className={`rounded-xl border px-4 py-3 text-sm ${
                       bidNotice.tone === 'success'
-                        ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
-                        : 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+                        ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-800'
+                        : 'border-amber-400/20 bg-amber-500/10 text-amber-800'
                     }`}
                   >
                     {bidNotice.text}
@@ -830,7 +914,7 @@ function ProductDetailPage() {
             ) : (
               <div className="mt-5 flex flex-wrap gap-2.5">
                 {buyGateMessage ? (
-                  <div className="w-full rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  <div className="w-full rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
                     {buyGateMessage}
                     <div className="mt-3 flex flex-wrap gap-3">
                       <Button as={Link} to="/epalithefsi-logariasmou" size="sm" variant="secondary">
@@ -843,7 +927,7 @@ function ProductDetailPage() {
                   </div>
                 ) : null}
                 {wholeLotUnavailable ? (
-                  <div className="w-full rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  <div className="w-full rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
                     {wholeLotUnavailableMessage}
                   </div>
                 ) : null}
@@ -896,8 +980,8 @@ function ProductDetailPage() {
               <div
                 className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
                   cartNotice.tone === 'success'
-                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
-                    : 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-800'
+                    : 'border-amber-400/20 bg-amber-500/10 text-amber-800'
                 }`}
               >
                 {cartNotice.text}
@@ -956,8 +1040,8 @@ function ProductDetailPage() {
               <div
                 className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
                   offerNotice.tone === 'success'
-                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
-                    : 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-800'
+                    : 'border-amber-400/20 bg-amber-500/10 text-amber-800'
                 }`}
               >
                 {offerNotice.text}
@@ -1001,7 +1085,7 @@ function ProductDetailPage() {
         <CardSurface hover={false}>
           <SectionHeader title={copy.descriptionTitle} description={product.description} className="mb-6" />
           <div className="flex flex-wrap gap-2">
-            {product.highlights.map((item) => (
+            {productHighlights.map((item) => (
               <Badge key={item} tone="muted">
                 {item}
               </Badge>
@@ -1037,14 +1121,14 @@ function ProductDetailPage() {
             <div className="flex flex-wrap gap-2">
               <Badge tone="gold">{product.lot.totalCards} {copy.totalCards}</Badge>
               {product.lot.guaranteedHits ? <Badge tone="info">{product.lot.guaranteedHits} {copy.guaranteedHits}</Badge> : null}
-              {product.lot.themes?.map((item) => (
+              {lotThemes.map((item) => (
                 <Badge key={item} tone="muted">
                   {item}
                 </Badge>
               ))}
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
-              {product.lot.previewCards.map((item) => (
+              {lotPreviewCards.map((item) => (
                 <span key={item} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/76">
                   {item}
                 </span>
@@ -1176,7 +1260,7 @@ function ProductDetailPage() {
           title={copy.similarTitle}
           description={copy.similarDescription}
         />
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {similarProducts.map((item) => (
             <ProductCard key={item.id} product={item} />
           ))}
@@ -1189,7 +1273,7 @@ function ProductDetailPage() {
           title={copy.recentTitle}
           description={copy.recentDescription}
         />
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {recentlyViewed.map((item) => (
             <ProductCard key={item.id} product={item} />
           ))}
@@ -1200,4 +1284,3 @@ function ProductDetailPage() {
 }
 
 export default ProductDetailPage
-

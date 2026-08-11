@@ -38,6 +38,7 @@ class UpdateProfileRequest extends FormRequest
             'bio' => ['nullable', 'string'],
             'collector_tagline' => ['nullable', 'string', 'max:255'],
             'shipping_origin' => ['nullable', 'array'],
+            'shipping_origin.company_name' => ['nullable', 'string', 'max:255'],
             'shipping_origin.full_name' => ['nullable', 'string', 'max:255'],
             'shipping_origin.phone' => ['nullable', 'string', 'max:50'],
             'shipping_origin.address_line_1' => ['nullable', 'string', 'max:255'],

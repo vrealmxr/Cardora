@@ -82,6 +82,13 @@ Example (PowerShell):
 Copy-Item -Path .\frontend\dist\* -Destination .\backend\public\ -Recurse -Force
 ```
 
+## Cloudflare Notes
+
+- The frontend is prepared for Cloudflare Pages-style SPA hosting with:
+  - `frontend/public/_redirects`
+  - `frontend/public/_headers`
+- See [docs/cloudflare-deployment.md](/Users/vrealm/Documents/GitHub/Cardora/docs/cloudflare-deployment.md) for the recommended Cloudflare deployment paths and migration constraints.
+
 ## Quality Checks
 
 - Frontend lint:

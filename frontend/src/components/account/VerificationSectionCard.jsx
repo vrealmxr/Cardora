@@ -209,7 +209,7 @@ function VerificationSectionCard({ section, draft, error, onChange, onSubmit }) 
           </div>
 
           {error ? (
-            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/10 px-3.5 py-3 text-sm text-amber-100">
+            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/10 px-3.5 py-3 text-sm text-amber-800">
               {error}
             </div>
           ) : null}

@@ -54,20 +54,20 @@ function LegalDocumentPage({ document }) {
         <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-gold-100">{copy.updated}</p>
-            <p className="mt-5 text-sm leading-8 text-white/82">{copy.intro}</p>
-            {copy.introSecondary ? <p className="mt-4 text-sm leading-8 text-white/72">{copy.introSecondary}</p> : null}
+            <p className="mt-5 text-sm leading-8 text-mist">{copy.intro}</p>
+            {copy.introSecondary ? <p className="mt-4 text-sm leading-8 text-mist">{copy.introSecondary}</p> : null}
           </div>
 
-          <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
+          <div className="rounded-[24px] border border-gold-200/30 bg-white p-5">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-gold-100" />
               <p className="text-[11px] uppercase tracking-[0.28em] text-gold-100">{copy.companyTitle}</p>
             </div>
             <div className="mt-4 space-y-3">
               {copy.companyRows.map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-white/8 bg-[#0c1628]/90 px-4 py-3">
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-white/42">{label}</p>
-                  <p className="mt-2 text-sm leading-7 text-white/88">{value}</p>
+                <div key={label} className="rounded-2xl border border-gold-200/25 bg-white px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-mist">{label}</p>
+                  <p className="mt-2 text-sm leading-7 text-ink">{value}</p>
                 </div>
               ))}
             </div>
@@ -81,8 +81,8 @@ function LegalDocumentPage({ document }) {
           <div className="grid gap-5 lg:grid-cols-2">
             {copy.principles.map((item) => (
               <CardSurface key={item.title}>
-                <h2 className="font-display text-3xl text-white">{item.title}</h2>
-                <p className="mt-4 text-sm leading-8 text-white/78">{item.text}</p>
+                <h2 className="font-display text-3xl text-ink">{item.title}</h2>
+                <p className="mt-4 text-sm leading-8 text-mist">{item.text}</p>
               </CardSurface>
             ))}
           </div>
@@ -99,10 +99,10 @@ function LegalDocumentPage({ document }) {
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-display text-4xl text-white">{section.title}</h2>
+                  <h2 className="font-display text-4xl text-ink">{section.title}</h2>
                   <div className="mt-4 space-y-4">
                     {section.paragraphs?.map((paragraph) => (
-                      <p key={paragraph} className="text-sm leading-8 text-white/82">
+                      <p key={paragraph} className="text-sm leading-8 text-mist">
                         {paragraph}
                       </p>
                     ))}
@@ -111,7 +111,7 @@ function LegalDocumentPage({ document }) {
                         {section.bullets.map((bullet) => (
                           <div
                             key={bullet}
-                            className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm leading-7 text-white/78"
+                            className="rounded-2xl border border-gold-200/25 bg-white px-4 py-3 text-sm leading-7 text-mist"
                           >
                             {bullet}
                           </div>
@@ -138,8 +138,8 @@ function LegalDocumentPage({ document }) {
             {copy.related.map((item) => (
               <CardSurface key={item.to}>
                 <Badge tone="gold">{item.badge}</Badge>
-                <h3 className="mt-4 font-display text-3xl text-white">{item.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-white/76">{item.text}</p>
+                <h3 className="mt-4 font-display text-3xl text-ink">{item.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-mist">{item.text}</p>
                 <Button as={Link} to={item.to} variant="secondary" className="mt-5">
                   {item.cta}
                 </Button>
@@ -153,8 +153,8 @@ function LegalDocumentPage({ document }) {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-gold-100">{copy.ctaEyebrow}</p>
-            <h2 className="mt-3 font-display text-4xl text-white">{copy.ctaTitle}</h2>
-            <p className="mt-4 max-w-3xl text-sm leading-8 text-white/78">{copy.ctaText}</p>
+            <h2 className="mt-3 font-display text-4xl text-ink">{copy.ctaTitle}</h2>
+            <p className="mt-4 max-w-3xl text-sm leading-8 text-mist">{copy.ctaText}</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Button as={Link} to={copy.ctaPrimaryTo}>{copy.ctaPrimary}</Button>

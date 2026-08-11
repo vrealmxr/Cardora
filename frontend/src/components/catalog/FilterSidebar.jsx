@@ -9,7 +9,7 @@ function FilterGroup({ group, value, onChange }) {
 
   return (
     <div className="space-y-2.5">
-      <p className="text-sm font-semibold text-white">{group.label}</p>
+      <p className="text-sm font-semibold text-slate-800">{group.label}</p>
       <div className="flex flex-wrap gap-2">
         {group.options.map((option) => (
           <button
@@ -20,13 +20,18 @@ function FilterGroup({ group, value, onChange }) {
             className={cn(
               'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition',
               value === option.value
-                ? 'border-gold-300/40 bg-gold-300/18 text-gold-100'
-                : 'border-white/10 bg-white/5 text-white/70 hover:border-white/20 hover:text-white',
+                ? 'border-[#d8b06a] bg-[linear-gradient(145deg,rgba(255,247,229,0.98)_0%,rgba(243,229,193,0.96)_100%)] text-[#6b4718] shadow-[0_10px_22px_rgba(199,157,98,0.14)]'
+                : 'border-[#eadab7] bg-white text-slate-700 hover:border-[#d8b06a] hover:bg-[#fff8ec] hover:text-[#6b4718]',
               option.disabled && value !== option.value && 'cursor-not-allowed opacity-45',
             )}
           >
             <span>{option.label}</span>
-            <span className="rounded-full bg-black/25 px-1.5 py-0.5 text-[10px] text-white/70">
+            <span
+              className={cn(
+                'rounded-full px-1.5 py-0.5 text-[10px]',
+                value === option.value ? 'bg-white/75 text-[#8a5a11]' : 'bg-[#f8f1e4] text-slate-500',
+              )}
+            >
               {option.count}
             </span>
           </button>
@@ -61,8 +66,8 @@ function FilterSidebar({ facetGroups = [], filters, onChange, onReset, className
             <SlidersHorizontal className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="truncate font-display text-[1.7rem] text-white">{copy.title}</h3>
-            <p className="text-sm text-mist">{copy.subtitle}</p>
+            <h3 className="truncate font-display text-[1.7rem] text-slate-900">{copy.title}</h3>
+            <p className="text-sm text-slate-500">{copy.subtitle}</p>
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={onReset}>
@@ -75,7 +80,7 @@ function FilterSidebar({ facetGroups = [], filters, onChange, onReset, className
           {spotlightFilters.map((item) => (
             <span
               key={item}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/72"
+              className="rounded-full border border-[#eadab7] bg-[#fffaf0] px-3 py-1 text-[11px] text-[#8a6b3d]"
             >
               {item}
             </span>
@@ -96,4 +101,3 @@ function FilterSidebar({ facetGroups = [], filters, onChange, onReset, className
 }
 
 export default FilterSidebar
-

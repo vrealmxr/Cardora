@@ -1,12 +1,12 @@
 import { cn } from '@/utils/helpers'
 
 const toneClasses = {
-  gold: 'border-gold-300/25 bg-gold-300/12 text-gold-100',
-  success: 'border-emerald-400/25 bg-emerald-400/12 text-emerald-100',
-  warning: 'border-amber-400/25 bg-amber-400/12 text-amber-100',
-  danger: 'border-rose-400/25 bg-rose-400/12 text-rose-100',
-  info: 'border-sky-400/25 bg-sky-400/12 text-sky-100',
-  muted: 'border-white/12 bg-white/6 text-white/70',
+  gold: 'border-gold-300/22 bg-gold-300/8 text-gold-700',
+  success: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-700',
+  warning: 'border-amber-400/25 bg-amber-400/12 text-amber-700',
+  danger: 'border-rose-400/25 bg-rose-400/10 text-rose-700',
+  info: 'border-[#d9c7a1] bg-[#fbf7ef] text-[#7a6440]',
+  muted: 'border-[#e8dcc1] bg-[#fffaf0] text-slate-600',
 }
 
 function Badge({ className, tone = 'gold', children }) {

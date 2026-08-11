@@ -48,6 +48,7 @@ Route::middleware('set.locale')->group(function (): void {
     Route::prefix('auth')->group(function (): void {
         Route::post('/register', [AuthController::class, 'register']);
         Route::post('/login', [AuthController::class, 'login']);
+        Route::post('/google/code', [GoogleAuthController::class, 'code']);
         Route::get('/google/redirect', [GoogleAuthController::class, 'redirect']);
         Route::get('/google/callback', [GoogleAuthController::class, 'callback']);
         Route::post('/forgot-password', [ForgotPasswordController::class, 'store']);

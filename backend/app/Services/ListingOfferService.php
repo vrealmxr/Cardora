@@ -246,6 +246,10 @@ class ListingOfferService
         if (! in_array($listing->status, ['active', 'published'], true)) {
             $this->throwOfferError(__('This listing is no longer available for private offers.'));
         }
+
+        if (! app(MarketplaceAccessService::class)->listingIsPubliclyVisible($listing->loadMissing('seller'))) {
+            $this->throwOfferError(__('This listing is not currently visible for marketplace activity.'));
+        }
     }
 
     protected function assertListingAvailable(Listing $listing): void

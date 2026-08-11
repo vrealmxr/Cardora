@@ -51,7 +51,7 @@ function SellerDashboardPage() {
           connectReady: 'Stripe account ready',
           verificationTitle: 'Marketplace activation checklist',
           verificationText:
-            'Buying and selling stay locked until identity, address, IBAN and Stripe Connect are all ready.',
+            'Buying and selling stay locked until identity, address, IBAN and Stripe Connect are all ready. Sellers also need complete private shipping details before listings can stay visible.',
           openVerification: 'Open verification center',
           connectButton: 'Create Stripe Connected Account',
           connectButtonPending: 'Complete Stripe setup now',
@@ -88,7 +88,7 @@ function SellerDashboardPage() {
           connectReady: 'Το Stripe account είναι έτοιμο',
           verificationTitle: 'Checklist ενεργοποίησης marketplace',
           verificationText:
-            'Αγορές και πωλήσεις μένουν κλειδωμένες μέχρι να ολοκληρωθούν ταυτότητα, διεύθυνση, IBAN και Stripe Connect.',
+            'Αγορές και πωλήσεις μένουν κλειδωμένες μέχρι να ολοκληρωθούν ταυτότητα, διεύθυνση, IBAN και Stripe Connect. Οι πωλητές χρειάζονται επίσης πλήρη ιδιωτικά στοιχεία αποστολής για να παραμένουν ορατές οι αγγελίες τους.',
           openVerification: 'Άνοιγμα verification center',
           connectButton: 'Δημιουργία Stripe Connected Account',
           connectButtonPending: 'Ολοκλήρωσε τώρα το Stripe setup',
@@ -220,7 +220,7 @@ function SellerDashboardPage() {
 
       {stripeReturned ? (
         <CardSurface className={`mb-6 ${stripeReturnReady ? 'border-emerald-400/20 bg-emerald-500/10' : 'border-amber-400/20 bg-amber-500/10'}`}>
-          <p className={`text-sm font-semibold ${stripeReturnReady ? 'text-emerald-100' : 'text-amber-100'}`}>
+          <p className={`text-sm font-semibold ${stripeReturnReady ? 'text-emerald-800' : 'text-amber-800'}`}>
             {stripeReturnReady ? copy.connectSuccess : copy.connectReturnPending}
           </p>
         </CardSurface>

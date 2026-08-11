@@ -661,9 +661,9 @@ function DrawsPage({ studioMode = false }) {
     return (
       <article
         key={`${keyPrefix}-${card?.listing_id ?? card?.product_id ?? cardTitle}-${index}`}
-        className="rounded-xl border border-white/10 bg-[#0b1629] p-2.5"
+        className="rounded-xl border border-[#eadab7] bg-white p-2.5"
       >
-        <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-white/10 bg-[#081321]">
+        <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-[#eadab7] bg-[#fffaf2]">
           {cardImage ? (
             <img
               src={cardImage}
@@ -672,15 +672,15 @@ function DrawsPage({ studioMode = false }) {
               loading="lazy"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center px-3 text-center text-[11px] text-white/55">
+            <div className="flex h-full w-full items-center justify-center px-3 text-center text-[11px] text-slate-500">
               {locale === 'en' ? 'No image available' : 'Δεν υπάρχει διαθέσιμη εικόνα'}
             </div>
           )}
         </div>
-        <p className="mt-2 text-sm font-semibold text-white">{cardTitle}</p>
-        <p className="mt-1 text-[11px] text-white/68">{cardCondition} · {cardRarity}</p>
-        <p className="mt-1 text-[11px] text-white/58">{cardSeller}</p>
-        <p className="mt-1 text-xs font-semibold text-gold-100">
+        <p className="mt-2 text-sm font-semibold text-slate-900">{cardTitle}</p>
+        <p className="mt-1 text-[11px] text-slate-600">{cardCondition} · {cardRarity}</p>
+        <p className="mt-1 text-[11px] text-slate-500">{cardSeller}</p>
+        <p className="mt-1 text-xs font-semibold text-gold-700">
           {formatCurrency(Number(card?.declared_value ?? 0))}
         </p>
       </article>
@@ -750,12 +750,12 @@ function DrawsPage({ studioMode = false }) {
           <Badge tone="gold">{copy.badge}</Badge>
           <Badge tone="warning">{copy.noAutoRelease}</Badge>
         </div>
-        <h1 className="mt-4 font-display text-3xl text-white sm:text-5xl">{pageTitle}</h1>
+        <h1 className="mt-4 font-display text-3xl text-slate-900 sm:text-5xl">{pageTitle}</h1>
         <p className="mt-3 max-w-4xl text-sm leading-7 text-mist">{pageDescription}</p>
-        <p className="mt-4 rounded-xl border border-gold-300/20 bg-gold-300/10 px-4 py-3 text-sm text-gold-100">
+        <p className="mt-4 rounded-xl border border-[#d4b074] bg-[#f6ead0] px-4 py-3 text-sm text-gold-700">
           {copy.connectedRequired}
         </p>
-        <p className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80">
+        <p className="mt-3 rounded-xl border border-[#eadab7] bg-[#fffaf2] px-4 py-3 text-sm text-slate-700">
           {copy.safetyRules}
         </p>
       </CardSurface>
@@ -763,13 +763,13 @@ function DrawsPage({ studioMode = false }) {
       {tradeActionError || tradeActionSuccess ? (
         <div ref={tradeFeedbackRef} id="trade-feedback" className="mt-6 space-y-3">
           {tradeActionError ? (
-            <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {tradeActionError}
             </div>
           ) : null}
 
           {tradeActionSuccess ? (
-            <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
               {tradeActionSuccess}
             </div>
           ) : null}
@@ -799,8 +799,8 @@ function DrawsPage({ studioMode = false }) {
 
           <div>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-display text-2xl text-white sm:text-3xl">Trade Listings</h2>
-              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/72">
+              <h2 className="font-display text-2xl text-slate-900 sm:text-3xl">Trade Listings</h2>
+              <span className="rounded-full border border-[#eadab7] bg-[#fffaf2] px-4 py-2 text-sm text-slate-600">
                 {formatNumber(filteredTradeListings.length)}
               </span>
             </div>
@@ -827,7 +827,7 @@ function DrawsPage({ studioMode = false }) {
                 <select
                   value={sort}
                   onChange={(event) => setSort(event.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13px] text-white sm:w-auto"
+                  className="w-full rounded-xl border border-[#eadab7] bg-white px-3.5 py-2.5 text-[13px] text-slate-700 sm:w-auto"
                 >
                   <option value="newest">{copy.sortNewest}</option>
                   <option value="price-asc">{copy.sortPriceAsc}</option>
@@ -854,15 +854,15 @@ function DrawsPage({ studioMode = false }) {
       {isAuthenticated && studioMode ? (
         <>
           <CardSurface
-            className="featured-glow mt-12 border-white/12 bg-[radial-gradient(circle_at_12%_18%,rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_88%_80%,rgba(244,114,182,0.14),transparent_44%),linear-gradient(145deg,rgba(8,20,40,0.95),rgba(9,16,34,0.92))] p-4 sm:p-6"
+            className="featured-glow banner-gold-glow mt-12 border-[#eadab7] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(251,246,236,0.98))] p-4 sm:p-6"
             hover={false}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.24em] text-white/58">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
                   {locale === 'en' ? 'Trade inbox' : 'Trade inbox'}
                 </p>
-                <h2 className="mt-2 font-display text-2xl text-white sm:text-3xl">
+                <h2 className="mt-2 font-display text-2xl text-slate-900 sm:text-3xl">
                   {locale === 'en' ? 'All requests in one command center' : 'Όλα τα αιτήματα σε ένα command center'}
                 </h2>
               </div>
@@ -871,24 +871,24 @@ function DrawsPage({ studioMode = false }) {
               </Button>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/12 bg-white/5 px-3.5 py-3">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">{copy.incoming}</p>
-                <p className="mt-1 text-2xl font-semibold text-white">{formatNumber(incomingRequests.length)}</p>
+              <div className="rounded-2xl border border-[#eadab7] bg-white px-3.5 py-3">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{copy.incoming}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{formatNumber(incomingRequests.length)}</p>
               </div>
-              <div className="rounded-2xl border border-white/12 bg-white/5 px-3.5 py-3">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">{copy.sent}</p>
-                <p className="mt-1 text-2xl font-semibold text-white">{formatNumber(sentRequests.length)}</p>
+              <div className="rounded-2xl border border-[#eadab7] bg-white px-3.5 py-3">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{copy.sent}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{formatNumber(sentRequests.length)}</p>
               </div>
-              <div className="rounded-2xl border border-white/12 bg-white/5 px-3.5 py-3">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">{copy.deals}</p>
-                <p className="mt-1 text-2xl font-semibold text-white">{formatNumber(myTradeDeals.length)}</p>
+              <div className="rounded-2xl border border-[#eadab7] bg-white px-3.5 py-3">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{copy.deals}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{formatNumber(myTradeDeals.length)}</p>
               </div>
             </div>
           </CardSurface>
 
           <section className="mt-6 grid gap-6 xl:grid-cols-2">
-          <CardSurface className="border-sky-300/20 bg-[radial-gradient(circle_at_15%_8%,rgba(56,189,248,0.12),transparent_44%),linear-gradient(160deg,rgba(9,20,39,0.98),rgba(9,22,45,0.95))] p-4 sm:p-5">
-            <h3 className="font-display text-xl text-white sm:text-2xl">{copy.incoming}</h3>
+          <CardSurface className="border-[#eadab7] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(251,246,236,0.98))] p-4 sm:p-5">
+            <h3 className="font-display text-xl text-slate-900 sm:text-2xl">{copy.incoming}</h3>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {incomingRequests.length ? (
                 incomingRequests.map((item) => {
@@ -914,17 +914,17 @@ function DrawsPage({ studioMode = false }) {
                       key={item.id}
                       className={`rounded-2xl border p-3.5 ${
                         Number(selectedTradeRequest?.id ?? 0) === Number(item.id)
-                          ? 'border-gold-300/45 bg-gold-300/10'
-                          : 'border-white/10 bg-white/5'
+                          ? 'border-[#d4b074] bg-[#f6ead0]'
+                          : 'border-[#eadab7] bg-white'
                       }`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <p className="text-sm font-semibold text-white">{item.offered_title}</p>
+                        <p className="text-sm font-semibold text-slate-900">{item.offered_title}</p>
                         <Badge tone={tradeStatusTone(item.status)}>{tradeStatusLabel(item.status)}</Badge>
                       </div>
 
-                      <p className="mt-1 text-xs text-white/72">{listingTitle}</p>
-                      <p className="mt-1 text-[11px] text-white/45">
+                      <p className="mt-1 text-xs text-slate-600">{listingTitle}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">
                         {locale === 'en' ? 'Request' : 'Αίτημα'} #{item.id}
                       </p>
                       <p className="mt-2 text-xs text-mist">
@@ -932,17 +932,17 @@ function DrawsPage({ studioMode = false }) {
                       </p>
 
                       <div className="mt-3 grid grid-cols-2 gap-2">
-                        <div className="rounded-xl border border-white/10 bg-[#0c1628] px-2.5 py-2">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">{copy.offeredValue}</p>
-                          <p className="mt-1 text-xs font-semibold text-white">
+                        <div className="rounded-xl border border-[#eadab7] bg-[#fffaf2] px-2.5 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.offeredValue}</p>
+                          <p className="mt-1 text-xs font-semibold text-slate-900">
                             {formatCurrency(offeredValue)}
                           </p>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-[#0c1628] px-2.5 py-2">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">
+                        <div className="rounded-xl border border-[#eadab7] bg-[#fffaf2] px-2.5 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
                             {locale === 'en' ? 'Requested value' : 'Ζητούμενη αξία'}
                           </p>
-                          <p className="mt-1 text-xs font-semibold text-white">
+                          <p className="mt-1 text-xs font-semibold text-slate-900">
                             {formatCurrency(requestedValue)}
                           </p>
                         </div>
@@ -952,16 +952,16 @@ function DrawsPage({ studioMode = false }) {
                         {locale === 'en' ? 'Cards' : 'Κάρτες'}: {offeredCardsCount} → {targetCardsCount} · {copy.submitted}:{' '}
                         {formatTradeDateTime(item?.created_at)}
                       </p>
-                      <p className="mt-2 text-[11px] text-white/70">
+                      <p className="mt-2 text-[11px] text-slate-600">
                         {locale === 'en' ? 'Your side' : 'Η πλευρά σου'}: {tradeRequestCardsPreview(item, 'owner_bundle')}
                       </p>
-                      <p className="mt-1 text-[11px] text-white/70">
+                      <p className="mt-1 text-[11px] text-slate-600">
                         {locale === 'en' ? 'Other side' : 'Η άλλη πλευρά'}:{' '}
                         {tradeRequestCardsPreview(item, 'proposer_bundle')}
                       </p>
-                      <p className="mt-1 text-[11px] text-white/70">
+                      <p className="mt-1 text-[11px] text-slate-600">
                         {locale === 'en' ? 'Value gap' : 'Διαφορά αξίας'}:{' '}
-                        <span className={valueGap >= 0 ? 'text-emerald-200' : 'text-rose-200'}>
+                        <span className={valueGap >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
                           {valueGap >= 0 ? '+' : ''}
                           {formatCurrency(valueGap)}
                         </span>
@@ -995,8 +995,8 @@ function DrawsPage({ studioMode = false }) {
             </div>
           </CardSurface>
 
-          <CardSurface className="border-fuchsia-300/20 bg-[radial-gradient(circle_at_85%_10%,rgba(217,70,239,0.11),transparent_42%),linear-gradient(160deg,rgba(10,20,42,0.98),rgba(8,18,38,0.94))] p-4 sm:p-5">
-            <h3 className="font-display text-xl text-white sm:text-2xl">{copy.sent}</h3>
+          <CardSurface className="border-[#eadab7] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(251,246,236,0.98))] p-4 sm:p-5">
+            <h3 className="font-display text-xl text-slate-900 sm:text-2xl">{copy.sent}</h3>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {sentRequests.length ? (
                 sentRequests.map((item) => {
@@ -1022,17 +1022,17 @@ function DrawsPage({ studioMode = false }) {
                       key={item.id}
                       className={`rounded-2xl border p-3.5 ${
                         Number(selectedTradeRequest?.id ?? 0) === Number(item.id)
-                          ? 'border-gold-300/45 bg-gold-300/10'
-                          : 'border-white/10 bg-white/5'
+                          ? 'border-[#d4b074] bg-[#f6ead0]'
+                          : 'border-[#eadab7] bg-white'
                       }`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <p className="text-sm font-semibold text-white">{item.offered_title}</p>
+                        <p className="text-sm font-semibold text-slate-900">{item.offered_title}</p>
                         <Badge tone={tradeStatusTone(item.status)}>{tradeStatusLabel(item.status)}</Badge>
                       </div>
 
-                      <p className="mt-1 text-xs text-white/72">{listingTitle}</p>
-                      <p className="mt-1 text-[11px] text-white/45">
+                      <p className="mt-1 text-xs text-slate-600">{listingTitle}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">
                         {locale === 'en' ? 'Request' : 'Αίτημα'} #{item.id}
                       </p>
                       <p className="mt-2 text-xs text-mist">
@@ -1040,17 +1040,17 @@ function DrawsPage({ studioMode = false }) {
                       </p>
 
                       <div className="mt-3 grid grid-cols-2 gap-2">
-                        <div className="rounded-xl border border-white/10 bg-[#0c1628] px-2.5 py-2">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">{copy.offeredValue}</p>
-                          <p className="mt-1 text-xs font-semibold text-white">
+                        <div className="rounded-xl border border-[#eadab7] bg-[#fffaf2] px-2.5 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.offeredValue}</p>
+                          <p className="mt-1 text-xs font-semibold text-slate-900">
                             {formatCurrency(offeredValue)}
                           </p>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-[#0c1628] px-2.5 py-2">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">
+                        <div className="rounded-xl border border-[#eadab7] bg-[#fffaf2] px-2.5 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
                             {locale === 'en' ? 'Requested value' : 'Ζητούμενη αξία'}
                           </p>
-                          <p className="mt-1 text-xs font-semibold text-white">
+                          <p className="mt-1 text-xs font-semibold text-slate-900">
                             {formatCurrency(requestedValue)}
                           </p>
                         </div>
@@ -1060,15 +1060,15 @@ function DrawsPage({ studioMode = false }) {
                         {locale === 'en' ? 'Cards' : 'Κάρτες'}: {offeredCardsCount} → {targetCardsCount} · {copy.submitted}:{' '}
                         {formatTradeDateTime(item?.created_at)}
                       </p>
-                      <p className="mt-2 text-[11px] text-white/70">
+                      <p className="mt-2 text-[11px] text-slate-600">
                         {locale === 'en' ? 'You offered' : 'Πρόσφερες'}: {tradeRequestCardsPreview(item, 'proposer_bundle')}
                       </p>
-                      <p className="mt-1 text-[11px] text-white/70">
+                      <p className="mt-1 text-[11px] text-slate-600">
                         {locale === 'en' ? 'You asked for' : 'Ζήτησες'}: {tradeRequestCardsPreview(item, 'owner_bundle')}
                       </p>
-                      <p className="mt-1 text-[11px] text-white/70">
+                      <p className="mt-1 text-[11px] text-slate-600">
                         {locale === 'en' ? 'Value gap' : 'Διαφορά αξίας'}:{' '}
-                        <span className={valueGap >= 0 ? 'text-emerald-200' : 'text-rose-200'}>
+                        <span className={valueGap >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
                           {valueGap >= 0 ? '+' : ''}
                           {formatCurrency(valueGap)}
                         </span>
@@ -1099,8 +1099,8 @@ function DrawsPage({ studioMode = false }) {
 
           </section>
 
-          <CardSurface className="mt-6 border-emerald-300/18 bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.1),transparent_45%),linear-gradient(160deg,rgba(9,22,39,0.98),rgba(8,18,36,0.94))] p-4 sm:p-5">
-            <h3 className="font-display text-xl text-white sm:text-2xl">{copy.deals}</h3>
+          <CardSurface className="mt-6 border-[#eadab7] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(251,246,236,0.98))] p-4 sm:p-5">
+            <h3 className="font-display text-xl text-slate-900 sm:text-2xl">{copy.deals}</h3>
             {loadingTradeData ? <p className="mt-4 text-sm text-mist">{copy.loading}</p> : null}
             <div className="mt-3">
               <Button size="sm" variant="ghost" onClick={loadTradeData}>
@@ -1132,12 +1132,12 @@ function DrawsPage({ studioMode = false }) {
                       key={deal.id}
                       className={`rounded-2xl border p-3.5 ${
                         Number(selectedTradeDealId ?? 0) === Number(deal.id)
-                          ? 'border-gold-300/40 bg-gold-300/10'
-                          : 'border-white/10 bg-white/5'
+                          ? 'border-[#d4b074] bg-[#f6ead0]'
+                          : 'border-[#eadab7] bg-white'
                       }`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <p className="text-sm font-semibold text-white">Deal #{deal.id}</p>
+                        <p className="text-sm font-semibold text-slate-900">Deal #{deal.id}</p>
                         <Badge tone={tradeStatusTone(deal.status)}>{tradeStatusLabel(deal.status)}</Badge>
                       </div>
 
@@ -1146,21 +1146,21 @@ function DrawsPage({ studioMode = false }) {
                       </p>
 
                       <div className="mt-3 grid grid-cols-2 gap-2">
-                        <div className="rounded-xl border border-white/10 bg-[#0c1628] px-2.5 py-2">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">{copy.deposit}</p>
-                          <p className="mt-1 text-xs font-semibold text-white">
+                        <div className="rounded-xl border border-[#eadab7] bg-[#fffaf2] px-2.5 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.deposit}</p>
+                          <p className="mt-1 text-xs font-semibold text-slate-900">
                             {formatCurrency(Number(deal.deposit_amount ?? 0))}
                           </p>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-[#0c1628] px-2.5 py-2">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">{copy.paymentState}</p>
-                          <p className="mt-1 text-xs font-semibold text-white">
+                        <div className="rounded-xl border border-[#eadab7] bg-[#fffaf2] px-2.5 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.paymentState}</p>
+                          <p className="mt-1 text-xs font-semibold text-slate-900">
                             {isPaid ? copy.paid : copy.unpaid}
                           </p>
                         </div>
                       </div>
 
-                      <div className="mt-2 rounded-xl border border-white/10 bg-[#0c1628] px-2.5 py-2 text-xs text-white/80">
+                      <div className="mt-2 rounded-xl border border-[#eadab7] bg-[#fffaf2] px-2.5 py-2 text-xs text-slate-700">
                         <p>{copy.ownerPayment}: {deal.owner_paid_at ? copy.paid : copy.unpaid}</p>
                         <p className="mt-1">{copy.proposerPayment}: {deal.proposer_paid_at ? copy.paid : copy.unpaid}</p>
                         <p className="mt-1">{copy.releaseState}: {isReleased ? copy.releasedState : copy.waiting}</p>
@@ -1221,9 +1221,9 @@ function DrawsPage({ studioMode = false }) {
                 </p>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.targetListing}</p>
-                    <p className="mt-2 text-sm font-semibold text-white">
+                  <div className="rounded-xl border border-[#eadab7] bg-white p-4">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{copy.targetListing}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">
                       {selectedTradeDeal.listing?.product?.title ??
                         selectedTradeDeal.listing?.title ??
                         `Listing #${selectedTradeDeal.listing_id}`}
@@ -1235,9 +1235,9 @@ function DrawsPage({ studioMode = false }) {
                       {copy.role}: {selectedDealIsOwner ? copy.owner : selectedDealIsProposer ? copy.proposer : copy.you}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.counterparty}</p>
-                    <p className="mt-2 text-sm font-semibold text-white">
+                  <div className="rounded-xl border border-[#eadab7] bg-white p-4">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{copy.counterparty}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">
                       {selectedDealIsOwner
                         ? selectedTradeDeal.proposer?.display_name ?? selectedTradeDeal.proposer?.name ?? '-'
                         : selectedTradeDeal.owner?.display_name ?? selectedTradeDeal.owner?.name ?? '-'}
@@ -1298,9 +1298,9 @@ function DrawsPage({ studioMode = false }) {
                 </p>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.targetListing}</p>
-                    <p className="mt-2 text-sm font-semibold text-white">
+                  <div className="rounded-xl border border-[#eadab7] bg-white p-4">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{copy.targetListing}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">
                       {selectedTradeRequest.listing?.product?.title ??
                         selectedTradeRequest.listing?.title ??
                         `Listing #${selectedTradeRequest.listing_id}`}
@@ -1324,8 +1324,8 @@ function DrawsPage({ studioMode = false }) {
                         : '-'}
                     </p>
 
-                    <div className="mt-3 rounded-xl border border-white/10 bg-[#0c1524] p-3">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">
+                    <div className="mt-3 rounded-xl border border-[#eadab7] bg-[#fffaf2] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
                         {locale === 'en' ? 'Cards you receive' : 'Κάρτες που θα πάρεις'} ({requestBundleCards(selectedTradeRequest, 'owner_bundle').length})
                       </p>
                       {requestBundleCards(selectedTradeRequest, 'owner_bundle').length ? (
@@ -1342,9 +1342,9 @@ function DrawsPage({ studioMode = false }) {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.yourCard}</p>
-                    <p className="mt-2 text-sm font-semibold text-white">{selectedTradeRequest.offered_title}</p>
+                  <div className="rounded-xl border border-[#eadab7] bg-white p-4">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{copy.yourCard}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{selectedTradeRequest.offered_title}</p>
                     <p className="mt-2 text-xs text-mist">
                       {copy.offeredCondition}: {selectedTradeRequest.offered_condition || '-'}
                     </p>
@@ -1362,8 +1362,8 @@ function DrawsPage({ studioMode = false }) {
                       {selectedTradeRequest.offered_description || '-'}
                     </p>
 
-                    <div className="mt-3 rounded-xl border border-white/10 bg-[#0c1524] p-3">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">
+                    <div className="mt-3 rounded-xl border border-[#eadab7] bg-[#fffaf2] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
                         {locale === 'en' ? 'Cards you give' : 'Κάρτες που δίνεις'} ({requestBundleCards(selectedTradeRequest, 'proposer_bundle').length})
                       </p>
                       {requestBundleCards(selectedTradeRequest, 'proposer_bundle').length ? (
@@ -1382,7 +1382,7 @@ function DrawsPage({ studioMode = false }) {
                 </div>
 
                 <div className="mt-4">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.photos}</p>
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{copy.photos}</p>
                   {requestImages(selectedTradeRequest).length ? (
                     <div className="mt-3 flex flex-wrap gap-3">
                       {requestImages(selectedTradeRequest).map((imageUrl, imageIndex) => (
@@ -1393,7 +1393,7 @@ function DrawsPage({ studioMode = false }) {
                           rel="noreferrer"
                           className="group block w-[132px] sm:w-[156px]"
                         >
-                          <div className="relative aspect-[3/4] overflow-hidden rounded-xl border border-white/10 bg-[#091427] p-2 transition group-hover:border-gold-300/35">
+                          <div className="relative aspect-[3/4] overflow-hidden rounded-xl border border-[#eadab7] bg-[#fffaf2] p-2 transition group-hover:border-[#d4b074]">
                             <img
                               src={imageUrl}
                               alt={selectedTradeRequest.offered_title}
@@ -1401,7 +1401,7 @@ function DrawsPage({ studioMode = false }) {
                               loading="lazy"
                             />
                           </div>
-                          <p className="mt-1 text-[11px] text-white/60">
+                          <p className="mt-1 text-[11px] text-slate-500">
                             {locale === 'en' ? `Photo ${imageIndex + 1}` : `Φωτογραφία ${imageIndex + 1}`}
                           </p>
                         </a>
@@ -1436,4 +1436,3 @@ function DrawsPage({ studioMode = false }) {
 }
 
 export default DrawsPage
-

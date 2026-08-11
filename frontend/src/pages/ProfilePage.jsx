@@ -194,9 +194,9 @@ function ProfilePage() {
           readyTitle: 'Your account is ready for protected buying and selling',
           blockedTitle: 'Before you buy or sell, complete the full activation checklist',
           description:
-            'Cardora requires identity verification, address verification, IBAN verification and a Stripe connected account before marketplace actions unlock.',
+            'Cardora requires identity verification, address verification, IBAN verification, a Stripe connected account and complete private shipping details before all marketplace actions unlock.',
           warning:
-            'Until all four are completed, buying, selling, bidding and raffle entries stay locked.',
+            'Until everything is completed, buying, selling, bidding and raffle entries stay locked, and listings cannot remain visible.',
           welcome:
             'Your account was created successfully. The next step is to complete verification and create your Stripe connected account.',
           verificationButton: 'Open verification center',
@@ -208,9 +208,9 @@ function ProfilePage() {
           readyTitle: 'Ο λογαριασμός σου είναι έτοιμος για protected αγορές και πωλήσεις',
           blockedTitle: 'Πριν αγοράσεις ή πουλήσεις, ολοκλήρωσε όλο το activation checklist',
           description:
-            'Η Cardora απαιτεί επαλήθευση ταυτότητας, διεύθυνσης, IBAN και Stripe Connected Account πριν ξεκλειδώσουν οι marketplace ενέργειες.',
+            'Η Cardora απαιτεί επαλήθευση ταυτότητας, διεύθυνσης, IBAN, Stripe Connected Account και πλήρη ιδιωτικά στοιχεία αποστολής πριν ξεκλειδώσουν όλες οι marketplace ενέργειες.',
           warning:
-            'Μέχρι να ολοκληρωθούν και τα τέσσερα, αγορές, πωλήσεις, bids και συμμετοχές σε κληρώσεις παραμένουν κλειδωμένα.',
+            'Μέχρι να ολοκληρωθούν όλα, αγορές, πωλήσεις, bids και συμμετοχές σε κληρώσεις παραμένουν κλειδωμένα, ενώ οι αγγελίες δεν μπορούν να παραμένουν ορατές.',
           welcome:
             'Ο λογαριασμός σου δημιουργήθηκε κανονικά. Επόμενο βήμα είναι να ολοκληρώσεις verification και να δημιουργήσεις Stripe connected account.',
           verificationButton: 'Άνοιγμα verification center',
@@ -227,7 +227,8 @@ function ProfilePage() {
           description:
             'Manage your public collector identity, keep your verification on track and stay close to the activity tied to your account.',
           likes: 'Profile likes',
-          collectionItems: 'Collection items',
+          followers: 'Followers',
+          following: 'Following',
           trustLine: 'Email, public profile and verification center available',
           publicProfile: 'Open public collection',
           verificationTitle: 'Verification',
@@ -302,7 +303,8 @@ function ProfilePage() {
           description:
             'Διαχειρίσου τη δημόσια συλλεκτική σου εικόνα, παρακολούθησε την επαλήθευση και μείνε κοντά στη δραστηριότητα του λογαριασμού σου.',
           likes: 'Likes προφίλ',
-          collectionItems: 'Αντικείμενα συλλογής',
+          followers: 'Ακόλουθοι',
+          following: 'Ακολουθεί',
           trustLine: 'Email, δημόσιο προφίλ και κέντρο επαλήθευσης διαθέσιμα',
           publicProfile: 'Άνοιγμα δημόσιας συλλογής',
           verificationTitle: 'Επαλήθευση',
@@ -544,7 +546,7 @@ function ProfilePage() {
               ringClassName="border-transparent"
             />
             <div>
-              <h2 className="text-2xl font-semibold text-white">{getUserDisplayName(currentUser)}</h2>
+              <h2 className="text-2xl font-semibold text-ink">{getUserDisplayName(currentUser)}</h2>
               <p className="text-mist">{currentUser.city || '-'}</p>
             </div>
           </div>
@@ -558,28 +560,32 @@ function ProfilePage() {
           <p className="mt-4 text-sm leading-7 text-mist">{currentUser.bio || currentUser.collectorTagline || '-'}</p>
 
           {publicProfile ? (
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">{copy.likes}</p>
-                <p className="mt-2 text-lg font-semibold text-white">{publicProfile.likeCount}</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[20px] border border-gold-200 bg-white p-4 shadow-[0_18px_40px_rgba(148,114,44,0.08)]">
+                <p className="text-[11px] uppercase tracking-[0.28em] text-[#8d7a58]">{copy.likes}</p>
+                <p className="mt-2 text-lg font-semibold text-ink">{publicProfile.likeCount}</p>
               </div>
-              <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">{copy.collectionItems}</p>
-                <p className="mt-2 text-lg font-semibold text-white">{collectionEntries.length}</p>
+              <div className="rounded-[20px] border border-gold-200 bg-white p-4 shadow-[0_18px_40px_rgba(148,114,44,0.08)]">
+                <p className="text-[11px] uppercase tracking-[0.28em] text-[#8d7a58]">{copy.followers}</p>
+                <p className="mt-2 text-lg font-semibold text-ink">{publicProfile.followerCount ?? 0}</p>
+              </div>
+              <div className="rounded-[20px] border border-gold-200 bg-white p-4 shadow-[0_18px_40px_rgba(148,114,44,0.08)]">
+                <p className="text-[11px] uppercase tracking-[0.28em] text-[#8d7a58]">{copy.following}</p>
+                <p className="mt-2 text-lg font-semibold text-ink">{publicProfile.followingCount ?? 0}</p>
               </div>
             </div>
           ) : null}
 
           <div className="mt-6 space-y-3">
-            <div className="flex items-center gap-3 text-sm text-white/80">
+            <div className="flex items-center gap-3 text-sm text-ink/80">
               <Mail className="h-4 w-4 text-gold-100" />
               {currentUser.email}
             </div>
-            <div className="flex items-center gap-3 text-sm text-white/80">
+            <div className="flex items-center gap-3 text-sm text-ink/80">
               <ShieldCheck className="h-4 w-4 text-gold-100" />
               {copy.trustLine}
             </div>
-            <div className="flex items-center gap-3 text-sm text-white/80">
+            <div className="flex items-center gap-3 text-sm text-ink/80">
               <Star className="h-4 w-4 text-gold-100" />
               {responseTime}
             </div>
@@ -635,32 +641,6 @@ function ProfilePage() {
                 </div>
               </div>
             ) : null}
-          </CardSurface>
-
-          <CardSurface>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="font-display text-3xl text-white">{copy.raffleTitle}</h3>
-                <p className="mt-2 text-sm leading-7 text-mist">{copy.raffleText}</p>
-              </div>
-              <Button as={Link} to="/dashboard-politi/kliroseis" variant="secondary" size="sm">
-                {copy.openStudio}
-              </Button>
-            </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
-              <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">{copy.privateSetup}</p>
-                <p className="mt-2 text-sm font-semibold text-white">{copy.privateSetupText}</p>
-              </div>
-              <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">{copy.reviewFlow}</p>
-                <p className="mt-2 text-sm font-semibold text-white">{copy.reviewFlowText}</p>
-              </div>
-              <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">{copy.fairDraw}</p>
-                <p className="mt-2 text-sm font-semibold text-white">{copy.fairDrawText}</p>
-              </div>
-            </div>
           </CardSurface>
 
           <CardSurface>
@@ -741,7 +721,7 @@ function ProfilePage() {
             <div
               className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
                 collectionFeedback.tone === 'success'
-                  ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
+                  ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-800'
                   : 'border-rose-400/25 bg-rose-500/10 text-rose-100'
               }`}
             >

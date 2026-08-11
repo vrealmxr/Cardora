@@ -31,7 +31,7 @@ function FavoritesPage() {
     <div className="container pb-16">
       <SectionHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
       {favoriteProducts.length ? (
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {favoriteProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}

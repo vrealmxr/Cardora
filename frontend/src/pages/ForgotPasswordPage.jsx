@@ -99,7 +99,7 @@ function ForgotPasswordPage() {
             </div>
 
             {success ? (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800">
                 {success}
               </div>
             ) : null}

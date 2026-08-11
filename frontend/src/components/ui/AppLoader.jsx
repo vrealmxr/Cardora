@@ -121,38 +121,40 @@ function AppLoader() {
       }`}
       aria-hidden={!isLoading}
     >
-      <div className="absolute inset-0 bg-[#040a15]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(243,202,87,0.13),transparent_34%),radial-gradient(circle_at_80%_20%,rgba(71,106,169,0.16),transparent_30%),linear-gradient(180deg,rgba(3,10,19,0.82),rgba(3,9,20,0.98))]" />
-      <div className="cardora-loader-grid absolute inset-0 opacity-45" />
+      <div className="absolute inset-0 bg-[#fffdfa]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(231,206,156,0.18),transparent_34%),radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.95),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(255,253,248,0.98))]" />
+      <div className="cardora-loader-grid absolute inset-0 opacity-20" />
 
       <div className="relative flex min-h-screen items-center justify-center px-5 py-10">
-        <div className="relative w-full max-w-4xl overflow-hidden rounded-[36px] border border-gold-300/18 bg-[#081223]/92 p-7 shadow-[0_20px_120px_rgba(0,0,0,0.5)] backdrop-blur-2xl sm:p-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(243,202,87,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(51,92,143,0.18),transparent_30%)]" />
-          <div className="cardora-loader-shimmer absolute inset-y-0 -left-1/3 w-1/2 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className="relative w-full max-w-4xl overflow-hidden rounded-[36px] border border-[#eadab7] bg-[linear-gradient(160deg,rgba(255,255,255,0.98),rgba(253,249,241,0.98),rgba(248,243,233,0.97))] p-7 shadow-[0_20px_70px_rgba(193,164,111,0.12)] backdrop-blur-2xl sm:p-10">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(243,202,87,0.08),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(232,217,190,0.2),transparent_30%)]" />
+          <div className="cardora-loader-shimmer absolute inset-y-0 -left-1/3 w-1/2 bg-gradient-to-r from-transparent via-[#fff9eb] to-transparent" />
 
           <div className="relative grid items-center gap-10 lg:grid-cols-[0.92fr,1.08fr]">
             <div className="relative flex min-h-[260px] items-center justify-center">
               <div className="cardora-loader-orbit absolute h-56 w-56 rounded-full border border-gold-300/18" />
-              <div className="cardora-loader-orbit-delayed absolute h-72 w-72 rounded-full border border-white/8" />
+              <div className="cardora-loader-orbit-delayed absolute h-72 w-72 rounded-full border border-[#eadab7]" />
 
               <div className="cardora-loader-card cardora-loader-card-back" />
               <div className="cardora-loader-card cardora-loader-card-mid" />
               <div className="cardora-loader-card cardora-loader-card-front">
                 <img
-                  src="/asset.php?f=logo.png"
+                  src="/asset.php?f=logo-20260716-compact.png"
                   alt="Cardora"
+                  width="420"
+                  height="150"
                   className="w-24 drop-shadow-[0_10px_20px_rgba(243,202,87,0.2)] sm:w-28"
                 />
               </div>
 
-              <div className="cardora-loader-glow absolute bottom-6 h-10 w-40 rounded-full bg-gold-300/20 blur-2xl" />
+              <div className="cardora-loader-glow absolute bottom-6 h-10 w-40 rounded-full bg-gold-300/12 blur-2xl" />
             </div>
 
             <div>
-              <div className="inline-flex items-center rounded-full border border-gold-300/18 bg-gold-300/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.34em] text-gold-100">
+              <div className="inline-flex items-center rounded-full border border-gold-300/18 bg-gold-300/8 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.34em] text-gold-700">
                 {copy.eyebrow}
               </div>
-              <h1 className="mt-5 max-w-xl font-display text-5xl leading-[0.95] text-white sm:text-6xl">
+              <h1 className="mt-5 max-w-xl font-display text-5xl leading-[0.95] text-ink sm:text-6xl">
                 {copy.title}
               </h1>
               <p className="mt-5 max-w-xl text-sm leading-8 text-mist sm:text-[15px]">
@@ -163,7 +165,7 @@ function AppLoader() {
                 {copy.chips.map((chip) => (
                   <span
                     key={chip}
-                    className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[11px] uppercase tracking-[0.24em] text-white/80"
+                    className="rounded-full border border-[#eadab7] bg-white/86 px-3 py-1.5 text-[11px] uppercase tracking-[0.24em] text-[#6d5b3d]"
                   >
                     {chip}
                   </span>
@@ -171,12 +173,12 @@ function AppLoader() {
               </div>
 
               <div className="mt-8 space-y-3">
-                <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.28em] text-white/55">
+                <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.28em] text-[#8d7a58]">
                   <span>{copy.progressLeft}</span>
                   <span>{copy.progressRight}</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/8">
-                  <div className="cardora-loader-progress h-full w-1/2 rounded-full bg-[linear-gradient(90deg,rgba(243,202,87,0.84),rgba(255,245,214,0.96),rgba(104,151,223,0.8))]" />
+                <div className="h-2 overflow-hidden rounded-full bg-[#efe5d2]">
+                  <div className="cardora-loader-progress h-full w-1/2 rounded-full bg-[linear-gradient(90deg,rgba(212,170,92,0.82),rgba(250,240,214,0.96),rgba(231,211,171,0.84))]" />
                 </div>
               </div>
             </div>

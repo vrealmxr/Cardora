@@ -7,6 +7,7 @@ use App\Http\Resources\PublicProfileResource;
 use App\Models\ProfileLike;
 use App\Models\UserFollow;
 use App\Models\User;
+use App\Services\MarketplaceAccessService;
 use App\Services\MarketplaceNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -112,6 +113,8 @@ class PublicProfileController extends Controller
     protected function loadPublicProfile(Request $request, User $profile): User
     {
         abort_if($profile->profile_visibility === 'private', 404);
+        $marketplaceAccess = app(MarketplaceAccessService::class);
+        $sellerCanKeepListingsVisible = $marketplaceAccess->hasRequiredSellerShippingOrigin($profile);
 
         $profile->load([
             'collectionEntries' => fn ($query) => $query
@@ -135,6 +138,11 @@ class PublicProfileController extends Controller
             'collectionEntries as collection_entries_count' => fn ($query) => $query->where('visibility', 'public'),
             'listings as active_listings_count' => fn ($query) => $query->whereIn('status', ['active', 'published']),
         ]);
+
+        if (! $sellerCanKeepListingsVisible) {
+            $profile->setRelation('listings', collect());
+            $profile->setAttribute('active_listings_count', 0);
+        }
 
         $profile->setAttribute(
             'liked_by_auth_user',

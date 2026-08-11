@@ -24,6 +24,15 @@ export const cardoraService = {
     }
   },
 
+  googleAuthenticateWithCode: async (payload) => {
+    const response = await apiClient.post('/auth/google/code', payload)
+    return {
+      token: response?.token ?? '',
+      newUser: response?.new_user === true || response?.new_user === 1,
+      message: response?.message ?? '',
+    }
+  },
+
   me: async () => unwrapData(await apiClient.get('/auth/me')),
   logout: async () => apiClient.post('/auth/logout', {}),
   resendVerificationEmail: async () =>
@@ -118,6 +127,7 @@ export const cardoraService = {
 
   createListing: async (payload) => unwrapData(await apiClient.post('/listings', payload)),
   getListing: async (listingId) => unwrapData(await apiClient.get(`/listings/${listingId}`)),
+  getPublicProfile: async (handle) => unwrapData(await apiClient.get(`/profiles/${handle}`)),
   updateListing: async (listingId, payload) =>
     unwrapData(await apiClient.put(`/listings/${listingId}`, payload)),
   deleteListing: async (listingId) => apiClient.delete(`/listings/${listingId}`),

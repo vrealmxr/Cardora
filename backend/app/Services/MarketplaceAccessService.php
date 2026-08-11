@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Listing;
 use App\Models\SellerPayoutAccount;
 use App\Models\User;
 use App\Models\VerificationSubmission;
@@ -18,33 +19,42 @@ class MarketplaceAccessService
             ? $user->sellerPayoutAccount
             : $user->sellerPayoutAccount()->first();
 
-        $requirements = [
+        $buyRequirements = [
             $this->verificationRequirement('identity', $latestVerificationSubmissions->get('identity'), $locale),
             $this->verificationRequirement('address', $latestVerificationSubmissions->get('address'), $locale),
             $this->verificationRequirement('bank', $latestVerificationSubmissions->get('bank'), $locale),
             $this->stripeRequirement($stripeAccount, $locale),
         ];
+        $sellerShippingRequirement = $this->sellerShippingOriginRequirement($user, $locale);
+        $requirements = [...$buyRequirements, $sellerShippingRequirement];
 
         $readyCount = collect($requirements)->where('ready', true)->count();
         $totalCount = count($requirements);
         $missingRequirements = collect($requirements)
             ->filter(fn (array $requirement) => ! $requirement['ready'])
             ->values();
-        $isMarketplaceReady = $missingRequirements->isEmpty();
+        $missingBuyRequirements = collect($buyRequirements)
+            ->filter(fn (array $requirement) => ! $requirement['ready'])
+            ->values();
+        $canBuy = $missingBuyRequirements->isEmpty();
+        $canSell = $canBuy && $sellerShippingRequirement['ready'];
+        $isMarketplaceReady = $canSell;
 
         return [
             'is_marketplace_ready' => $isMarketplaceReady,
-            'can_buy' => $isMarketplaceReady,
-            'can_sell' => $isMarketplaceReady,
-            'can_checkout' => $isMarketplaceReady,
-            'can_create_listing' => $isMarketplaceReady,
-            'can_bid' => $isMarketplaceReady,
-            'can_join_draws' => $isMarketplaceReady,
+            'can_buy' => $canBuy,
+            'can_sell' => $canSell,
+            'can_checkout' => $canBuy,
+            'can_create_listing' => $canSell,
+            'can_bid' => $canBuy,
+            'can_join_draws' => $canBuy,
             'completion_percentage' => (int) round(($readyCount / max($totalCount, 1)) * 100),
             'ready_count' => $readyCount,
             'total_requirements' => $totalCount,
             'missing_keys' => $missingRequirements->pluck('key')->all(),
-            'blocking_message' => $this->blockingMessage($missingRequirements->all(), $locale),
+            'blocking_message' => $canBuy
+                ? $this->sellerBlockingMessage($missingRequirements->all(), $locale)
+                : $this->blockingMessage($missingBuyRequirements->all(), $locale),
             'requirements' => $requirements,
             'verification' => [
                 'identity' => $requirements[0],
@@ -52,6 +62,7 @@ class MarketplaceAccessService
                 'bank' => $requirements[2],
             ],
             'stripe_connect' => $requirements[3],
+            'seller_shipping_origin' => $requirements[4],
         ];
     }
 
@@ -79,6 +90,48 @@ class MarketplaceAccessService
         throw ValidationException::withMessages([
             'marketplace' => [$summary['blocking_message']],
         ]);
+    }
+
+    public function missingSellerShippingOriginFields(User $user): array
+    {
+        $origin = is_array($user->shipping_origin) ? $user->shipping_origin : [];
+        $missingFields = [];
+
+        if (blank($origin['phone'] ?? $user->phone)) {
+            $missingFields[] = 'phone';
+        }
+
+        if (blank($origin['address_line_1'] ?? null)) {
+            $missingFields[] = 'address_line_1';
+        }
+
+        if (blank($origin['city'] ?? $user->city)) {
+            $missingFields[] = 'city';
+        }
+
+        if (blank($origin['postal_code'] ?? null)) {
+            $missingFields[] = 'postal_code';
+        }
+
+        return $missingFields;
+    }
+
+    public function hasRequiredSellerShippingOrigin(User $user): bool
+    {
+        return $this->missingSellerShippingOriginFields($user) === [];
+    }
+
+    public function listingIsPubliclyVisible(Listing $listing): bool
+    {
+        if (! in_array((string) $listing->status, ['active', 'published'], true)) {
+            return false;
+        }
+
+        $seller = $listing->relationLoaded('seller')
+            ? $listing->seller
+            : $listing->seller()->first();
+
+        return $seller instanceof User && $this->hasRequiredSellerShippingOrigin($seller);
     }
 
     protected function latestVerificationSubmissions(User $user): Collection
@@ -154,6 +207,33 @@ class MarketplaceAccessService
             'charges_enabled' => (bool) $account?->charges_enabled,
             'payouts_enabled' => (bool) $account?->payouts_enabled,
             'details_submitted' => (bool) $account?->details_submitted,
+        ];
+    }
+
+    protected function sellerShippingOriginRequirement(User $user, string $locale): array
+    {
+        $missingFields = $this->missingSellerShippingOriginFields($user);
+        $ready = $missingFields === [];
+        $fieldLabels = collect($missingFields)
+            ->map(fn (string $field) => $this->shippingOriginFieldLabel($field, $locale))
+            ->implode(', ');
+
+        return [
+            'key' => 'seller_shipping_origin',
+            'label' => $locale === 'en' ? 'Private parcel shipping details' : 'Ιδιωτικά στοιχεία αποστολής δεμάτων',
+            'status_key' => $ready ? 'approved' : 'missing',
+            'status_label' => $this->statusLabel($ready ? 'approved' : 'missing', $locale),
+            'ready' => $ready,
+            'description' => $ready
+                ? ($locale === 'en'
+                    ? 'Your private shipping details are complete, so your listings can stay visible and your parcel shipments can be processed safely.'
+                    : 'Τα ιδιωτικά στοιχεία αποστολής είναι πλήρη, οπότε οι αγγελίες σου μπορούν να παραμένουν ορατές και οι αποστολές δεμάτων να εξυπηρετούνται με ασφάλεια.')
+                : ($locale === 'en'
+                    ? sprintf('Add the missing private shipping details to keep listings visible and enable safe parcel shipping: %s.', $fieldLabels)
+                    : sprintf('Συμπλήρωσε τα ελλιπή ιδιωτικά στοιχεία αποστολής για να παραμένουν ορατές οι αγγελίες σου και να ενεργοποιείται η ασφαλής αποστολή δεμάτων: %s.', $fieldLabels)),
+            'action_label' => $locale === 'en' ? 'Complete shipping details' : 'Συμπλήρωση στοιχείων αποστολής',
+            'action_path' => '/profil',
+            'missing_fields' => $missingFields,
         ];
     }
 
@@ -267,6 +347,42 @@ class MarketplaceAccessService
             'Για να αγοράζεις ή να πουλάς στην Cardora πρέπει πρώτα να ολοκληρώσεις: %s.',
             $labels
         );
+    }
+
+    protected function sellerBlockingMessage(array $missingRequirements, string $locale): string
+    {
+        if ($missingRequirements === []) {
+            return $locale === 'en'
+                ? 'Seller access is ready.'
+                : 'Η πρόσβαση πωλητή είναι έτοιμη.';
+        }
+
+        $labels = collect($missingRequirements)
+            ->pluck('label')
+            ->implode(', ');
+
+        if ($locale === 'en') {
+            return sprintf(
+                'To publish or keep listings visible on Cardora, complete the following required shipping details: %s.',
+                $labels
+            );
+        }
+
+        return sprintf(
+            'Για να δημοσιεύεις ή να παραμένουν ορατές οι αγγελίες σου στην Cardora, ολοκλήρωσε τα εξής υποχρεωτικά στοιχεία αποστολής: %s.',
+            $labels
+        );
+    }
+
+    protected function shippingOriginFieldLabel(string $field, string $locale): string
+    {
+        return match ($field) {
+            'phone' => $locale === 'en' ? 'sender phone' : 'τηλέφωνο αποστολέα',
+            'address_line_1' => $locale === 'en' ? 'address line 1' : 'διεύθυνση 1',
+            'city' => $locale === 'en' ? 'city' : 'πόλη',
+            'postal_code' => $locale === 'en' ? 'postal code' : 'ταχυδρομικός κώδικας',
+            default => $field,
+        };
     }
 
     protected function normalizeLocale(?string $locale): string

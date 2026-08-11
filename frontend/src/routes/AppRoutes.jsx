@@ -1,106 +1,145 @@
+import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import MainLayout from '@/layouts/MainLayout'
-import AboutPage from '@/pages/AboutPage'
-import AccountSettingsPage from '@/pages/AccountSettingsPage'
-import AuthPage from '@/pages/AuthPage'
-import BlogArticlePage from '@/pages/BlogArticlePage'
-import BlogPage from '@/pages/BlogPage'
-import CartPage from '@/pages/CartPage'
-import CategoryPage from '@/pages/CategoryPage'
-import CheckoutPage from '@/pages/CheckoutPage'
-import CheckoutSuccessPage from '@/pages/CheckoutSuccessPage'
-import CollectorProfilePage from '@/pages/CollectorProfilePage'
-import ContactPage from '@/pages/ContactPage'
-import CookiePolicyPage from '@/pages/CookiePolicyPage'
-import CreateListingPage from '@/pages/CreateListingPage'
-import DsaNoticeActionPage from '@/pages/DsaNoticeActionPage'
-import DrawsPage from '@/pages/DrawsPage'
-import EmailVerificationPage from '@/pages/EmailVerificationPage'
-import FavoritesPage from '@/pages/FavoritesPage'
-import FaqPage from '@/pages/FaqPage'
-import ForgotPasswordPage from '@/pages/ForgotPasswordPage'
-import GoogleAuthCallbackPage from '@/pages/GoogleAuthCallbackPage'
-import HomePage from '@/pages/HomePage'
-import MessagesPage from '@/pages/MessagesPage'
-import MyListingsPage from '@/pages/MyListingsPage'
-import NotFoundPage from '@/pages/NotFoundPage'
-import OrdersPage from '@/pages/OrdersPage'
-import NotificationPreferencesPage from '@/pages/NotificationPreferencesPage'
-import ProductDetailPage from '@/pages/ProductDetailPage'
-import PrivacyPage from '@/pages/PrivacyPage'
-import ProhibitedItemsPage from '@/pages/ProhibitedItemsPage'
-import ProfilePage from '@/pages/ProfilePage'
-import RaffleStudioPage from '@/pages/RaffleStudioPage'
-import ResetPasswordPage from '@/pages/ResetPasswordPage'
-import RefundsDisputesPage from '@/pages/RefundsDisputesPage'
-import SearchResultsPage from '@/pages/SearchResultsPage'
-import SellerDashboardPage from '@/pages/SellerDashboardPage'
-import SupportCenterPage from '@/pages/SupportCenterPage'
-import TermsPage from '@/pages/TermsPage'
-import VerificationPage from '@/pages/VerificationPage'
+import LocaleRedirect from '@/routes/LocaleRedirect'
+
+const MainLayout = lazy(() => import('@/layouts/MainLayout'))
+const AboutPage = lazy(() => import('@/pages/AboutPage'))
+const AccountSettingsPage = lazy(() => import('@/pages/AccountSettingsPage'))
+const AuthPage = lazy(() => import('@/pages/AuthPage'))
+const BlogArticlePage = lazy(() => import('@/pages/BlogArticlePage'))
+const BlogPage = lazy(() => import('@/pages/BlogPage'))
+const CartPage = lazy(() => import('@/pages/CartPage'))
+const CategoryPage = lazy(() => import('@/pages/CategoryPage'))
+const CheckoutPage = lazy(() => import('@/pages/CheckoutPage'))
+const CheckoutSuccessPage = lazy(() => import('@/pages/CheckoutSuccessPage'))
+const CollectorProfilePage = lazy(() => import('@/pages/CollectorProfilePage'))
+const ContactPage = lazy(() => import('@/pages/ContactPage'))
+const CookiePolicyPage = lazy(() => import('@/pages/CookiePolicyPage'))
+const CreateListingPage = lazy(() => import('@/pages/CreateListingPage'))
+const DsaNoticeActionPage = lazy(() => import('@/pages/DsaNoticeActionPage'))
+const DrawsPage = lazy(() => import('@/pages/DrawsPage'))
+const EmailVerificationPage = lazy(() => import('@/pages/EmailVerificationPage'))
+const FavoritesPage = lazy(() => import('@/pages/FavoritesPage'))
+const FaqPage = lazy(() => import('@/pages/FaqPage'))
+const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPasswordPage'))
+const GoogleAuthCallbackPage = lazy(() => import('@/pages/GoogleAuthCallbackPage'))
+const HomePage = lazy(() => import('@/pages/HomePage'))
+const MessagesPage = lazy(() => import('@/pages/MessagesPage'))
+const MyListingsPage = lazy(() => import('@/pages/MyListingsPage'))
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
+const OrdersPage = lazy(() => import('@/pages/OrdersPage'))
+const NotificationPreferencesPage = lazy(() => import('@/pages/NotificationPreferencesPage'))
+const ProductDetailPage = lazy(() => import('@/pages/ProductDetailPage'))
+const PrivacyPage = lazy(() => import('@/pages/PrivacyPage'))
+const ProhibitedItemsPage = lazy(() => import('@/pages/ProhibitedItemsPage'))
+const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
+const RaffleStudioPage = lazy(() => import('@/pages/RaffleStudioPage'))
+const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage'))
+const RefundsDisputesPage = lazy(() => import('@/pages/RefundsDisputesPage'))
+const SearchResultsPage = lazy(() => import('@/pages/SearchResultsPage'))
+const SellerDashboardPage = lazy(() => import('@/pages/SellerDashboardPage'))
+const SupportCenterPage = lazy(() => import('@/pages/SupportCenterPage'))
+const TermsPage = lazy(() => import('@/pages/TermsPage'))
+const VerificationPage = lazy(() => import('@/pages/VerificationPage'))
+
+function RouteFallback() {
+  return (
+    <div className="min-h-screen bg-[#fffdfa] px-5 pb-12 pt-28">
+      <div className="container">
+        <div className="overflow-hidden rounded-[32px] border border-[#eadab7] bg-white shadow-[0_18px_46px_rgba(193,164,111,0.1)]">
+          <div className="h-1.5 w-full bg-[linear-gradient(90deg,rgba(212,170,92,0.82),rgba(250,240,214,0.96),rgba(231,211,171,0.84))]" />
+          <div className="space-y-5 p-6 sm:p-8">
+            <div className="h-4 w-28 rounded-full bg-[#efe5d2]" />
+            <div className="h-14 w-full max-w-2xl rounded-[24px] bg-[#f8f2e6]" />
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="h-40 rounded-[28px] border border-[#f0e5d0] bg-[#fffaf0]" />
+              <div className="h-40 rounded-[28px] border border-[#f0e5d0] bg-[#fffaf0]" />
+              <div className="h-40 rounded-[28px] border border-[#f0e5d0] bg-[#fffaf0]" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function AppRoutes() {
+  const localizedAliases = [
+    ['koinotikes-kliroseis', '/kliroseis'],
+    ['verify-email', '/epivevaiosi-email'],
+    ['email-verification', '/epivevaiosi-email'],
+    ['email/verification', '/epivevaiosi-email'],
+    ['login', '/eisodos'],
+    ['register', '/eggrafi'],
+    ['search', '/anazitisi'],
+    ['terms', '/oroi-xrisis'],
+    ['privacy', '/politiki-aporritou'],
+    ['cookies', '/politiki-cookies'],
+    ['notice-and-action', '/dsa-notice-action'],
+    ['refunds', '/epistrofes-kai-diafores'],
+    ['prohibited-items', '/apagorevmena-antikeimena'],
+  ]
+
+  const renderLocalizedRoutes = (locale) => (
+    <Route path={`/${locale}`} element={<MainLayout />}>
+      <Route index element={<HomePage />} />
+      <Route path="kartes" element={<CategoryPage categorySlug="kartes" />} />
+      <Route path="figoures" element={<CategoryPage categorySlug="figoures" />} />
+      <Route path="komik-vivlia" element={<CategoryPage categorySlug="komik-vivlia" />} />
+      <Route path="diafora" element={<CategoryPage categorySlug="diafora" />} />
+      <Route path="cardora" element={<AboutPage />} />
+      <Route path="oroi-xrisis" element={<TermsPage />} />
+      <Route path="politiki-aporritou" element={<PrivacyPage />} />
+      <Route path="politiki-cookies" element={<CookiePolicyPage />} />
+      <Route path="dsa-notice-action" element={<DsaNoticeActionPage />} />
+      <Route path="epistrofes-kai-diafores" element={<RefundsDisputesPage />} />
+      <Route path="apagorevmena-antikeimena" element={<ProhibitedItemsPage />} />
+      <Route path="kliroseis" element={<DrawsPage />} />
+      <Route path="blog" element={<BlogPage />} />
+      <Route path="blog/:slug" element={<BlogArticlePage />} />
+      <Route path="epikoinonia" element={<ContactPage />} />
+      <Route path="eisodos" element={<AuthPage mode="login" />} />
+      <Route path="eggrafi" element={<AuthPage mode="register" />} />
+      <Route path="auth/google/callback" element={<GoogleAuthCallbackPage />} />
+      <Route path="epivevaiosi-email" element={<EmailVerificationPage />} />
+      <Route path="xechasa-kodiko" element={<ForgotPasswordPage />} />
+      <Route path="epanafora-kodikou" element={<ResetPasswordPage />} />
+      <Route path="profil" element={<ProfilePage />} />
+      <Route path="rythmiseis-logariasmou" element={<AccountSettingsPage />} />
+      <Route path="rythmiseis-eidopoiiseon" element={<NotificationPreferencesPage />} />
+      <Route path="sylloges/:handle" element={<CollectorProfilePage />} />
+      <Route path="epalithefsi-logariasmou" element={<VerificationPage />} />
+      <Route path="dashboard-agorasti" element={<OrdersPage initialTab="buyer" />} />
+      <Route path="dashboard-politi" element={<SellerDashboardPage />} />
+      <Route path="dashboard-politi/kliroseis" element={<RaffleStudioPage />} />
+      <Route path="kalathi" element={<CartPage />} />
+      <Route path="agapimena" element={<FavoritesPage />} />
+      <Route path="proion/:slug" element={<ProductDetailPage />} />
+      <Route path="anazitisi" element={<SearchResultsPage />} />
+      <Route path="checkout" element={<CheckoutPage />} />
+      <Route path="checkout/success" element={<CheckoutSuccessPage />} />
+      <Route path="paraggelies" element={<OrdersPage />} />
+      <Route path="oi-aggelies-mou" element={<MyListingsPage />} />
+      <Route path="dimiourgia-aggelias" element={<CreateListingPage />} />
+      <Route path="minymata" element={<MessagesPage />} />
+      <Route path="kentro-ypostiriksis" element={<SupportCenterPage />} />
+      <Route path="faq" element={<FaqPage />} />
+      {localizedAliases.map(([source, target]) => (
+        <Route key={`${locale}-${source}`} path={source} element={<Navigate to={`/${locale}${target}`} replace />} />
+      ))}
+      <Route path="*" element={<NotFoundPage />} />
+    </Route>
+  )
+
   return (
-    <Routes>
-      <Route element={<MainLayout />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/kartes" element={<CategoryPage categorySlug="kartes" />} />
-        <Route path="/figoures" element={<CategoryPage categorySlug="figoures" />} />
-        <Route path="/komik-vivlia" element={<CategoryPage categorySlug="komik-vivlia" />} />
-        <Route path="/diafora" element={<CategoryPage categorySlug="diafora" />} />
-        <Route path="/cardora" element={<AboutPage />} />
-        <Route path="/oroi-xrisis" element={<TermsPage />} />
-        <Route path="/politiki-aporritou" element={<PrivacyPage />} />
-        <Route path="/politiki-cookies" element={<CookiePolicyPage />} />
-        <Route path="/dsa-notice-action" element={<DsaNoticeActionPage />} />
-        <Route path="/epistrofes-kai-diafores" element={<RefundsDisputesPage />} />
-        <Route path="/apagorevmena-antikeimena" element={<ProhibitedItemsPage />} />
-        <Route path="/kliroseis" element={<DrawsPage />} />
-        <Route path="/koinotikes-kliroseis" element={<Navigate to="/kliroseis" replace />} />
-        <Route path="/blog" element={<BlogPage />} />
-        <Route path="/blog/:slug" element={<BlogArticlePage />} />
-        <Route path="/epikoinonia" element={<ContactPage />} />
-        <Route path="/eisodos" element={<AuthPage mode="login" />} />
-        <Route path="/eggrafi" element={<AuthPage mode="register" />} />
-        <Route path="/auth/google/callback" element={<GoogleAuthCallbackPage />} />
-        <Route path="/epivevaiosi-email" element={<EmailVerificationPage />} />
-        <Route path="/verify-email" element={<Navigate to="/epivevaiosi-email" replace />} />
-        <Route path="/email-verification" element={<Navigate to="/epivevaiosi-email" replace />} />
-        <Route path="/email/verification" element={<Navigate to="/epivevaiosi-email" replace />} />
-        <Route path="/xechasa-kodiko" element={<ForgotPasswordPage />} />
-        <Route path="/epanafora-kodikou" element={<ResetPasswordPage />} />
-        <Route path="/profil" element={<ProfilePage />} />
-        <Route path="/rythmiseis-logariasmou" element={<AccountSettingsPage />} />
-        <Route path="/rythmiseis-eidopoiiseon" element={<NotificationPreferencesPage />} />
-        <Route path="/sylloges/:handle" element={<CollectorProfilePage />} />
-        <Route path="/epalithefsi-logariasmou" element={<VerificationPage />} />
-        <Route path="/dashboard-agorasti" element={<OrdersPage initialTab="buyer" />} />
-        <Route path="/dashboard-politi" element={<SellerDashboardPage />} />
-        <Route path="/dashboard-politi/kliroseis" element={<RaffleStudioPage />} />
-        <Route path="/kalathi" element={<CartPage />} />
-        <Route path="/agapimena" element={<FavoritesPage />} />
-        <Route path="/proion/:slug" element={<ProductDetailPage />} />
-        <Route path="/anazitisi" element={<SearchResultsPage />} />
-        <Route path="/checkout" element={<CheckoutPage />} />
-        <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
-        <Route path="/paraggelies" element={<OrdersPage />} />
-        <Route path="/oi-aggelies-mou" element={<MyListingsPage />} />
-        <Route path="/dimiourgia-aggelias" element={<CreateListingPage />} />
-        <Route path="/minymata" element={<MessagesPage />} />
-        <Route path="/kentro-ypostiriksis" element={<SupportCenterPage />} />
-        <Route path="/faq" element={<FaqPage />} />
-        <Route path="/login" element={<Navigate to="/eisodos" replace />} />
-        <Route path="/register" element={<Navigate to="/eggrafi" replace />} />
-        <Route path="/search" element={<Navigate to="/anazitisi" replace />} />
-        <Route path="/terms" element={<Navigate to="/oroi-xrisis" replace />} />
-        <Route path="/privacy" element={<Navigate to="/politiki-aporritou" replace />} />
-        <Route path="/cookies" element={<Navigate to="/politiki-cookies" replace />} />
-        <Route path="/notice-and-action" element={<Navigate to="/dsa-notice-action" replace />} />
-        <Route path="/refunds" element={<Navigate to="/epistrofes-kai-diafores" replace />} />
-        <Route path="/prohibited-items" element={<Navigate to="/apagorevmena-antikeimena" replace />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+    <Suspense fallback={<RouteFallback />}>
+      <Routes>
+        {renderLocalizedRoutes('el')}
+        {renderLocalizedRoutes('en')}
+        <Route path="/" element={<LocaleRedirect />} />
+        <Route path="*" element={<LocaleRedirect />} />
+      </Routes>
+    </Suspense>
   )
 }
 

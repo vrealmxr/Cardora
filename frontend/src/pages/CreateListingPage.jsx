@@ -30,10 +30,10 @@ import {
 } from '@/utils/listingShipping'
 
 const categoryVisuals = {
-  cards: 'from-[#1d3963] via-[#111f36] to-[#08111d]',
-  figures: 'from-[#5f233d] via-[#1a2034] to-[#08111d]',
-  comics: 'from-[#3f2b6e] via-[#161f35] to-[#08111d]',
-  misc: 'from-[#214f4d] via-[#122033] to-[#08111d]',
+  cards: 'from-[#fbf2de] via-[#f4dfb3] to-[#dcc08c]',
+  figures: 'from-[#fbf1e7] via-[#efd8c1] to-[#d8b186]',
+  comics: 'from-[#faf2e8] via-[#ecd7c2] to-[#d7b692]',
+  misc: 'from-[#f8f3ea] via-[#eadfca] to-[#d7c1a2]',
 }
 
 const CARD_BUNDLE_MODES = {
@@ -1441,8 +1441,8 @@ function CreateListingPage() {
           <Badge tone="warning">{t('marketplace access', 'Marketplace access')}</Badge>
           <h1 className="mt-4 font-display text-4xl text-white">
             {t(
-              'Πριν δημιουργήσεις αγγελία, ολοκλήρωσε το verification και το Stripe setup',
-              'Before you create a listing, complete verification and Stripe setup',
+              'Πριν δημιουργήσεις αγγελία, ολοκλήρωσε verification, Stripe setup και τα private shipping details',
+              'Before you create a listing, complete verification, Stripe setup and your private shipping details',
             )}
           </h1>
           <p className="mt-4 text-sm leading-7 text-mist">
@@ -1548,7 +1548,19 @@ function CreateListingPage() {
               {listingSteps.map((label, index) => {
                 const itemStep = index + 1
                 return (
-                  <button key={label} type="button" onClick={() => goToStep(itemStep)} className={cn('rounded-[18px] border px-3 py-3 text-left transition', itemStep === step ? 'border-gold-300/30 bg-gold-300/12 text-gold-100' : itemStep < step ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100' : 'border-white/8 bg-white/5 text-white/70 hover:border-white/12 hover:text-white')}>
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => goToStep(itemStep)}
+                    className={cn(
+                      'rounded-[18px] border px-3 py-3 text-left transition',
+                      itemStep === step
+                        ? 'border-[#bfe9d8] bg-[linear-gradient(155deg,rgba(239,255,249,0.98)_0%,rgba(228,252,243,0.94)_100%)] text-[#214d3f] shadow-[0_10px_24px_rgba(107,175,145,0.14)]'
+                        : itemStep < step
+                          ? 'border-[#d8b06a] bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] text-[#231508] shadow-[0_10px_22px_rgba(199,157,98,0.16)]'
+                          : 'border-[#ead9b1] bg-white text-slate-700 hover:border-[#d8b06a] hover:text-[#6e4512]',
+                    )}
+                  >
                     <p className="text-[10px] uppercase tracking-[0.28em]">{String(itemStep).padStart(2, '0')}</p>
                     <p className="mt-2 text-xs font-semibold leading-5">{label}</p>
                   </button>
@@ -1559,7 +1571,7 @@ function CreateListingPage() {
 
           <CardSurface>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><Badge tone="gold">{listingSteps[step - 1]}</Badge><h2 className="mt-3 font-display text-4xl text-white">{activeTemplate.title}</h2></div>
+              <div><Badge tone="gold">{listingSteps[step - 1]}</Badge><h2 className="mt-3 font-display text-4xl text-ink">{activeTemplate.title}</h2></div>
               <p className="max-w-xl text-sm leading-7 text-mist">{activeTemplate.heroNote}</p>
             </div>
 
@@ -1572,13 +1584,13 @@ function CreateListingPage() {
                     <div className="rounded-[22px] border border-gold-300/15 bg-gold-300/10 p-4 md:col-span-2">
                       <div className="grid gap-3 md:grid-cols-2">
                         {[{ value: CARD_BUNDLE_MODES.single, label: singleCardLabel, text: t('Best for one card where grading, set, serial and condition should stand out.', 'Best for one card where grading, set, serial and condition should stand out.') }, { value: CARD_BUNDLE_MODES.lot, label: lotLabel, text: t('Best for grouped listings with many cards and a cleaner, easier-to-scan presentation.', 'Best for grouped listings with many cards and a cleaner, easier-to-scan presentation.') }].map((item) => (
-                          <button key={item.value} type="button" onClick={() => setBundleMode(item.value)} className={cn('rounded-[18px] border px-4 py-4 text-left transition', form.cardBundleMode === item.value ? 'border-gold-300/35 bg-gold-300/16 text-gold-50 shadow-[0_12px_32px_rgba(242,203,112,0.08)]' : 'border-white/8 bg-white/5 text-white/78 hover:border-white/12')}>
-                            <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-white">{item.label}</p>{form.cardBundleMode === item.value ? <Badge tone="gold">{t('Active', 'Active')}</Badge> : null}</div>
-                            <p className="mt-2 text-xs leading-6 text-white/65">{item.text}</p>
+                          <button key={item.value} type="button" onClick={() => setBundleMode(item.value)} className={cn('rounded-[18px] border px-4 py-4 text-left transition', form.cardBundleMode === item.value ? 'border-[#d8b06a] bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] text-[#231508] shadow-[0_12px_28px_rgba(199,157,98,0.18)]' : 'border-[#ead9b1] bg-white text-slate-700 hover:border-[#d8b06a]')}>
+                            <div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-ink">{item.label}</p>{form.cardBundleMode === item.value ? <Badge tone="gold">{t('Active', 'Active')}</Badge> : null}</div>
+                            <p className="mt-2 text-xs leading-6 text-mist">{item.text}</p>
                           </button>
                         ))}
                       </div>
-                      {isLootLot ? <div className="mt-4 rounded-[18px] border border-emerald-400/18 bg-emerald-400/10 px-4 py-3 text-sm leading-7 text-emerald-50">{t('Lot mode is active. In the next step you will add the total card count, the key cards you want to show, and the short summary buyers will actually read.', 'Lot mode is active. In the next step you will add the total card count, the key cards you want to show, and the short summary buyers will actually read.')}</div> : null}
+                      {isLootLot ? <div className="mt-4 rounded-[18px] border border-[#bfe9d8] bg-[linear-gradient(155deg,rgba(239,255,249,0.98)_0%,rgba(226,248,239,0.95)_100%)] px-4 py-3 text-sm leading-7 text-[#275747]">{t('Lot mode is active. In the next step you will add the total card count, the key cards you want to show, and the short summary buyers will actually read.', 'Lot mode is active. In the next step you will add the total card count, the key cards you want to show, and the short summary buyers will actually read.')}</div> : null}
                     </div>
                   ) : null}
                 </div>
@@ -1637,7 +1649,7 @@ function CreateListingPage() {
                           </Select>
                         </div>
                       ) : (
-                        <div className="rounded-[20px] border border-white/8 bg-white/5 px-4 py-3 text-sm leading-7 text-white/72">
+                        <div className="rounded-[20px] border border-[#ead9b1] bg-white px-4 py-3 text-sm leading-7 text-mist">
                           {t(
                             'No franchise subcategory is required for the Other group.',
                             'No franchise subcategory is required for the Other group.',
@@ -1645,7 +1657,7 @@ function CreateListingPage() {
                         </div>
                       )}
 
-                      <div className="rounded-[20px] border border-white/8 bg-white/5 px-4 py-3 text-sm leading-7 text-white/72 md:col-span-2">
+                      <div className="rounded-[20px] border border-[#ead9b1] bg-white px-4 py-3 text-sm leading-7 text-mist md:col-span-2">
                         {t(
                           'Choose the main franchise group first and then you will only see the relevant options.',
                           'Choose the main franchise group first and then you will only see the relevant options.',
@@ -1724,7 +1736,7 @@ function CreateListingPage() {
 
               {step === 3 ? (
                 <div className="grid gap-5 md:grid-cols-[0.95fr,1.05fr]">
-                  <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
+                  <div className="rounded-[20px] border border-[#ead9b1] bg-white p-4">
                     <label className="mb-2 block text-sm text-mist">{t('Upload photos', 'Upload photos')}</label>
                     <input
                       type="file"
@@ -1734,14 +1746,14 @@ function CreateListingPage() {
                         appendMediaFiles(Array.from(event.target.files ?? []))
                         event.target.value = ''
                       }}
-                      className="block w-full text-[13px] text-mist file:mr-3 file:rounded-lg file:border-0 file:bg-gold-300/15 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-gold-100 hover:file:bg-gold-300/20"
+                      className="block w-full text-[13px] text-mist file:mr-3 file:rounded-lg file:border file:border-[#e1c385] file:bg-[linear-gradient(145deg,#fff4d8_0%,#f5dfab_100%)] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#6b4718] hover:file:border-[#d1a55c] hover:file:bg-[linear-gradient(145deg,#fff0cb_0%,#efd398_100%)]"
                     />
                     <p className="mt-3 text-xs leading-6 text-mist">
                       {t('Photos will be attached when you save or submit the listing.', 'Photos will be attached when you save or submit the listing.')}
                     </p>
                     {totalMediaCount ? (
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/75">
+                        <span className="rounded-full border border-[#ead9b1] bg-white px-3 py-1 text-[11px] text-slate-700">
                           {t('Selected photos', 'Selected photos')}: {totalMediaCount}
                         </span>
                       </div>
@@ -1749,7 +1761,7 @@ function CreateListingPage() {
 
                     {existingMediaCount ? (
                       <div className="mt-4">
-                        <p className="mb-2 text-xs uppercase tracking-[0.24em] text-white/45">
+                        <p className="mb-2 text-xs uppercase tracking-[0.24em] text-mist">
                           {t('Current photos', 'Current photos')}
                         </p>
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -1772,7 +1784,7 @@ function CreateListingPage() {
                               <button
                                 type="button"
                                 onClick={() => removeUploadedMedia(index)}
-                                className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white transition hover:border-rose-300/30 hover:bg-rose-500/20 hover:text-rose-100"
+                              className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#edd9b6] bg-[rgba(255,255,255,0.94)] text-slate-700 transition hover:border-rose-300/40 hover:bg-rose-50 hover:text-rose-700"
                                 aria-label={t('Remove photo', 'Remove photo')}
                               >
                                 <X className="h-4 w-4" />
@@ -1785,23 +1797,23 @@ function CreateListingPage() {
 
                     {form.mediaFiles.length ? (
                       <div className="mt-4">
-                        <p className="mb-2 text-xs uppercase tracking-[0.24em] text-white/45">
+                        <p className="mb-2 text-xs uppercase tracking-[0.24em] text-mist">
                           {t('New photos ready to upload', 'New photos ready to upload')}
                         </p>
                         <div className="space-y-2">
                           {form.mediaFiles.map((file, index) => (
                             <div
                               key={`${file.name}-${file.lastModified}-${index}`}
-                              className="flex items-center justify-between gap-3 rounded-[16px] border border-white/10 bg-white/5 px-3 py-2"
+                              className="flex items-center justify-between gap-3 rounded-[16px] border border-[#ead9b1] bg-white px-3 py-2"
                             >
                               <div className="min-w-0">
-                                <p className="truncate text-sm text-white">{file.name}</p>
+                                <p className="truncate text-sm text-ink">{file.name}</p>
                                 <p className="text-xs text-mist">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => removePendingMedia(index)}
-                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white transition hover:border-rose-300/30 hover:bg-rose-500/20 hover:text-rose-100"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#edd9b6] bg-[rgba(255,255,255,0.94)] text-slate-700 transition hover:border-rose-300/40 hover:bg-rose-50 hover:text-rose-700"
                                 aria-label={t('Remove photo', 'Remove photo')}
                               >
                                 <X className="h-4 w-4" />
@@ -1824,7 +1836,7 @@ function CreateListingPage() {
 
                   <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
                     {photoChecklist.map((item) => (
-                      <div key={item} className="rounded-[20px] border border-white/8 bg-white/5 px-4 py-3 text-sm leading-7 text-white/78">
+                      <div key={item} className="rounded-[20px] border border-[#ead9b1] bg-white px-4 py-3 text-sm leading-7 text-mist">
                         {item}
                       </div>
                     ))}
@@ -1887,8 +1899,8 @@ function CreateListingPage() {
                       </div>
 
                       <div className="mt-5 grid gap-5 lg:grid-cols-[1.08fr,0.92fr]">
-                        <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
-                          <p className="text-[11px] uppercase tracking-[0.28em] text-white/50">{t('Cards shown first', 'Cards shown first')}</p>
+                        <div className="rounded-[20px] border border-[#ead9b1] bg-white p-4">
+                          <p className="text-[11px] uppercase tracking-[0.28em] text-mist">{t('Cards shown first', 'Cards shown first')}</p>
                           <div className="mt-4 flex gap-3">
                             <Input
                               value={form.lotCardDraft}
@@ -1909,16 +1921,16 @@ function CreateListingPage() {
                                 key={item}
                                 type="button"
                                 onClick={() => setForm((previous) => ({ ...previous, lotNamedCards: previous.lotNamedCards.filter((card) => card !== item) }))}
-                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-white/78 transition hover:border-rose-300/30 hover:text-rose-100"
+                                className="rounded-full border border-[#ead9b1] bg-white px-3 py-1.5 text-[11px] text-slate-700 transition hover:border-rose-300/40 hover:bg-rose-50 hover:text-rose-700"
                               >
-                                {item} <span className="ml-1 text-white/40">×</span>
+                                {item} <span className="ml-1 text-slate-400">×</span>
                               </button>
                             )) : <p className="text-sm text-mist">{t('No cards added yet.', 'No cards added yet.')}</p>}
                           </div>
                         </div>
 
-                        <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
-                          <p className="text-[11px] uppercase tracking-[0.28em] text-white/50">{t('Themes', 'Themes')}</p>
+                        <div className="rounded-[20px] border border-[#ead9b1] bg-white p-4">
+                          <p className="text-[11px] uppercase tracking-[0.28em] text-mist">{t('Themes', 'Themes')}</p>
                           <div className="mt-4 flex gap-3">
                             <Input
                               value={form.lotThemeDraft}
@@ -1935,7 +1947,7 @@ function CreateListingPage() {
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">
                             {lotThemeSuggestions.map((item) => (
-                              <button key={item} type="button" onClick={() => addLotTheme(item)} className="rounded-full border border-gold-300/18 bg-gold-300/10 px-3 py-1 text-[11px] text-gold-50 transition hover:border-gold-300/28">
+                              <button key={item} type="button" onClick={() => addLotTheme(item)} className="rounded-full border border-[#e4c58a] bg-[linear-gradient(155deg,rgba(255,248,230,0.96)_0%,rgba(245,231,195,0.92)_100%)] px-3 py-1 text-[11px] text-[#7a5a24] transition hover:border-[#d7b57b]">
                                 + {item}
                               </button>
                             ))}
@@ -1946,9 +1958,9 @@ function CreateListingPage() {
                                 key={item}
                                 type="button"
                                 onClick={() => setForm((previous) => ({ ...previous, lotThemeTags: previous.lotThemeTags.filter((theme) => theme !== item) }))}
-                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-white/78 transition hover:border-rose-300/30 hover:text-rose-100"
+                                className="rounded-full border border-[#ead9b1] bg-white px-3 py-1.5 text-[11px] text-slate-700 transition hover:border-rose-300/40 hover:bg-rose-50 hover:text-rose-700"
                               >
-                                {item} <span className="ml-1 text-white/40">×</span>
+                                {item} <span className="ml-1 text-slate-400">×</span>
                               </button>
                             )) : <p className="text-sm text-mist">{t('No themes added yet.', 'No themes added yet.')}</p>}
                           </div>
@@ -1960,14 +1972,14 @@ function CreateListingPage() {
                         <Textarea value={form.lotSummary} onChange={(event) => updateForm('lotSummary', event.target.value)} placeholder={t('Explain what the lot is, what kind of mix it has, and what the buyer should realistically expect.', 'Explain what the lot is, what kind of mix it has, and what the buyer should realistically expect.')} />
                       </div>
 
-                      <div className="mt-5 rounded-[20px] border border-white/10 bg-black/10 p-4">
+                      <div className="mt-5 rounded-[20px] border border-[#ead9b1] bg-white p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
-                            <p className="text-[11px] uppercase tracking-[0.28em] text-white/50">{t('Individual cards for checkout', 'Individual cards for checkout')}</p>
-                            <h4 className="mt-3 text-xl font-semibold text-white">{t('Allow buyers to purchase single cards from the lot', 'Allow buyers to purchase single cards from the lot')}</h4>
+                            <p className="text-[11px] uppercase tracking-[0.28em] text-mist">{t('Individual cards for checkout', 'Individual cards for checkout')}</p>
+                            <h4 className="mt-3 text-xl font-semibold text-ink">{t('Allow buyers to purchase single cards from the lot', 'Allow buyers to purchase single cards from the lot')}</h4>
                             <p className="mt-2 max-w-3xl text-sm leading-7 text-mist">{t('If enabled, buyers can choose specific cards from the lot and buy them separately.', 'If enabled, buyers can choose specific cards from the lot and buy them separately.')}</p>
                           </div>
-                          <label className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white">
+                          <label className="inline-flex items-center gap-3 rounded-full border border-[#ead9b1] bg-white px-4 py-2 text-sm text-slate-700">
                             <input
                               type="checkbox"
                               checked={form.allowIndividualLotPurchase}
@@ -2003,15 +2015,15 @@ function CreateListingPage() {
                               <Button type="button" onClick={addLotIndividualCard}>{t('Add card', 'Add card')}</Button>
                             </div>
 
-                            <div className="mt-4 rounded-xl border border-gold-300/15 bg-gold-300/10 px-4 py-3 text-sm leading-7 text-gold-50">
+                            <div className="mt-4 rounded-xl border border-[#e4c58a] bg-[linear-gradient(155deg,rgba(255,249,236,0.98)_0%,rgba(246,231,195,0.94)_100%)] px-4 py-3 text-sm leading-7 text-[#7a5a24]">
                               {t('Shipping and insurance for individual card purchases start at â‚¬2.50 for up to 10 cards. From the 11th card onward, â‚¬0.25 is added for each extra card.', 'Shipping and insurance for individual card purchases start at â‚¬2.50 for up to 10 cards. From the 11th card onward, â‚¬0.25 is added for each extra card.')}
                             </div>
 
                             <div className="mt-4 space-y-2">
                               {form.lotIndividualCards.length ? form.lotIndividualCards.map((card) => (
-                                <div key={card.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-white/10 bg-white/5 px-4 py-3">
+                                <div key={card.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[#ead9b1] bg-white px-4 py-3">
                                   <div>
-                                    <p className="text-sm font-semibold text-white">{card.title}</p>
+                                    <p className="text-sm font-semibold text-ink">{card.title}</p>
                                     <p className="text-xs text-mist">{formatCurrency(card.price)}</p>
                                   </div>
                                   <Button
@@ -2048,7 +2060,7 @@ function CreateListingPage() {
                         ))}
                       </Select>
                     </div>
-                    <div className="rounded-[20px] border border-white/8 bg-white/5 px-4 py-3.5 text-sm leading-7 text-white/78">
+                    <div className="rounded-[20px] border border-[#ead9b1] bg-white px-4 py-3.5 text-sm leading-7 text-mist">
                       {isAuctionFormat
                         ? t(
                             'Auction listings show the opening bid, bid step, end time and any optional reserve or buyout.',
@@ -2197,8 +2209,8 @@ function CreateListingPage() {
                           ))}
                         </Select>
                       </div>
-                      <div className="rounded-[20px] border border-white/8 bg-white/5 p-4 md:col-span-2">
-                        <label className="flex items-start gap-3 text-sm text-white/80">
+                      <div className="rounded-[20px] border border-[#ead9b1] bg-white p-4 md:col-span-2">
+                        <label className="flex items-start gap-3 text-sm text-slate-700">
                           <input
                             type="checkbox"
                             checked={form.acceptOffers}
@@ -2218,7 +2230,7 @@ function CreateListingPage() {
                               disabled={!form.acceptOffers}
                             />
                           </div>
-                          <div className="rounded-xl border border-gold-300/15 bg-gold-300/10 px-4 py-3 text-sm leading-7 text-gold-50">
+                          <div className="rounded-xl border border-[#e4c58a] bg-[linear-gradient(155deg,rgba(255,249,236,0.98)_0%,rgba(246,231,195,0.94)_100%)] px-4 py-3 text-sm leading-7 text-[#7a5a24]">
                             {t(
                               'If you accept offers, set a realistic floor so messages stay useful and serious.',
                               'If you accept offers, set a realistic floor so messages stay useful and serious.',
@@ -2233,18 +2245,18 @@ function CreateListingPage() {
 
               {step === 6 ? (
                 <div className="space-y-5">
-                  <div className="rounded-[20px] border border-emerald-400/20 bg-emerald-400/10 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.28em] text-emerald-100">{t('Domestic', 'Domestic')}</p>
-                    <p className="mt-2 text-sm leading-7 text-emerald-50">{domesticShipping.note}</p>
+                  <div className="rounded-[20px] border border-[#bfe9d8] bg-[linear-gradient(155deg,rgba(239,255,249,0.98)_0%,rgba(226,248,239,0.95)_100%)] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-[#2c5e4e]">{t('Domestic', 'Domestic')}</p>
+                    <p className="mt-2 text-sm leading-7 text-[#275747]">{domesticShipping.note}</p>
                     {canConfigureBoxNow ? (
                       <div className="mt-4 grid gap-5 md:grid-cols-2">
                         <div>
-                          <label className="mb-2 block text-sm text-emerald-50">{t('Domestic carriers', 'Domestic carriers')}</label>
+                          <label className="mb-2 block text-sm text-emerald-800">{t('Domestic carriers', 'Domestic carriers')}</label>
                           <div className="grid gap-3">
                             {DOMESTIC_CARRIER_OPTIONS.map((carrier) => (
                               <label
                                 key={carrier}
-                                className="flex items-start gap-3 rounded-[18px] border border-white/10 bg-black/10 px-4 py-3 text-sm leading-7 text-white/78"
+                                className="flex items-start gap-3 rounded-[18px] border border-[#d8e8dd] bg-white px-4 py-3 text-sm leading-7 text-slate-700"
                               >
                                 <input
                                   type="checkbox"
@@ -2257,7 +2269,7 @@ function CreateListingPage() {
                             ))}
                           </div>
                         </div>
-                        <div className="rounded-[18px] border border-white/10 bg-black/10 px-4 py-3 text-sm leading-7 text-white/78">
+                        <div className="rounded-[18px] border border-[#d8e8dd] bg-white px-4 py-3 text-sm leading-7 text-slate-700">
                           {t(
                             'Select one or both carriers. DHL stays the primary checkout default whenever both are enabled, while BoxNow remains available as a second buyer option.',
                             'Select one or both carriers. DHL stays the primary checkout default whenever both are enabled, while BoxNow remains available as a second buyer option.',
@@ -2269,11 +2281,11 @@ function CreateListingPage() {
                       <>
                         <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Carrier', 'Carrier')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Carrier', 'Carrier')}</label>
                             <Input value={form.domesticShippingCarrier} disabled />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Τύπος δέματος', 'Parcel type')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Τύπος δέματος', 'Parcel type')}</label>
                             <Select
                               value={domesticParcelType}
                               onChange={(event) =>
@@ -2294,11 +2306,11 @@ function CreateListingPage() {
                             </Select>
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Διαστάσεις BoxNow (cm)', 'BoxNow dimensions (cm)')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Διαστάσεις BoxNow (cm)', 'BoxNow dimensions (cm)')}</label>
                             <Input value={`${selectedParcelDimensions.length} x ${selectedParcelDimensions.width} x ${selectedParcelDimensions.height}`} disabled />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Τελική τιμή (προϊόν + Ελλάδα)', 'Final price (item + Greece)')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Τελική τιμή (προϊόν + Ελλάδα)', 'Final price (item + Greece)')}</label>
                             <Input value={formatCurrency(effectivePreviewPrice)} disabled />
                           </div>
                         </div>
@@ -2326,14 +2338,14 @@ function CreateListingPage() {
                           </div>
                         </div>
 
-                        <p className="mt-3 text-xs leading-6 text-emerald-100/80">
+                        <p className="mt-3 text-xs leading-6 text-emerald-800">
                           {t(
                             'Ενδεικτικές διαστάσεις BoxNow: Mini 17x45x8, Μικρό 17x45x20, Μεσαίο 36x45x20, Μεγάλο 60x45x36 (cm).',
                             'Indicative BoxNow parcel dimensions: Mini 17x45x8, Small 17x45x20, Medium 36x45x20, Large 60x45x36 (cm).',
                           )}
                         </p>
                         {cyprusShippingFee <= 0 ? (
-                          <p className="mt-2 text-xs leading-6 text-emerald-100/70">
+                          <p className="mt-2 text-xs leading-6 text-emerald-800">
                             {t(
                               'Για τον επιλεγμένο τύπο δέματος δεν υπάρχει σταθερή τιμή Κύπρου και εφαρμόζεται fallback μέσω DHL.',
                               'For this parcel type there is no fixed Cyprus rate, so DHL fallback applies.',
@@ -2347,11 +2359,11 @@ function CreateListingPage() {
                       <>
                         <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Carrier', 'Carrier')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Carrier', 'Carrier')}</label>
                             <Input value={form.domesticShippingCarrier} disabled />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('DHL domestic fee (auto)', 'DHL domestic fee (auto)')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('DHL domestic fee (auto)', 'DHL domestic fee (auto)')}</label>
                             <Input
                               type="text"
                               value={formatCurrency(dhlDomesticShippingFee)}
@@ -2359,18 +2371,18 @@ function CreateListingPage() {
                             />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Item price', 'Item price')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Item price', 'Item price')}</label>
                             <Input value={formatCurrency(baseListingPrice)} disabled />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Buyer pays at checkout', 'Buyer pays at checkout')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Buyer pays at checkout', 'Buyer pays at checkout')}</label>
                             <Input value={formatCurrency(roundMoney(baseListingPrice + dhlDomesticShippingFee))} disabled />
                           </div>
                         </div>
 
                         <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Weight (kg)', 'Weight (kg)')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Weight (kg)', 'Weight (kg)')}</label>
                             <Input
                               type="number"
                               min="0"
@@ -2380,31 +2392,31 @@ function CreateListingPage() {
                             />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Length (cm)', 'Length (cm)')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Length (cm)', 'Length (cm)')}</label>
                             <Input
                               type="number"
-                              min="0"
-                              step="0.1"
+                              min="1"
+                              step="1"
                               value={form.packageLengthCm}
                               onChange={(event) => updateForm('packageLengthCm', event.target.value)}
                             />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Width (cm)', 'Width (cm)')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Width (cm)', 'Width (cm)')}</label>
                             <Input
                               type="number"
-                              min="0"
-                              step="0.1"
+                              min="1"
+                              step="1"
                               value={form.packageWidthCm}
                               onChange={(event) => updateForm('packageWidthCm', event.target.value)}
                             />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('Height (cm)', 'Height (cm)')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('Height (cm)', 'Height (cm)')}</label>
                             <Input
                               type="number"
-                              min="0"
-                              step="0.1"
+                              min="1"
+                              step="1"
                               value={form.packageHeightCm}
                               onChange={(event) => updateForm('packageHeightCm', event.target.value)}
                             />
@@ -2460,7 +2472,7 @@ function CreateListingPage() {
                         ) : null}
 
                         {dhlDomesticBreakdown?.surcharges?.length ? (
-                          <div className="mt-4 rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm leading-7 text-amber-100">
+                          <div className="mt-4 rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm leading-7 text-amber-800">
                             {t('Applied DHL surcharges:', 'Applied DHL surcharges:')} {dhlDomesticBreakdown.surcharges.map((entry) => {
                               if (entry.code === 'oversize_piece') return t('Oversize piece', 'Oversize piece')
                               if (entry.code === 'non_conveyable_weight') return t('Heavy piece handling', 'Heavy piece handling')
@@ -2482,7 +2494,7 @@ function CreateListingPage() {
                         </div>
                         <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('BoxNow parcel type', 'BoxNow parcel type')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('BoxNow parcel type', 'BoxNow parcel type')}</label>
                             <Select
                               value={domesticParcelType}
                               onChange={(event) =>
@@ -2500,15 +2512,15 @@ function CreateListingPage() {
                             </Select>
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('BoxNow dimensions (cm)', 'BoxNow dimensions (cm)')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('BoxNow dimensions (cm)', 'BoxNow dimensions (cm)')}</label>
                             <Input value={`${selectedParcelDimensions.length} x ${selectedParcelDimensions.width} x ${selectedParcelDimensions.height}`} disabled />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('BoxNow Greece fee', 'BoxNow Greece fee')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('BoxNow Greece fee', 'BoxNow Greece fee')}</label>
                             <Input value={formatCurrency(boxNowDomesticShippingFee)} disabled />
                           </div>
                           <div>
-                            <label className="mb-2 block text-sm text-emerald-50">{t('BoxNow Cyprus fee', 'BoxNow Cyprus fee')}</label>
+                            <label className="mb-2 block text-sm text-emerald-800">{t('BoxNow Cyprus fee', 'BoxNow Cyprus fee')}</label>
                             <Input value={cyprusShippingFee > 0 ? formatCurrency(cyprusShippingFee) : t('DHL fallback', 'DHL fallback')} disabled />
                           </div>
                         </div>
@@ -2516,8 +2528,8 @@ function CreateListingPage() {
                     ) : null}
                   </div>
 
-                  <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
-                    <label className="flex items-start gap-3 text-sm text-white/80">
+                  <div className="rounded-[20px] border border-[#ead9b1] bg-white p-4">
+                    <label className="flex items-start gap-3 text-sm text-slate-700">
                       <input
                         type="checkbox"
                         checked={form.shipInternational}
@@ -2529,7 +2541,7 @@ function CreateListingPage() {
 
                     {form.shipInternational ? (
                       <>
-                        <p className="mt-3 text-sm leading-7 text-white/75">{internationalShipping.note}</p>
+                        <p className="mt-3 text-sm leading-7 text-mist">{internationalShipping.note}</p>
                         <div className="mt-4 grid gap-5 md:grid-cols-2">
                           <div>
                             <label className="mb-2 block text-sm text-mist">{t('International carrier', 'International carrier')}</label>
@@ -2583,9 +2595,9 @@ function CreateListingPage() {
                 </div>
               ) : null}
 
-              {step === 7 ? <div className="space-y-5"><div className="grid gap-4 md:grid-cols-2">{reviewRows.map(([label, value]) => <div key={label} className="rounded-[20px] border border-white/8 bg-white/5 p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-white/45">{label}</p><p className="mt-2 text-sm font-semibold text-white">{value}</p></div>)}</div>{isLootLot ? <div className="rounded-[20px] border border-white/8 bg-white/5 p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-white/45">{t('Lot summary', 'Lot summary')}</p><div className="mt-3 flex flex-wrap gap-2">{lotPreviewCards.slice(0, 5).map((item) => <Badge key={item} tone="muted">{item}</Badge>)}{Number(form.lotCardCount || 0) > lotPreviewCards.slice(0, 5).length ? <Badge tone="info">+{Math.max(Number(form.lotCardCount || 0) - lotPreviewCards.slice(0, 5).length, 0)} {t('cards', 'cards')}</Badge> : null}</div><p className="mt-3 text-sm leading-7 text-mist">{form.lotSummary || t('No lot summary has been added yet.', 'No lot summary has been added yet.')}</p></div> : null}<div className="grid gap-3 md:grid-cols-2">{listingCommonOptions.complianceChecks.map((item) => <label key={item} className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-white/80"><input type="checkbox" checked={form.complianceAcknowledgements.includes(item)} onChange={() => toggleArrayValue('complianceAcknowledgements', item)} className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-gold-300 focus:ring-gold-300/30" /><span>{item}</span></label>)}</div></div> : null}
+              {step === 7 ? <div className="space-y-5"><div className="grid gap-4 md:grid-cols-2">{reviewRows.map(([label, value]) => <div key={label} className="rounded-[20px] border border-[#ead9b1] bg-white p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-mist">{label}</p><p className="mt-2 text-sm font-semibold text-ink">{value}</p></div>)}</div>{isLootLot ? <div className="rounded-[20px] border border-[#ead9b1] bg-white p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-mist">{t('Lot summary', 'Lot summary')}</p><div className="mt-3 flex flex-wrap gap-2">{lotPreviewCards.slice(0, 5).map((item) => <Badge key={item} tone="muted">{item}</Badge>)}{Number(form.lotCardCount || 0) > lotPreviewCards.slice(0, 5).length ? <Badge tone="info">+{Math.max(Number(form.lotCardCount || 0) - lotPreviewCards.slice(0, 5).length, 0)} {t('cards', 'cards')}</Badge> : null}</div><p className="mt-3 text-sm leading-7 text-mist">{form.lotSummary || t('No lot summary has been added yet.', 'No lot summary has been added yet.')}</p></div> : null}<div className="grid gap-3 md:grid-cols-2">{listingCommonOptions.complianceChecks.map((item) => <label key={item} className="flex items-start gap-3 rounded-2xl border border-[#ead9b1] bg-white px-4 py-3 text-sm text-slate-700"><input type="checkbox" checked={form.complianceAcknowledgements.includes(item)} onChange={() => toggleArrayValue('complianceAcknowledgements', item)} className="mt-1 h-4 w-4 rounded border-[#d6b777] bg-white text-[#b9892a] focus:ring-[#d8b06a]/30" /><span>{item}</span></label>)}</div></div> : null}
 
-              {stepError ? <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">{stepError}</div> : null}
+              {stepError ? <div className="rounded-xl border border-amber-300/50 bg-[linear-gradient(155deg,rgba(255,249,235,0.98)_0%,rgba(250,239,207,0.95)_100%)] px-4 py-3 text-sm text-[#8a621d]">{stepError}</div> : null}
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-5"><Button type="button" variant="ghost" onClick={() => goToStep(step - 1)} disabled={step === 1}>{t('Previous', 'Previous')}</Button><div className="flex flex-wrap gap-3">{step < listingSteps.length ? <Button type="button" onClick={() => validateCurrentStep() && goToStep(step + 1)}>{t('Continue', 'Continue')}</Button> : <><Button type="button" variant="secondary" onClick={() => submitListing('draft')} disabled={isSubmitting}>{isSubmitting ? t('Saving...', 'Saving...') : t('Save as draft', 'Save as draft')}</Button><Button type="button" onClick={() => submitListing('review')} disabled={isSubmitting}>{isSubmitting ? t('Submitting...', 'Submitting...') : t('Submit for review', 'Submit for review')}</Button></>}</div></div>
             </div>
           </CardSurface>

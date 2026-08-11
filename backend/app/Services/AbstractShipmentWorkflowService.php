@@ -300,6 +300,10 @@ abstract class AbstractShipmentWorkflowService
 
         return [
             'full_name' => $origin['full_name'] ?? $seller?->display_name ?? $seller?->name,
+            'legal_name' => $seller?->name,
+            'display_name' => $seller?->display_name,
+            'handle' => $seller?->handle,
+            'company_name' => $origin['company_name'] ?? config('services.dhl.sender_company_name'),
             'phone' => $origin['phone'] ?? $seller?->phone,
             'address_line_1' => $origin['address_line_1'] ?? null,
             'address_line_2' => $origin['address_line_2'] ?? null,
@@ -467,8 +471,27 @@ abstract class AbstractShipmentWorkflowService
 
     protected function shipmentDescription(Order $order): string
     {
-        $title = $order->items->pluck('title_snapshot')->filter()->first();
+        $item = $order->items->first();
+        $title = trim((string) ($item?->title_snapshot ?: $item?->product?->title ?: ''));
+        $descriptor = Str::lower(implode(' ', array_filter([
+            $item?->product?->product_type,
+            $item?->product?->category?->name,
+            $item?->listing?->category?->name,
+            $title,
+        ])));
 
-        return Str::limit((string) ($title ?: 'Cardora order'), 60, '');
+        $baseDescription = match (true) {
+            Str::contains($descriptor, ['graded', 'slab']) => 'Graded printed cardboard collectible trading card',
+            Str::contains($descriptor, ['card', 'trading']) => 'Printed cardboard collectible trading card',
+            Str::contains($descriptor, ['comic', 'manga', 'book']) => 'Printed collectible comic book',
+            Str::contains($descriptor, ['figure', 'statue', 'funko']) => 'Vinyl or resin collector display figure',
+            default => 'Collectible merchandise item',
+        };
+
+        if ($title === '') {
+            return $baseDescription;
+        }
+
+        return Str::limit(sprintf('%s - %s', $baseDescription, $title), 70, '');
     }
 }

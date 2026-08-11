@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\MarketplaceNotificationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Throwable;
@@ -57,6 +59,7 @@ class GoogleAuthController extends Controller
         try {
             $tokenPayload = $this->exchangeCodeForToken($code);
             $googleUser = $this->fetchGoogleUser($tokenPayload['access_token'] ?? '');
+            [$token, $isNewUser] = $this->authenticateGoogleUser($googleUser, $notifications);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -66,12 +69,91 @@ class GoogleAuthController extends Controller
             ]));
         }
 
+        return redirect()->away($this->buildFrontendCallbackUrl([
+            'status' => 'success',
+            'token' => $token,
+            'new_user' => $isNewUser ? '1' : '0',
+        ]));
+    }
+
+    public function code(Request $request, MarketplaceNotificationService $notifications): JsonResponse
+    {
+        $payload = $request->validate([
+            'code' => ['required', 'string'],
+        ]);
+
+        try {
+            $tokenPayload = $this->exchangeCodeForToken(
+                trim((string) $payload['code']),
+                'postmessage'
+            );
+            $googleUser = $this->fetchGoogleUser($tokenPayload['access_token'] ?? '');
+            [$token, $isNewUser] = $this->authenticateGoogleUser($googleUser, $notifications);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'message' => __('api.auth.google_failed'),
+            ], 422);
+        }
+
+        return response()->json([
+            'token' => $token,
+            'new_user' => $isNewUser,
+        ]);
+    }
+
+    protected function exchangeCodeForToken(string $code, ?string $redirectUriOverride = null): array
+    {
+        $clientId = trim((string) config('services.google.client_id'));
+        $clientSecret = trim((string) config('services.google.client_secret'));
+        $redirectUri = trim((string) ($redirectUriOverride ?? config('services.google.redirect')));
+
+        if ($clientId === '' || $clientSecret === '' || $redirectUri === '') {
+            throw new \RuntimeException('Google OAuth credentials are not configured.');
+        }
+
+        $response = Http::asForm()
+            ->acceptJson()
+            ->timeout(15)
+            ->post('https://oauth2.googleapis.com/token', [
+                'code' => $code,
+                'client_id' => $clientId,
+                'client_secret' => $clientSecret,
+                'redirect_uri' => $redirectUri,
+                'grant_type' => 'authorization_code',
+            ]);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('Google token exchange failed.');
+        }
+
+        return $response->json() ?? [];
+    }
+
+    protected function fetchGoogleUser(string $accessToken): array
+    {
+        if ($accessToken === '') {
+            throw new \RuntimeException('Missing Google access token.');
+        }
+
+        $response = Http::withToken($accessToken)
+            ->acceptJson()
+            ->timeout(15)
+            ->get('https://openidconnect.googleapis.com/v1/userinfo');
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('Failed to fetch Google user profile.');
+        }
+
+        return $response->json() ?? [];
+    }
+
+    protected function authenticateGoogleUser(array $googleUser, MarketplaceNotificationService $notifications): array
+    {
         $email = Str::lower(trim((string) ($googleUser['email'] ?? '')));
         if ($email === '') {
-            return redirect()->away($this->buildFrontendCallbackUrl([
-                'status' => 'error',
-                'message' => __('api.auth.google_missing_email'),
-            ]));
+            throw new \RuntimeException(__('api.auth.google_missing_email'));
         }
 
         $name = trim((string) (($googleUser['name'] ?? '') ?: Str::before($email, '@')));
@@ -135,59 +217,10 @@ class GoogleAuthController extends Controller
             $user->save();
         }
 
-        $token = $user->issueSingleSessionToken('cardora-google-web');
-
-        return redirect()->away($this->buildFrontendCallbackUrl([
-            'status' => 'success',
-            'token' => $token,
-            'new_user' => $isNewUser ? '1' : '0',
-        ]));
-    }
-
-    protected function exchangeCodeForToken(string $code): array
-    {
-        $clientId = trim((string) config('services.google.client_id'));
-        $clientSecret = trim((string) config('services.google.client_secret'));
-        $redirectUri = trim((string) config('services.google.redirect'));
-
-        if ($clientId === '' || $clientSecret === '' || $redirectUri === '') {
-            throw new \RuntimeException('Google OAuth credentials are not configured.');
-        }
-
-        $response = Http::asForm()
-            ->acceptJson()
-            ->timeout(15)
-            ->post('https://oauth2.googleapis.com/token', [
-                'code' => $code,
-                'client_id' => $clientId,
-                'client_secret' => $clientSecret,
-                'redirect_uri' => $redirectUri,
-                'grant_type' => 'authorization_code',
-            ]);
-
-        if (! $response->successful()) {
-            throw new \RuntimeException('Google token exchange failed.');
-        }
-
-        return $response->json() ?? [];
-    }
-
-    protected function fetchGoogleUser(string $accessToken): array
-    {
-        if ($accessToken === '') {
-            throw new \RuntimeException('Missing Google access token.');
-        }
-
-        $response = Http::withToken($accessToken)
-            ->acceptJson()
-            ->timeout(15)
-            ->get('https://openidconnect.googleapis.com/v1/userinfo');
-
-        if (! $response->successful()) {
-            throw new \RuntimeException('Failed to fetch Google user profile.');
-        }
-
-        return $response->json() ?? [];
+        return [
+            $user->issueSingleSessionToken('cardora-google-web'),
+            $isNewUser,
+        ];
     }
 
     protected function uniqueHandle(string $baseHandle, ?int $ignoredUserId = null): string

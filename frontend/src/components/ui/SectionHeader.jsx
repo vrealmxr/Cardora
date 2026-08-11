@@ -15,7 +15,7 @@ function SectionHeader({ eyebrow, title, description, action, align = 'left', cl
             {eyebrow}
           </p>
         ) : null}
-        <h2 className="font-display text-3xl text-white sm:text-4xl">{title}</h2>
+        <h2 className="font-display text-3xl text-ink sm:text-4xl">{title}</h2>
         {description ? <p className="mt-2.5 text-sm leading-7 text-mist sm:text-[15px]">{description}</p> : null}
       </div>
       {action}

@@ -19,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 
 class ListingController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, MarketplaceAccessService $marketplaceAccess)
     {
         $listings = Listing::query()
             ->with(['product.category', 'category', 'seller', 'winningBidder'])
@@ -33,6 +33,18 @@ class ListingController extends Controller
             })
             ->latest()
             ->paginate($request->integer('per_page', 20));
+
+        $isOwnListingIndex = $request->user()
+            && $request->filled('seller_id')
+            && (int) $request->integer('seller_id') === (int) $request->user()->getKey();
+
+        if (! $isOwnListingIndex) {
+            $listings->setCollection(
+                $listings->getCollection()
+                    ->filter(fn (Listing $listing) => $marketplaceAccess->listingIsPubliclyVisible($listing))
+                    ->values()
+            );
+        }
 
         return ListingResource::collection($listings);
     }
@@ -97,8 +109,18 @@ class ListingController extends Controller
             ->setStatusCode(201);
     }
 
-    public function show(Listing $listing)
+    public function show(Request $request, Listing $listing, MarketplaceAccessService $marketplaceAccess)
     {
+        $canViewHiddenListing = (bool) $request->user()
+            && (
+                (int) $request->user()->getKey() === (int) $listing->seller_id
+                || (bool) $request->user()->is_admin
+            );
+
+        if (! $canViewHiddenListing && ! $marketplaceAccess->listingIsPubliclyVisible($listing->loadMissing('seller'))) {
+            abort(404);
+        }
+
         return new ListingResource(
             $listing->load(['product.category', 'category', 'seller', 'favorites', 'cartItems', 'bids.bidder', 'winningBidder'])->loadCount('bids')
         );

@@ -412,8 +412,8 @@ function OrdersPage({ initialTab = 'buyer' }) {
           onClick={() => switchTab('buyer')}
           className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
             activeTab === 'buyer'
-              ? 'border-gold-300/30 bg-gold-300/12 text-gold-50'
-              : 'border-white/12 bg-white/5 text-white/70 hover:border-white/20'
+              ? 'border-[#d8b06a] bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] text-[#231508] shadow-[0_10px_22px_rgba(199,157,98,0.18)]'
+              : 'border-[#ead9b1] bg-white text-slate-700 hover:border-[#d8b06a] hover:text-[#6e4512]'
           }`}
         >
           {copy.buyer}
@@ -423,8 +423,8 @@ function OrdersPage({ initialTab = 'buyer' }) {
           onClick={() => switchTab('seller')}
           className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
             activeTab === 'seller'
-              ? 'border-gold-300/30 bg-gold-300/12 text-gold-50'
-              : 'border-white/12 bg-white/5 text-white/70 hover:border-white/20'
+              ? 'border-[#d8b06a] bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] text-[#231508] shadow-[0_10px_22px_rgba(199,157,98,0.18)]'
+              : 'border-[#ead9b1] bg-white text-slate-700 hover:border-[#d8b06a] hover:text-[#6e4512]'
           }`}
         >
           {copy.seller}
@@ -434,8 +434,8 @@ function OrdersPage({ initialTab = 'buyer' }) {
           onClick={() => switchTab('trades')}
           className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
             activeTab === 'trades'
-              ? 'border-gold-300/30 bg-gold-300/12 text-gold-50'
-              : 'border-white/12 bg-white/5 text-white/70 hover:border-white/20'
+              ? 'border-[#d8b06a] bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] text-[#231508] shadow-[0_10px_22px_rgba(199,157,98,0.18)]'
+              : 'border-[#ead9b1] bg-white text-slate-700 hover:border-[#d8b06a] hover:text-[#6e4512]'
           }`}
         >
           {copy.trades}
@@ -506,7 +506,7 @@ function OrdersPage({ initialTab = 'buyer' }) {
                 ref={tradeFeedbackRef}
                 className={`rounded-xl border px-4 py-3 text-sm ${
                   tradeFeedbackTone === 'success'
-                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
+                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-800'
                     : 'border-rose-400/20 bg-rose-500/10 text-rose-100'
                 }`}
               >

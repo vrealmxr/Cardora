@@ -10,7 +10,8 @@ class CartSanitizerService
 {
     public function __construct(
         protected DrawEntryService $drawEntries,
-        protected LotCardSelectionService $lotCardSelections
+        protected LotCardSelectionService $lotCardSelections,
+        protected MarketplaceAccessService $marketplaceAccess
     ) {
     }
 
@@ -75,6 +76,10 @@ class CartSanitizerService
             return false;
         }
 
+        if (! $this->marketplaceAccess->listingIsPubliclyVisible($listing->loadMissing('seller'))) {
+            return false;
+        }
+
         if ((string) $listing->availability === 'cancelled') {
             return false;
         }
@@ -102,4 +107,3 @@ class CartSanitizerService
         }
     }
 }
-

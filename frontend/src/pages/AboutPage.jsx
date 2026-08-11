@@ -96,7 +96,7 @@ function AboutPage() {
         <div className="grid gap-8 xl:grid-cols-[1fr,0.9fr] xl:items-center">
           <div>
             <Badge tone="gold">{copy.badge}</Badge>
-            <h1 className="mt-6 font-display text-6xl text-white">{copy.title}</h1>
+            <h1 className="mt-6 font-display text-6xl text-ink">{copy.title}</h1>
             <p className="mt-5 max-w-3xl text-lg leading-8 text-mist">{copy.intro}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button as={Link} to="/eggrafi" size="lg">
@@ -108,9 +108,13 @@ function AboutPage() {
             </div>
           </div>
           <img
-            src="/asset.php?f=brand-hero.png"
+            src="/asset.php?f=cardora-banner-20260716-960.jpg"
             alt="Cardora"
-            className="w-full rounded-[28px] border border-white/10 object-cover shadow-card-hover"
+            width="960"
+            height="535"
+            className="banner-image-glow w-full rounded-[28px] border border-[#eadab7] object-cover"
+            loading="lazy"
+            decoding="async"
           />
         </div>
       </CardSurface>
@@ -124,7 +128,7 @@ function AboutPage() {
         <div className="grid gap-6 lg:grid-cols-3">
           {copy.cards.map((item) => (
             <CardSurface key={item.title}>
-              <h3 className="font-display text-3xl text-white">{item.title}</h3>
+              <h3 className="font-display text-3xl text-ink">{item.title}</h3>
               <p className="mt-3 text-sm leading-7 text-mist">{item.text}</p>
             </CardSurface>
           ))}
@@ -143,7 +147,7 @@ function AboutPage() {
               <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-300/12 text-lg font-semibold text-gold-100">
                 0{index + 1}
               </div>
-              <h3 className="text-xl font-semibold text-white">{step.title}</h3>
+              <h3 className="text-xl font-semibold text-ink">{step.title}</h3>
               <p className="mt-3 text-sm leading-7 text-mist">{step.text}</p>
             </CardSurface>
           ))}
@@ -155,9 +159,9 @@ function AboutPage() {
           <SectionHeader title={copy.trustTitle} description={copy.trustDescription} className="mb-6" />
           <div className="space-y-4">
             {trustHighlights.map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-[22px] border border-white/8 bg-white/5 p-4">
+              <div key={item} className="flex items-center gap-3 rounded-[22px] border border-gold-200/30 bg-white p-4">
                 <ShieldCheck className="h-5 w-5 text-gold-100" />
-                <span className="text-white/85">{item}</span>
+                <span className="text-ink">{item}</span>
               </div>
             ))}
           </div>
@@ -165,17 +169,17 @@ function AboutPage() {
         <CardSurface>
           <SectionHeader title={copy.feesTitle} description={copy.feesDescription} className="mb-6" />
           <div className="space-y-4">
-            <div className="rounded-[22px] border border-white/8 bg-white/5 p-4">
+            <div className="rounded-[22px] border border-gold-200/30 bg-white p-4">
               <div className="flex items-center gap-3">
                 <WalletCards className="h-5 w-5 text-gold-100" />
-                <p className="font-semibold text-white">{copy.feeCardTitle}</p>
+                <p className="font-semibold text-ink">{copy.feeCardTitle}</p>
               </div>
               <p className="mt-2 text-sm leading-7 text-mist">{copy.feeCardText}</p>
             </div>
-            <div className="rounded-[22px] border border-white/8 bg-white/5 p-4">
+            <div className="rounded-[22px] border border-gold-200/30 bg-white p-4">
               <div className="flex items-center gap-3">
                 <Sparkles className="h-5 w-5 text-gold-100" />
-                <p className="font-semibold text-white">{copy.disputeTitle}</p>
+                <p className="font-semibold text-ink">{copy.disputeTitle}</p>
               </div>
               <p className="mt-2 text-sm leading-7 text-mist">{copy.disputeText}</p>
             </div>
@@ -189,7 +193,7 @@ function AboutPage() {
           {platformStats.map((stat) => (
             <CardSurface key={stat.label}>
               <p className="text-xs uppercase tracking-[0.35em] text-gold-100">{stat.label}</p>
-              <p className="mt-3 text-4xl font-semibold text-white">
+              <p className="mt-3 text-4xl font-semibold text-ink">
                 {stat.format === 'currency'
                   ? formatCurrency(stat.value ?? 0)
                   : typeof stat.value === 'number'

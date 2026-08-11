@@ -1162,6 +1162,12 @@ class TradeEscrowService
             ]);
         }
 
+        if (! app(MarketplaceAccessService::class)->listingIsPubliclyVisible($listing->loadMissing('seller'))) {
+            throw ValidationException::withMessages([
+                'listing_id' => ['This listing is not currently visible for trade requests.'],
+            ]);
+        }
+
         $categorySlug = strtolower((string) ($listing->category?->slug ?? ''));
         $frontendKey = strtolower((string) data_get($listing->category?->metadata, 'frontend_key', ''));
 

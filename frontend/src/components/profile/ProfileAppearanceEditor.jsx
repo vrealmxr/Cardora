@@ -69,6 +69,7 @@ const buildInitialForm = (user) => {
     city: user?.city ?? '',
     collectorTagline: user?.collector_tagline ?? user?.collectorTagline ?? '',
     bio: user?.bio ?? '',
+    shipFromCompanyName: shippingOrigin?.company_name ?? '',
     shipFromName: shippingOrigin?.full_name ?? user?.displayName ?? user?.display_name ?? user?.name ?? '',
     shipFromPhone: shippingOrigin?.phone ?? user?.phone ?? '',
     shipFromAddress1: shippingOrigin?.address_line_1 ?? '',
@@ -112,8 +113,9 @@ function ProfileAppearanceEditor() {
           city: 'City',
           tagline: 'Collector line',
           bio: 'Bio',
-          shippingTitle: 'Private shipping origin',
-          shippingHint: 'These fields stay private and are used only for DHL label creation and courier paperwork.',
+          shippingTitle: 'Private shipping details',
+          shippingHint: 'These fields stay private and secure. They are required for safe parcel shipping and to keep your listings visible.',
+          shipFromCompanyName: 'Business / company name',
           shipFromName: 'Sender full name',
           shipFromPhone: 'Sender phone',
           shipFromAddress1: 'Address line 1',
@@ -141,8 +143,9 @@ function ProfileAppearanceEditor() {
           city: 'Πόλη',
           tagline: 'Σύντομη γραμμή συλλέκτη',
           bio: 'Bio',
-          shippingTitle: 'Ιδιωτική διεύθυνση αποστολέα',
-          shippingHint: 'Αυτά τα πεδία μένουν ιδιωτικά και χρησιμοποιούνται μόνο για DHL labels και courier paperwork.',
+          shippingTitle: 'Ιδιωτικά στοιχεία αποστολής',
+          shippingHint: 'Αυτά τα πεδία μένουν ιδιωτικά και ασφαλή. Είναι υποχρεωτικά για ασφαλή αποστολή δεμάτων και για να παραμένουν ορατές οι αγγελίες σου.',
+          shipFromCompanyName: 'Επωνυμία επιχείρησης',
           shipFromName: 'Ονοματεπώνυμο αποστολέα',
           shipFromPhone: 'Τηλέφωνο αποστολέα',
           shipFromAddress1: 'Διεύθυνση 1',
@@ -225,6 +228,7 @@ function ProfileAppearanceEditor() {
         bio: form.bio.trim() || null,
         avatar_url: avatarUrl,
         shipping_origin: {
+          company_name: form.shipFromCompanyName.trim() || null,
           full_name: form.shipFromName.trim() || null,
           phone: form.shipFromPhone.trim() || null,
           address_line_1: form.shipFromAddress1.trim() || null,
@@ -290,7 +294,7 @@ function ProfileAppearanceEditor() {
         <div
           className={`rounded-xl border px-4 py-3 text-sm ${
             feedback.tone === 'success'
-              ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
+              ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-800'
               : 'border-rose-400/25 bg-rose-500/10 text-rose-100'
           }`}
         >
@@ -450,6 +454,16 @@ function ProfileAppearanceEditor() {
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm text-mist">
+                {copy.shipFromCompanyName ?? (locale === 'en' ? 'Business / company name' : 'Επωνυμία επιχείρησης')}
+              </label>
+              <Input
+                value={form.shipFromCompanyName}
+                onChange={(event) => setForm((previous) => ({ ...previous, shipFromCompanyName: event.target.value }))}
+                maxLength={255}
+              />
+            </div>
             <div>
               <label className="mb-2 block text-sm text-mist">
                 {copy.shipFromName ?? (locale === 'en' ? 'Sender full name' : 'Ονοματεπώνυμο αποστολέα')}

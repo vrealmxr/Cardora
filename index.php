@@ -33,7 +33,7 @@ function renderSitePinGate(?string $errorMessage = null): void
     echo '<button type="submit">Unlock</button></form></main></body></html>';
 }
 
-$sitePinLockEnabled = true;
+$sitePinLockEnabled = false;
 $sitePin = '1234CARD';
 $sitePinCookieName = 'cardora_site_unlock';
 $sitePinCookieValue = hash('sha256', $sitePin.'|cardora');
@@ -158,6 +158,11 @@ if ($backendPublicRoot !== false) {
             $mime = $mimeByExt[$ext] ?? (mime_content_type($candidatePath) ?: 'application/octet-stream');
             header('Content-Type: ' . $mime);
             header('Content-Length: ' . (string) filesize($candidatePath));
+            $cacheControl = str_starts_with($normalizedPathForFile, '/static/')
+                ? 'public, max-age=31536000, immutable'
+                : 'public, max-age=604800, stale-while-revalidate=86400';
+            header('Cache-Control: ' . $cacheControl);
+            header('X-Content-Type-Options: nosniff');
             readfile($candidatePath);
             exit;
         }
@@ -215,9 +220,7 @@ $spaIndex = __DIR__ . '/backend/public/index.html';
 
 if (is_file($spaIndex)) {
     header('Content-Type: text/html; charset=UTF-8');
-    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-    header('Pragma: no-cache');
-    header('Expires: 0');
+    header('Cache-Control: no-cache, must-revalidate, max-age=0');
     readfile($spaIndex);
     exit;
 }

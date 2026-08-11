@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
 import { formatCurrency } from '@/utils/formatters'
+import { localizePath } from '@/utils/helpers'
 import { normalizeTextTree } from '@/utils/textEncoding'
 
 const getMaxSelectableQuantity = (item) => {
@@ -116,6 +117,13 @@ function CartPage() {
       : ''
   const checkoutBlockedMessage = hasOwnCartItems ? ownItemsMessage : marketplaceBlockedMessage
   const checkoutBlocked = Boolean(checkoutBlockedMessage)
+  const resolveListingRoute = (slug) => (slug ? localizePath(`/proion/${slug}`, locale) : null)
+  const resolveProductImage = (product) => {
+    const media = Array.isArray(product?.media) ? product.media : []
+    const leadMedia = media.find((item) => item?.thumbUrl || item?.url) ?? null
+
+    return leadMedia?.thumbUrl ?? leadMedia?.url ?? null
+  }
 
   if (!cartDetailed.length) {
     return (
@@ -137,8 +145,8 @@ function CartPage() {
         <div className="space-y-5">
           {checkoutBlocked ? (
             <CardSurface className="border-amber-400/20 bg-amber-500/10">
-              <p className="text-[11px] uppercase tracking-[0.28em] text-amber-100">{copy.lockedTitle}</p>
-              <p className="mt-3 text-sm leading-7 text-amber-100">{checkoutBlockedMessage}</p>
+              <p className="text-[11px] uppercase tracking-[0.28em] text-amber-800">{copy.lockedTitle}</p>
+              <p className="mt-3 text-sm leading-7 text-amber-800">{checkoutBlockedMessage}</p>
               {marketplaceBlockedMessage ? (
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Button as={Link} to="/epalithefsi-logariasmou" variant="secondary" size="sm">
@@ -180,42 +188,65 @@ function CartPage() {
                         </p>
                       </>
                     ) : (
-                      <>
-                        <p className="text-[11px] uppercase tracking-[0.28em] text-gold-100">
-                          {isLotSelectionItem ? copy.lotCardsTag : item.product?.typeLabel}
-                        </p>
-                        <h3 className="mt-2 text-xl font-semibold text-white">
-                          {isLotSelectionItem ? item.displayTitle : item.product?.title}
-                        </h3>
-                        <p className="mt-1 text-sm text-mist">
-                          {isLotSelectionItem
-                            ? `${copy.fromLot}: ${item.product?.title}`
-                            : [item.product?.subtitle, item.product?.franchise].filter(Boolean).join(' • ')}
-                        </p>
-                        <p className="mt-4 text-lg font-semibold text-white">
-                          {formatCurrency(item.unitPrice)}
-                        </p>
-                        {isLotSelectionItem ? (
-                          <>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {item.selectedCards?.map((card) => (
-                                <span
-                                  key={card.id}
-                                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/78"
-                                >
-                                  {card.title} • {formatCurrency(card.price)}
-                                </span>
-                              ))}
-                            </div>
-                            <div className="mt-3 rounded-xl border border-gold-300/15 bg-gold-300/10 px-4 py-3 text-sm leading-7 text-gold-50">
-                              <p className="font-semibold text-white">
-                                {copy.shippingInsurance}: {formatCurrency(item.shippingCost)}
-                              </p>
-                              <p className="mt-1">{copy.lotShippingRule}</p>
-                            </div>
-                          </>
-                        ) : null}
-                      </>
+                      <Link
+                        to={resolveListingRoute(item.product?.slug) ?? '#'}
+                        className="group block rounded-[24px] transition hover:bg-white/5"
+                      >
+                        <div className="grid gap-4 sm:grid-cols-[112px,1fr] sm:items-start">
+                          <div className="overflow-hidden rounded-[20px] border border-[#eadab7] bg-[linear-gradient(160deg,rgba(255,251,241,0.92),rgba(247,236,210,0.72))]">
+                            {resolveProductImage(item.product) ? (
+                              <img
+                                src={resolveProductImage(item.product)}
+                                alt={item.product?.title ?? item.displayTitle ?? 'Product image'}
+                                className="h-28 w-full object-contain p-2"
+                                loading="lazy"
+                                decoding="async"
+                              />
+                            ) : (
+                              <div className="flex h-28 items-center justify-center px-3 text-center text-xs text-[#7a6440]">
+                                {item.product?.typeLabel ?? 'Listing'}
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-[11px] uppercase tracking-[0.28em] text-gold-100">
+                              {isLotSelectionItem ? copy.lotCardsTag : item.product?.typeLabel}
+                            </p>
+                            <h3 className="mt-2 text-xl font-semibold text-white transition group-hover:text-gold-100">
+                              {isLotSelectionItem ? item.displayTitle : item.product?.title}
+                            </h3>
+                            <p className="mt-1 text-sm text-mist">
+                              {isLotSelectionItem
+                                ? `${copy.fromLot}: ${item.product?.title}`
+                                : [item.product?.subtitle, item.product?.franchise].filter(Boolean).join(' • ')}
+                            </p>
+                            <p className="mt-4 text-lg font-semibold text-white">
+                              {formatCurrency(item.unitPrice)}
+                            </p>
+                            {isLotSelectionItem ? (
+                              <>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {item.selectedCards?.map((card) => (
+                                    <span
+                                      key={card.id}
+                                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/78"
+                                    >
+                                      {card.title} • {formatCurrency(card.price)}
+                                    </span>
+                                  ))}
+                                </div>
+                                <div className="mt-3 rounded-xl border border-gold-300/15 bg-gold-300/10 px-4 py-3 text-sm leading-7 text-gold-50">
+                                  <p className="font-semibold text-white">
+                                    {copy.shippingInsurance}: {formatCurrency(item.shippingCost)}
+                                  </p>
+                                  <p className="mt-1">{copy.lotShippingRule}</p>
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                      </Link>
                     )}
                   </div>
 

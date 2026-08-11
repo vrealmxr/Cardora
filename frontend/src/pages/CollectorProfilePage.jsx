@@ -20,6 +20,7 @@ import UserAvatar from '@/components/people/UserAvatar'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
+import { cardoraService } from '@/services/cardoraService'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 import { getUserDisplayName } from '@/utils/helpers'
 
@@ -39,12 +40,98 @@ const getEntryMediaUrls = (entry) => {
   return [...new Set(linkedMedia.map((item) => getMediaUrl(item)).filter(Boolean))]
 }
 
+const normalizePublicCollectionEntry = (entry) => {
+  if (!entry) return null
+
+  return {
+    id: Number(entry.id ?? 0),
+    userId: Number(entry.userId ?? entry.user_id ?? 0),
+    productId:
+      entry.productId != null
+        ? Number(entry.productId)
+        : entry.product_id != null
+          ? Number(entry.product_id)
+          : null,
+    title: entry.title ?? '',
+    caption: entry.caption ?? '',
+    media: Array.isArray(entry.media) ? entry.media.filter(Boolean) : [],
+    sortOrder: Number(entry.sortOrder ?? entry.sort_order ?? 0),
+    isFeatured: Boolean(entry.isFeatured ?? entry.is_featured),
+    visibility: entry.visibility ?? 'public',
+    metadata: entry.metadata ?? {},
+    createdAt: entry.createdAt ?? entry.created_at ?? null,
+    updatedAt: entry.updatedAt ?? entry.updated_at ?? null,
+    product: entry.product ?? null,
+  }
+}
+
+const mapPublicProfileToMarketplaceProfile = (payload, fallbackProfile) => {
+  if (!payload) return fallbackProfile
+
+  const collectionEntries = Array.isArray(payload.collection_entries)
+    ? payload.collection_entries.map(normalizePublicCollectionEntry).filter(Boolean)
+    : []
+  const activeListings = Array.isArray(payload.active_listings) ? payload.active_listings : []
+  const user = {
+    ...(fallbackProfile?.user ?? {}),
+    id: Number(payload.id ?? fallbackProfile?.userId ?? 0),
+    name: payload.name ?? fallbackProfile?.user?.name ?? '',
+    displayName:
+      payload.display_name ??
+      fallbackProfile?.user?.displayName ??
+      fallbackProfile?.nickname ??
+      payload.handle ??
+      '',
+    handle: payload.handle ?? fallbackProfile?.handle ?? '',
+    city: payload.city ?? fallbackProfile?.user?.city ?? '',
+    bio: payload.bio ?? fallbackProfile?.intro ?? '',
+    collectorTagline:
+      payload.collector_tagline ??
+      fallbackProfile?.user?.collectorTagline ??
+      fallbackProfile?.headline ??
+      '',
+    avatarUrl: payload.avatar_url ?? fallbackProfile?.user?.avatarUrl ?? '',
+    rating: Number(payload.rating ?? fallbackProfile?.user?.rating ?? 0),
+    salesCount: Number(payload.sales_count ?? fallbackProfile?.user?.salesCount ?? 0),
+    purchaseCount: Number(payload.purchase_count ?? fallbackProfile?.user?.purchaseCount ?? 0),
+    verified: Boolean(payload.is_verified_seller ?? fallbackProfile?.user?.verified),
+  }
+
+  return {
+    ...fallbackProfile,
+    userId: Number(payload.id ?? fallbackProfile?.userId ?? 0),
+    handle: payload.handle ?? fallbackProfile?.handle ?? '',
+    nickname:
+      fallbackProfile?.nickname ??
+      payload.display_name ??
+      payload.handle ??
+      '',
+    headline:
+      fallbackProfile?.headline ??
+      payload.collector_tagline ??
+      payload.bio ??
+      '',
+    intro: payload.bio ?? fallbackProfile?.intro ?? '',
+    collectionEntries,
+    collectionProducts: collectionEntries.map((entry) => entry.product).filter(Boolean),
+    activeListings,
+    likeCount: Number(payload.profile_likes_count ?? fallbackProfile?.likeCount ?? 0),
+    followerCount: Number(payload.followers_count ?? fallbackProfile?.followerCount ?? 0),
+    followingCount: Number(payload.following_count ?? fallbackProfile?.followingCount ?? 0),
+    collectionCount: Number(payload.collection_entries_count ?? fallbackProfile?.collectionCount ?? 0),
+    likedByCurrentUser: Boolean(payload.liked_by_auth_user ?? fallbackProfile?.likedByCurrentUser),
+    followedByCurrentUser: Boolean(payload.followed_by_auth_user ?? fallbackProfile?.followedByCurrentUser),
+    user,
+  }
+}
+
 function CollectorProfilePage() {
   const { handle } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const { locale } = useI18n()
   const { currentUser, isAuthenticated } = useAuth()
   const { collectorProfilesDetailed, getCollectorProfileByHandle, toggleProfileLike, toggleProfileFollow } = useMarketplace()
+  const [hydratedProfile, setHydratedProfile] = useState(null)
   const [actionNotice, setActionNotice] = useState(null)
   const [activeTab, setActiveTab] = useState('gallery')
   const [connectionsView, setConnectionsView] = useState(null)
@@ -55,7 +142,39 @@ function CollectorProfilePage() {
     index: 0,
   })
 
-  const profile = getCollectorProfileByHandle(handle)
+  const summaryProfile = getCollectorProfileByHandle(handle)
+  const profile = useMemo(() => {
+    if (!hydratedProfile) return summaryProfile
+    if (!summaryProfile) return hydratedProfile
+
+    return {
+      ...hydratedProfile,
+      ...summaryProfile,
+      intro: hydratedProfile.intro ?? summaryProfile.intro,
+      collectionEntries:
+        hydratedProfile.collectionEntries?.length
+          ? hydratedProfile.collectionEntries
+          : summaryProfile.collectionEntries ?? [],
+      activeListings:
+        hydratedProfile.activeListings?.length
+          ? hydratedProfile.activeListings
+          : summaryProfile.activeListings ?? [],
+      collectionProducts:
+        hydratedProfile.collectionProducts?.length
+          ? hydratedProfile.collectionProducts
+          : summaryProfile.collectionProducts ?? [],
+      user: {
+        ...(hydratedProfile.user ?? {}),
+        ...(summaryProfile.user ?? {}),
+      },
+      likeCount: summaryProfile.likeCount ?? hydratedProfile.likeCount,
+      followerCount: summaryProfile.followerCount ?? hydratedProfile.followerCount,
+      followingCount: summaryProfile.followingCount ?? hydratedProfile.followingCount,
+      likedByCurrentUser: summaryProfile.likedByCurrentUser ?? hydratedProfile.likedByCurrentUser,
+      followedByCurrentUser:
+        summaryProfile.followedByCurrentUser ?? hydratedProfile.followedByCurrentUser,
+    }
+  }, [hydratedProfile, summaryProfile])
   const collectionEntries = Array.isArray(profile?.collectionEntries) ? profile.collectionEntries : []
   const listingEntries = Array.isArray(profile?.activeListings) ? profile.activeListings : []
 
@@ -216,6 +335,32 @@ function CollectorProfilePage() {
     setConnectionsView(null)
   }, [searchParams])
 
+  useEffect(() => {
+    let isActive = true
+
+    if (!handle) {
+      setHydratedProfile(null)
+      return undefined
+    }
+
+    const hydrateProfile = async () => {
+      try {
+        const payload = await cardoraService.getPublicProfile(handle)
+        if (!isActive) return
+        setHydratedProfile(mapPublicProfileToMarketplaceProfile(payload, getCollectorProfileByHandle(handle)))
+      } catch (error) {
+        if (!isActive) return
+        setHydratedProfile(getCollectorProfileByHandle(handle))
+      }
+    }
+
+    hydrateProfile()
+
+    return () => {
+      isActive = false
+    }
+  }, [getCollectorProfileByHandle, handle])
+
   if (!profile) {
     return (
       <div className="container pb-16">
@@ -371,38 +516,43 @@ function CollectorProfilePage() {
               </div>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/82">
-              <div>
-                <span className="font-semibold text-white">{formatNumber(profile.collectionCount)}</span> {copy.pieces}
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="rounded-2xl border border-[#eadab7] bg-white px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-[#8d7a58]">{copy.likes}</p>
+                <p className="mt-2 text-lg font-semibold text-ink">{formatNumber(profile.likeCount)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => openConnections('followers')}
-                className="rounded-lg px-2 py-1 -mx-2 text-left transition hover:bg-white/5 hover:text-white"
+                className="rounded-2xl border border-[#eadab7] bg-white px-4 py-3 text-left transition hover:border-[#d8b06a] hover:bg-[#fff8ea]"
               >
-                <span className="font-semibold text-white">{formatNumber(profile.followerCount ?? 0)}</span> {copy.followers}
+                <p className="text-[11px] uppercase tracking-[0.24em] text-[#8d7a58]">{copy.followers}</p>
+                <p className="mt-2 text-lg font-semibold text-ink">{formatNumber(profile.followerCount ?? 0)}</p>
               </button>
               <button
                 type="button"
                 onClick={() => openConnections('following')}
-                className="rounded-lg px-2 py-1 -mx-2 text-left transition hover:bg-white/5 hover:text-white"
+                className="rounded-2xl border border-[#eadab7] bg-white px-4 py-3 text-left transition hover:border-[#d8b06a] hover:bg-[#fff8ea]"
               >
-                <span className="font-semibold text-white">{formatNumber(profile.followingCount ?? 0)}</span> {copy.followingLabel}
+                <p className="text-[11px] uppercase tracking-[0.24em] text-[#8d7a58]">{copy.followingLabel}</p>
+                <p className="mt-2 text-lg font-semibold text-ink">{formatNumber(profile.followingCount ?? 0)}</p>
               </button>
-              <div>
-                <span className="font-semibold text-white">{formatNumber(profile.likeCount)}</span> {copy.likes}
+              <div className="rounded-2xl border border-[#eadab7] bg-white px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-[#8d7a58]">{copy.sales}</p>
+                <p className="mt-2 text-lg font-semibold text-ink">{formatNumber(profile.user.salesCount ?? 0)}</p>
               </div>
-              <div>
-                <span className="font-semibold text-white">{formatNumber(profile.user.salesCount ?? 0)}</span> {copy.sales}
+              <div className="rounded-2xl border border-[#eadab7] bg-white px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-[#8d7a58]">Rating</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <Star className="h-4 w-4 fill-current text-gold-200" />
+                  <span className="text-lg font-semibold text-ink">{profile.user.rating}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Star className="h-4 w-4 fill-current text-gold-200" />
-                <span className="font-semibold text-white">{profile.user.rating}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-mist">
-                <MapPin className="h-4 w-4 text-gold-100" />
-                {profile.user.city}
-              </div>
+            </div>
+
+            <div className="mt-3 flex items-center gap-1.5 text-mist">
+              <MapPin className="h-4 w-4 text-gold-100" />
+              {profile.user.city}
             </div>
 
             {profile.badges.length ? (
@@ -419,8 +569,8 @@ function CollectorProfilePage() {
               <div
                 className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
                   actionNotice.tone === 'success'
-                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
-                    : 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+                    ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-800'
+                    : 'border-amber-400/20 bg-amber-500/10 text-amber-800'
                 }`}
               >
                 {actionNotice.text}

@@ -415,8 +415,8 @@ function MessagePanel({ conversation, currentUser }) {
         <div
           className={`mx-5 rounded-xl border px-4 py-3 text-sm ${
             offerNotice.tone === 'success'
-              ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
-              : 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+              ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-800'
+              : 'border-amber-400/20 bg-amber-500/10 text-amber-800'
           }`}
         >
           {offerNotice.text}

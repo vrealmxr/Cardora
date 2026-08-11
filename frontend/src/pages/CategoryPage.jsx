@@ -261,7 +261,7 @@ function CategoryPage({ categorySlug }) {
               <select
                 value={sort}
                 onChange={(event) => setSort(event.target.value)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13px] text-white"
+                className="rounded-xl border border-[#eadab7] bg-white px-3.5 py-2.5 text-[13px] text-slate-700"
               >
                 <option value="newest">{copy.sortNewest}</option>
                 <option value="price-asc">{copy.sortPriceAsc}</option>
@@ -273,7 +273,7 @@ function CategoryPage({ categorySlug }) {
 
           {paginated.length ? (
             <>
-              <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
                 {paginated.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
