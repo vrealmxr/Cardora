@@ -6,8 +6,13 @@ const MainLayout = lazy(() => import('@/layouts/MainLayout'))
 const AboutPage = lazy(() => import('@/pages/AboutPage'))
 const AccountSettingsPage = lazy(() => import('@/pages/AccountSettingsPage'))
 const AuthPage = lazy(() => import('@/pages/AuthPage'))
+const BinderDashboardPage = lazy(() => import('@/pages/BinderDashboardPage'))
+const BinderLibraryPage = lazy(() => import('@/pages/BinderLibraryPage'))
+const BinderSetCatalogPage = lazy(() => import('@/pages/BinderSetCatalogPage'))
+const BinderSetDetailPage = lazy(() => import('@/pages/BinderSetDetailPage'))
 const BlogArticlePage = lazy(() => import('@/pages/BlogArticlePage'))
 const BlogPage = lazy(() => import('@/pages/BlogPage'))
+const CardoraScannerPage = lazy(() => import('@/pages/CardoraScannerPage'))
 const CartPage = lazy(() => import('@/pages/CartPage'))
 const CategoryPage = lazy(() => import('@/pages/CategoryPage'))
 const CheckoutPage = lazy(() => import('@/pages/CheckoutPage'))
@@ -131,9 +136,25 @@ function AppRoutes() {
     </Route>
   )
 
+  // Cardora Binder / Cardora Scanner deliberately live outside <MainLayout> —
+  // they render their own full-page shell (BinderShell: dark navy chrome,
+  // own nav) rather than the marketplace's light Navbar/Footer, since this
+  // is meant to read as a distinct sub-application, not another market page.
+  const renderBinderRoutes = (locale) => (
+    <>
+      <Route path={`/${locale}/cardora-binder`} element={<BinderDashboardPage />} />
+      <Route path={`/${locale}/cardora-binder/library`} element={<BinderLibraryPage />} />
+      <Route path={`/${locale}/cardora-binder/sets`} element={<BinderSetCatalogPage />} />
+      <Route path={`/${locale}/cardora-binder/sets/:setId`} element={<BinderSetDetailPage />} />
+      <Route path={`/${locale}/cardora-scanner`} element={<CardoraScannerPage />} />
+    </>
+  )
+
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
+        {renderBinderRoutes('el')}
+        {renderBinderRoutes('en')}
         {renderLocalizedRoutes('el')}
         {renderLocalizedRoutes('en')}
         <Route path="/" element={<LocaleRedirect />} />

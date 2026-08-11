@@ -46,14 +46,14 @@ const counterBadgeClassName =
 const binderMenuItemClassName =
   'group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-[#d8b980]/40 bg-[linear-gradient(135deg,#1c1204_0%,#3a2708_45%,#6b4a15_100%)] px-3 py-2.5 text-left text-sm font-semibold text-[#ffedc2] shadow-[0_10px_24px_rgba(120,80,20,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(120,80,20,0.42)]'
 
-function BinderMenuItemContent({ soonLabel }) {
+function BinderMenuItemContent({ badgeLabel }) {
   return (
     <>
       <span className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(115deg,transparent_30%,rgba(255,232,180,0.35)_50%,transparent_70%)] transition-transform duration-700 ease-out group-hover:translate-x-full" />
       <Album className="relative h-4 w-4 shrink-0 text-[#f3d385]" />
       <span className="relative flex-1">Cardora Binder</span>
       <span className="relative rounded-full border border-[#f3d385]/40 bg-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#f3d385]">
-        {soonLabel}
+        {badgeLabel}
       </span>
     </>
   )
@@ -376,15 +376,14 @@ function Navbar() {
                         <p className="mt-1 text-sm text-mist">{currentUser?.email}</p>
                       </div>
                       <div className="mt-3 space-y-1">
-                        <button
-                          type="button"
+                        <Link
+                          to={localized('/cardora-binder')}
                           onClick={closeMenus}
-                          aria-disabled="true"
-                          title={locale === 'en' ? 'Cardora Binder — coming soon' : 'Cardora Binder — έρχεται σύντομα'}
+                          title="Cardora Binder"
                           className={cn(binderMenuItemClassName, 'mb-2')}
                         >
-                          <BinderMenuItemContent soonLabel={locale === 'en' ? 'Soon' : 'Σύντομα'} />
-                        </button>
+                          <BinderMenuItemContent badgeLabel={locale === 'en' ? 'New' : 'Νέο'} />
+                        </Link>
                         <Link
                           to={localized('/profil')}
                           onClick={closeMenus}
@@ -564,15 +563,14 @@ function Navbar() {
           <div className="space-y-2 rounded-[22px] border border-[#ead7ae] bg-white p-3.5">
             {isAuthenticated ? (
               <>
-                <button
-                  type="button"
+                <Link
+                  to={localized('/cardora-binder')}
                   onClick={() => setMobileOpen(false)}
-                  aria-disabled="true"
-                  title={locale === 'en' ? 'Cardora Binder — coming soon' : 'Cardora Binder — έρχεται σύντομα'}
+                  title="Cardora Binder"
                   className={binderMenuItemClassName}
                 >
-                  <BinderMenuItemContent soonLabel={locale === 'en' ? 'Soon' : 'Σύντομα'} />
-                </button>
+                  <BinderMenuItemContent badgeLabel={locale === 'en' ? 'New' : 'Νέο'} />
+                </Link>
                 <Link
                   to={localized('/dimiourgia-aggelias')}
                   onClick={() => setMobileOpen(false)}
