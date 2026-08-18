@@ -6,6 +6,7 @@ import CookieBanner from '@/components/legal/CookieBanner'
 import AppLoader from '@/components/ui/AppLoader'
 import AppRoutes from '@/routes/AppRoutes'
 import ScrollToTop from '@/routes/ScrollToTop'
+import GoldDustBackground from '@/components/background/GoldDustBackground'
 
 function App() {
   return (
@@ -13,6 +14,8 @@ function App() {
       <AuthProvider>
         <MarketplaceProvider>
           <PageLoaderProvider>
+            <GoldDustBackground />
+
             <ScrollToTop />
             <AppLoader />
             <CookieBanner />
