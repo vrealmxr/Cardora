@@ -1,4 +1,14 @@
-const UPSTREAM_ORIGIN = 'http://origin-proxy.cardora.gr'
+// Fetching plain http://origin-proxy.cardora.gr used to trigger the
+// origin's force-HTTPS redirect (LiteSpeed 301 http -> https://cardora.gr/...).
+// Since this worker forwards the response with redirect: 'manual' instead of
+// following it, the browser followed that 301 back to https://cardora.gr,
+// re-entering this same Pages project and repeating — Cloudflare eventually
+// cuts the chain with "Error 1019: Worker hit loop limit" once it hits 16
+// hops. Fetching https://cardora.gr with cf.resolveOverride pointed at the
+// grey-clouded origin-proxy host avoids the redirect entirely (matches the
+// working pattern already used in cloudflare/backend-proxy/src/worker.js).
+const UPSTREAM_ORIGIN = 'https://cardora.gr'
+const RESOLVE_OVERRIDE = 'origin-proxy.cardora.gr'
 
 const withCors = (headers, request) => {
   const next = new Headers(headers)
@@ -36,6 +46,9 @@ export default {
         headers: upstreamHeaders,
         body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
         redirect: 'manual',
+        cf: {
+          resolveOverride: RESOLVE_OVERRIDE,
+        },
       })
 
       return new Response(upstreamResponse.body, {
