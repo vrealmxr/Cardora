@@ -4,5 +4,14 @@ compatibility_date = "2026-07-17"
 workers_dev = false
 
 routes = [
-  { pattern = "api.cardora.gr/*", zone_name = "cardora.gr" }
+  { pattern = "api.cardora.gr/*", zone_name = "cardora.gr" },
+  # More specific than the Pages custom domain on cardora.gr/*, so this wins
+  # for /storage/* without touching the Pages project. The Pages Worker
+  # (cloudflare/backend-proxy-pages) uses this exact resolveOverride pattern
+  # too, but resolveOverride is silently ignored there — Pages projects
+  # don't carry the zone_name binding this security check requires — so its
+  # fetch to https://cardora.gr falls through to normal DNS, re-enters
+  # Cloudflare's edge, and loops (Error 1019). This Worker has a real
+  # zone_name route, so resolveOverride actually reaches the origin here.
+  { pattern = "cardora.gr/storage/*", zone_name = "cardora.gr" }
 ]
