@@ -13,5 +13,18 @@ routes = [
   # fetch to https://cardora.gr falls through to normal DNS, re-enters
   # Cloudflare's edge, and loops (Error 1019). This Worker has a real
   # zone_name route, so resolveOverride actually reaches the origin here.
-  { pattern = "cardora.gr/storage/*", zone_name = "cardora.gr" }
+  { pattern = "cardora.gr/storage/*", zone_name = "cardora.gr" },
+  # Same issue, much bigger blast radius: the deployed frontend build uses
+  # VITE_API_BASE_URL=/index.php/api (relative, not https://api.cardora.gr),
+  # so EVERY API call — bootstrap, listings, login, checkout, all of it —
+  # goes through cardora.gr/index.php/* and was hitting the same broken
+  # Pages Worker loop (Error 1019).
+  { pattern = "cardora.gr/index.php*", zone_name = "cardora.gr" },
+  # asset.php serves bootstrap.min.css/js and other root-level assets that
+  # aren't part of the Pages static build, so they also fell through to the
+  # broken Pages Worker.
+  { pattern = "cardora.gr/asset.php*", zone_name = "cardora.gr" },
+  # Pages doesn't recognize .webmanifest as a static asset type, so this one
+  # file falls through too even though its sibling icons (.ico/.png) don't.
+  { pattern = "cardora.gr/icons/site.webmanifest", zone_name = "cardora.gr" }
 ]
