@@ -62,3 +62,50 @@ set card lists (TCG-NA / TCG-EU) and cross-checked against Cardmarket
 ("Fleur Synchronique (V.2 - Super Rare)") and multiple NA retailers. Both
 regions use the identical printed code (no `-FR`/other suffix) for the
 English releases specifically.
+
+## Power of Chaos: Yugi the Destiny Limited Collector's Edition — removed, was a duplicate
+
+Originally added as 5 "gap-fill" cards (PCY-001–PCY-005, Prismatic Secret
+Rare) based on external research, with a note claiming they were distinct
+from the sibling canonical set `Yu-Gi-Oh! Power of Chaos: Yugi the Destiny
+promotional cards`. That claim was **wrong** and was caught during
+production spot-checks (2026-09-23): all 5 names/codes/rarities are already
+present in primary YGOPRODeck data under the `...promotional cards` set
+(identical `tcg_date` 2003-11-18), and `cardsets.php` itself lists the
+`Limited Collector's Edition` entry with `num_of_cards=2`, not 5 — a
+mismatch that had already surfaced as an `expected_unique_vs_numbered_differences`
+warning but wasn't individually inspected before production `--apply`.
+
+The 5 rows in `supplemental_cards.csv` are kept with
+`status=excluded_special_format` / `exclusion_reason=duplicate_canonical_printing_already_in_primary_data`
+for provenance rather than deleted outright. The importer now also tracks
+`fullyExcludedSetNames`: when every row for a set_name is excluded (no
+`include` rows), the canonical Set row itself is dropped if it ends up with
+zero real cards, instead of tripping the `unresolved_source_gaps` FAIL gate
+(reported via `dropped_fully_excluded_sets`, never silently). The `Limited
+Collector's Edition` should be modeled in the future as a **product/release**
+that contains the `...promotional cards` cards, not as a second canonical
+card set — the schema doesn't yet have that release/product concept
+(canonical card/printing vs. release/product membership are currently
+conflated), see the KACB/YUCB audit below for the same underlying gap.
+
+## KACB-EN001 / YUCB-EN001 — same printing, different regional box product (not merged)
+
+Audited 2026-09-23 after the PCY finding raised the same question for
+`Kaiba's Collector Box` (KACB-EN001, NA, 2017-11-17) and `Yugi's Collector
+Box` (YUCB-EN001, NA, 2017-11-17): both also appear under `Yugi & Kaiba
+Collector Box` (2018-03-29). Unlike PCY, this is **not** a data-entry
+duplicate — confirmed via Yugipedia/Fandom (authoritative wiki, not
+inferred from set name/date alone): `Yugi & Kaiba Collector Box` "is the
+European equivalent of the North American Yugi's Collector Box and Kaiba's
+Collector Box" (Europe/Oceania/France/Germany/Italy, 2018-03-29), bundling
+*both* promo cards (YUCB-EN001 + KACB-EN001) into one box, where NA split
+the same two cards across two separate boxes. Same card, same code, same
+Ultra Rare rarity in all three listings — a real product/release-membership
+difference, not a printing difference (unlike TF05, where NA/EU genuinely
+differ in *rarity*). **Left as 2 separate canonical cards per box for now**
+— merging would need the same release/product-membership modeling gap
+noted above (one canonical printing, multiple release memberships), which
+the current schema can't express without either duplicating the canonical
+card (current state) or losing the box-membership information entirely.
+Do not auto-merge without that schema work.

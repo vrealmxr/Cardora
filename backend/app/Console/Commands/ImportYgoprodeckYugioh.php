@@ -85,6 +85,8 @@ class ImportYgoprodeckYugioh extends Command
     private int $regionSpecificVariants = 0;
     private int $editionSpecificVariants = 0;
     private array $overriddenCardKeys = []; // card_key => true, cards touched by supplemental_variant_overrides.csv (region/edition tagging on an existing variant, no new card/variant created by this alone)
+    private array $fullyExcludedSetNames = []; // set_name => true, every supplemental_cards.csv row for this set is excluded_special_format (no "include" rows) -- e.g. a set later found to be a duplicate canonical printing of another set's content
+    private array $droppedFullyExcludedSets = []; // set_names actually dropped from setRows because they ended up with zero real cards (reported, never silent)
 
     public function handle(): int
     {
@@ -332,6 +334,23 @@ class ImportYgoprodeckYugioh extends Command
             }
         }
 
+        // Drop canonical Set rows for fully-excluded supplemental sets that
+        // ended up with zero real cards (see fullyExcludedSetNames above) --
+        // must happen before the gap-detection loop below, otherwise a
+        // deliberately-emptied set (e.g. a confirmed duplicate canonical
+        // printing) would misreport as an unresolved_source_gap (FAIL).
+        foreach (array_keys($this->fullyExcludedSetNames) as $setName) {
+            $setKey = $this->toSetKey($setName);
+            if (($this->setActualCardCounts[$setKey] ?? 0) === 0 && isset($this->setRows[$setKey])) {
+                unset($this->setRows[$setKey], $this->setSourceCardCounts[$setKey], $this->setActualCardCounts[$setKey]);
+                $this->externalIdRows = array_values(array_filter(
+                    $this->externalIdRows,
+                    fn ($e) => ! ($e['entity_type'] === 'set' && $e['entity_key'] === $setKey),
+                ));
+                $this->droppedFullyExcludedSets[] = $setName;
+            }
+        }
+
         // Same three-way classification used for the Pokémon importer:
         // zero grouped cards despite a non-zero canonical count is a real
         // gap; a non-zero-but-different count is normal (e.g. a set whose
@@ -389,6 +408,20 @@ class ImportYgoprodeckYugioh extends Command
         if (is_file($cardsPath)) {
             foreach ($this->readCsv($cardsPath) as $row) {
                 $this->supplementalCardsBySet[$row['set_name']][] = $row;
+            }
+        }
+
+        // A set_name where every supplemental_cards.csv row is
+        // excluded_special_format (no "include" rows at all) means this
+        // dataset has deliberately decided the set has zero real canonical
+        // cards -- e.g. Power of Chaos: Yugi the Destiny Limited Collector's
+        // Edition, whose 5 cards turned out to duplicate the sibling
+        // "...promotional cards" set already in primary data. Tracked here
+        // so handle() can drop the (now legitimately empty) canonical Set
+        // row instead of it tripping the unresolved_source_gaps FAIL gate.
+        foreach ($this->supplementalCardsBySet as $setName => $rows) {
+            if (array_filter($rows, fn ($r) => $r['status'] === 'include') === []) {
+                $this->fullyExcludedSetNames[$setName] = true;
             }
         }
 
@@ -782,6 +815,8 @@ class ImportYgoprodeckYugioh extends Command
             'non_unique_set_codes_skipped' => $this->nonUniqueSetCodesSkipped,
             'non_unique_card_codes_skipped' => $this->nonUniqueCardCodesSkipped,
 
+            'dropped_fully_excluded_sets' => $this->droppedFullyExcludedSets,
+
             'region_specific_variants' => $this->regionSpecificVariants,
             'edition_specific_variants' => $this->editionSpecificVariants,
         ];
@@ -827,6 +862,7 @@ class ImportYgoprodeckYugioh extends Command
             ['importer_missing_images (FAIL)', $r['importer_missing_images']],
             ['non_unique_set_codes_skipped (info)', $r['non_unique_set_codes_skipped']],
             ['non_unique_card_codes_skipped (info)', $r['non_unique_card_codes_skipped']],
+            ['dropped_fully_excluded_sets (info)', count($r['dropped_fully_excluded_sets'])],
             ['region_specific_variants', $r['region_specific_variants']],
             ['edition_specific_variants', $r['edition_specific_variants']],
             ['STATUS', $r['status']],
@@ -839,6 +875,9 @@ class ImportYgoprodeckYugioh extends Command
         }
         foreach ($r['excluded_special_format'] as $e) {
             $this->comment("  excluded (special format): {$e['set_name']} / {$e['card_id']} ({$e['card_name']}) — {$e['reason']}");
+        }
+        foreach ($r['dropped_fully_excluded_sets'] as $setName) {
+            $this->comment("  dropped canonical set (zero real cards after exclusions): {$setName}");
         }
         foreach (array_slice($r['unresolved_source_gaps'], 0, 20) as $m) {
             $this->error("  unresolved_source_gap: {$m['set_key']} — expected {$m['expected']}, got {$m['actual']}");
