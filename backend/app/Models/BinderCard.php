@@ -17,6 +17,7 @@ class BinderCard extends Model
         'game_id',
         'external_product_id',
         'card_key',
+        'oracle_id',
         'name',
         'clean_name',
         'number',
