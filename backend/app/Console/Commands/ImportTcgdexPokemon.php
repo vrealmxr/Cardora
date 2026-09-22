@@ -36,8 +36,10 @@ class ImportTcgdexPokemon extends Command
         {--set=* : TCGdex set id(s) to fetch, e.g. sv03.5. Omit to fetch every English Pokémon set.}
         {--out= : Directory to write games/sets/cards/variants/external_ids CSVs into (default: storage/app/tcgdex-pokemon)}
         {--apply : Also run cardora:binder-import-v2 on the generated CSVs. Only runs on PASS or PASS_WITH_WARNINGS. Without this flag nothing touches the database.}
-        {--delay-ms=80 : Delay between TCGdex card-detail requests, in milliseconds (politeness against the public API)}
-        {--refresh-cache : Ignore the persistent on-disk cache and re-fetch everything from the API (results still get cached)}';
+        {--source=local : "local" (default, a pinned cards-database git-commit snapshot — no network dependency, use for full rebuilds) or "api" (live api.tcgdex.net calls — use for incremental/update syncs)}
+        {--snapshot= : Path to a snapshot dir under storage/app/tcgdex-snapshots (default: the only one present, if exactly one exists)}
+        {--delay-ms=80 : Delay between TCGdex card-detail requests in --source=api mode, in milliseconds (politeness against the public API; unused in local mode)}
+        {--refresh-cache : --source=api only: ignore the persistent on-disk cache and re-fetch everything (results still get cached)}';
 
     protected $description = 'Fetch physical Pokémon TCG catalog data from TCGdex and generate catalog v2 import CSVs, with a global + per-set dry-run validation report';
 
@@ -74,6 +76,11 @@ class ImportTcgdexPokemon extends Command
     private array $upstreamMissingCardData = []; // set fetch succeeded but returned 0 cards despite a non-zero cardCount
     private array $expectedUniqueVsNumberedDifferences = []; // set returned SOME cards, just fewer/more than cardCount.total — normal for kits/special products, not a failure
 
+    private string $sourceMode = 'api';
+    private ?array $snapshotManifest = null;
+    private array $localSetsById = [];
+    private array $localCardsById = [];
+
     public function handle(): int
     {
         $outDir = rtrim((string) ($this->option('out') ?: storage_path('app/tcgdex-pokemon')), '/');
@@ -83,13 +90,34 @@ class ImportTcgdexPokemon extends Command
             return self::FAILURE;
         }
 
+        $this->sourceMode = $this->option('source');
+        if (! in_array($this->sourceMode, ['local', 'api'], true)) {
+            $this->error('--source must be "local" or "api"');
+
+            return self::FAILURE;
+        }
+
         $gitCommit = $this->currentGitCommit();
         $this->info("Importer version: {$gitCommit['hash']}" . ($gitCommit['dirty'] ? ' (dirty working tree)' : ''));
 
-        $this->info('Fetching set list from TCGdex...');
-        $allSets = $this->getJson(self::BASE_URL . '/sets');
+        if ($this->sourceMode === 'local') {
+            if (! $this->loadSnapshot()) {
+                return self::FAILURE;
+            }
+            $this->info(sprintf(
+                'Source: local snapshot — %s @ %s (%s)',
+                $this->snapshotManifest['source_repo'] ?? '?',
+                $this->snapshotManifest['commit_short'] ?? '?',
+                $this->snapshotManifest['commit_date'] ?? '?',
+            ));
+        } else {
+            $this->info('Source: live api.tcgdex.net');
+        }
+
+        $this->info('Fetching set list...');
+        $allSets = $this->fetchSetsList();
         if ($allSets === null) {
-            $this->error('Could not reach TCGdex /sets — aborting.');
+            $this->error('Could not load the TCGdex set list — aborting.');
 
             return self::FAILURE;
         }
@@ -158,9 +186,10 @@ class ImportTcgdexPokemon extends Command
     {
         $setKey = $this->toSetKey($setId);
 
-        $set = $this->getJson(self::BASE_URL . "/sets/{$setId}");
+        $set = $this->fetchSet($setId);
         if ($set === null) {
-            $this->failures[] = ['type' => 'set', 'set_id' => $setId, 'card_id' => null, 'reason' => 'fetch failed'];
+            $reason = $this->sourceMode === 'local' ? 'not found in local snapshot' : 'fetch failed';
+            $this->failures[] = ['type' => 'set', 'set_id' => $setId, 'card_id' => null, 'reason' => $reason];
 
             return;
         }
@@ -227,16 +256,19 @@ class ImportTcgdexPokemon extends Command
         }
 
         foreach ($cardBriefs as $cardBrief) {
-            usleep(((int) $this->option('delay-ms')) * 1000);
+            if ($this->sourceMode === 'api') {
+                usleep(((int) $this->option('delay-ms')) * 1000);
+            }
             $this->processCard($setId, $setKey, $cardBrief['id']);
         }
     }
 
     private function processCard(string $setId, string $setKey, string $cardId): void
     {
-        $card = $this->getJson(self::BASE_URL . "/cards/{$cardId}");
+        $card = $this->fetchCard($cardId);
         if ($card === null) {
-            $this->failures[] = ['type' => 'card', 'set_id' => $setId, 'card_id' => $cardId, 'reason' => 'fetch failed'];
+            $reason = $this->sourceMode === 'local' ? 'not found in local snapshot' : 'fetch failed';
+            $this->failures[] = ['type' => 'card', 'set_id' => $setId, 'card_id' => $cardId, 'reason' => $reason];
 
             return;
         }
@@ -360,7 +392,10 @@ class ImportTcgdexPokemon extends Command
      */
     private function retryUnresolvedFailures(): void
     {
-        if ($this->failures === []) {
+        if ($this->failures === [] || $this->sourceMode === 'local') {
+            // Local-snapshot lookups are deterministic in-memory reads — if
+            // an id wasn't in the snapshot the first time, it won't be the
+            // second time either. Nothing to gain from retrying.
             return;
         }
 
@@ -426,6 +461,88 @@ class ImportTcgdexPokemon extends Command
             'short' => str_starts_with($short, 'fatal') ? 'unknown' : $short,
             'dirty' => $dirty,
         ];
+    }
+
+    /**
+     * Loads a pinned cards-database snapshot: sets.json/cards.json compiled
+     * locally (bun run compile, in the cards-database repo's server/) from
+     * an exact git commit, matching the live API's response shape field for
+     * field. --snapshot picks the dir explicitly; otherwise this requires
+     * there to be exactly one under storage/app/tcgdex-snapshots so a stale
+     * or ambiguous default can never be picked silently.
+     */
+    private function loadSnapshot(): bool
+    {
+        $snapshotDir = $this->option('snapshot');
+        if (! $snapshotDir) {
+            $root = storage_path('app/tcgdex-snapshots');
+            $candidates = is_dir($root) ? array_values(array_filter(glob("{$root}/*"), 'is_dir')) : [];
+            if (count($candidates) !== 1) {
+                $this->error(sprintf(
+                    '--source=local needs --snapshot=<dir>: found %d snapshot(s) under %s (need exactly 1 to pick a default).',
+                    count($candidates),
+                    $root,
+                ));
+
+                return false;
+            }
+            $snapshotDir = $candidates[0];
+        }
+
+        $manifestPath = "{$snapshotDir}/manifest.json";
+        $setsPath = "{$snapshotDir}/en/sets.json";
+        $cardsPath = "{$snapshotDir}/en/cards.json";
+        foreach (['manifest.json' => $manifestPath, 'en/sets.json' => $setsPath, 'en/cards.json' => $cardsPath] as $label => $path) {
+            if (! is_file($path)) {
+                $this->error("Snapshot missing {$label} at {$path}");
+
+                return false;
+            }
+        }
+
+        $this->snapshotManifest = json_decode((string) file_get_contents($manifestPath), true);
+
+        $sets = json_decode((string) file_get_contents($setsPath), true);
+        foreach ($sets as $set) {
+            $this->localSetsById[$set['id']] = $set;
+        }
+
+        $cards = json_decode((string) file_get_contents($cardsPath), true);
+        foreach ($cards as $card) {
+            $this->localCardsById[$card['id']] = $card;
+        }
+
+        $this->info(sprintf('Loaded snapshot: %d sets, %d cards from %s', count($this->localSetsById), count($this->localCardsById), $snapshotDir));
+
+        return true;
+    }
+
+    /** @return array<int,array<string,mixed>>|null */
+    private function fetchSetsList(): ?array
+    {
+        if ($this->sourceMode === 'local') {
+            return array_values($this->localSetsById);
+        }
+
+        return $this->getJson(self::BASE_URL . '/sets');
+    }
+
+    private function fetchSet(string $id): ?array
+    {
+        if ($this->sourceMode === 'local') {
+            return $this->localSetsById[$id] ?? null;
+        }
+
+        return $this->getJson(self::BASE_URL . "/sets/{$id}");
+    }
+
+    private function fetchCard(string $id): ?array
+    {
+        if ($this->sourceMode === 'local') {
+            return $this->localCardsById[$id] ?? null;
+        }
+
+        return $this->getJson(self::BASE_URL . "/cards/{$id}");
     }
 
     /** @param array<string,mixed> $card */
@@ -698,6 +815,10 @@ class ImportTcgdexPokemon extends Command
                 'importer_git_commit' => $gitCommit['hash'],
                 'importer_git_commit_short' => $gitCommit['short'],
                 'importer_working_tree_dirty' => $gitCommit['dirty'],
+                'source_mode' => $this->sourceMode,
+                'source_snapshot_repo' => $this->snapshotManifest['source_repo'] ?? null,
+                'source_snapshot_commit' => $this->snapshotManifest['commit'] ?? null,
+                'source_snapshot_commit_date' => $this->snapshotManifest['commit_date'] ?? null,
                 'api_requests_failed' => $this->apiRequestsFailed,
                 'api_requests_retried' => $this->apiRequestsRetried,
                 'cache_hits' => $this->cacheHits,
@@ -720,6 +841,9 @@ class ImportTcgdexPokemon extends Command
     {
         $this->newLine();
         $this->info("=== Global validation report (importer {$g['importer_git_commit_short']}) ===");
+        $this->line("source_mode: {$g['source_mode']}" . ($g['source_mode'] === 'local'
+            ? " | snapshot: {$g['source_snapshot_repo']} @ {$g['source_snapshot_commit']} ({$g['source_snapshot_commit_date']})"
+            : ''));
         $this->table(['Metric', 'Value'], [
             ['api_requests_failed', $g['api_requests_failed']],
             ['api_requests_retried', $g['api_requests_retried']],
