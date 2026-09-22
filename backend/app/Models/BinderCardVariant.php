@@ -17,6 +17,8 @@ class BinderCardVariant extends Model
         'variant_name',
         'variant_type',
         'rarity',
+        'region_code',
+        'edition_code',
         'artist',
         'image_small',
         'image_large',

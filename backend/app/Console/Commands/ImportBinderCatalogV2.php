@@ -259,6 +259,8 @@ class ImportBinderCatalogV2 extends Command
                 'variant_name' => $r['variant_name'] ?? 'Normal',
                 'variant_type' => $this->nullIfEmpty($r['variant_type'] ?? null),
                 'rarity' => $this->nullIfEmpty($r['rarity'] ?? null),
+                'region_code' => $this->nullIfEmpty($r['region_code'] ?? null),
+                'edition_code' => $this->nullIfEmpty($r['edition_code'] ?? null),
                 'artist' => $this->nullIfEmpty($r['artist'] ?? null),
                 'image_small' => $this->nullIfEmpty($r['image_small'] ?? null),
                 'image_large' => $this->nullIfEmpty($r['image_large'] ?? null),
@@ -277,7 +279,7 @@ class ImportBinderCatalogV2 extends Command
             DB::table('binder_card_variants')->upsert(
                 array_values($chunk),
                 ['variant_key'],
-                ['card_id', 'variant_name', 'variant_type', 'rarity', 'artist', 'image_small', 'image_large', 'sort_order', 'updated_at'],
+                ['card_id', 'variant_name', 'variant_type', 'rarity', 'region_code', 'edition_code', 'artist', 'image_small', 'image_large', 'sort_order', 'updated_at'],
             );
         }
 
