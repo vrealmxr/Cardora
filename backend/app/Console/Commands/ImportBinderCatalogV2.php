@@ -212,6 +212,8 @@ class ImportBinderCatalogV2 extends Command
                 'external_product_id' => null,
                 'card_key' => $r['card_key'],
                 'oracle_id' => $this->nullIfEmpty($r['oracle_id'] ?? null),
+                'physical_format_code' => $this->nullIfEmpty($r['physical_format_code'] ?? null),
+                'promo_types' => $this->nullIfEmpty($r['promo_types'] ?? null),
                 'name' => $r['card_name'] ?? $r['card_key'],
                 'clean_name' => $this->nullIfEmpty($r['clean_name'] ?? null),
                 'number' => $this->nullIfEmpty($r['collector_number'] ?? null),
@@ -235,7 +237,7 @@ class ImportBinderCatalogV2 extends Command
             DB::table('binder_cards')->upsert(
                 $chunk,
                 ['card_key'],
-                ['set_id', 'game_id', 'oracle_id', 'name', 'clean_name', 'number', 'card_type', 'is_promo', 'is_token', 'language', 'updated_at'],
+                ['set_id', 'game_id', 'oracle_id', 'physical_format_code', 'promo_types', 'name', 'clean_name', 'number', 'card_type', 'is_promo', 'is_token', 'language', 'updated_at'],
             );
         }
 

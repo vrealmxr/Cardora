@@ -18,6 +18,8 @@ class BinderCard extends Model
         'external_product_id',
         'card_key',
         'oracle_id',
+        'physical_format_code',
+        'promo_types',
         'name',
         'clean_name',
         'number',
@@ -33,6 +35,7 @@ class BinderCard extends Model
         'external_product_id' => 'integer',
         'is_promo' => 'boolean',
         'is_token' => 'boolean',
+        'promo_types' => 'array',
     ];
 
     public function set(): BelongsTo

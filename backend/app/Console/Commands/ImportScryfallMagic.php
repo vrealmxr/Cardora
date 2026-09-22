@@ -20,25 +20,37 @@ use Illuminate\Support\Facades\Http;
  *
  * Four distinct concepts, mapped deliberately:
  *   Oracle card / card design  -> binder_cards.oracle_id (nullable column,
- *                                 not a table -- see the migration)
+ *                                 not a table)
  *   Physical printing          -> binder_cards (one row per Scryfall card
  *                                 object)
  *   Finish (nonfoil/foil/etched) -> binder_card_variants (one row per
  *                                 entry actually present in `finishes` --
  *                                 never fabricated)
- *   Release/product membership -> NOT generated here. promo_types and
- *                                 product-like set_types are only reported
- *                                 (promo_type_frequency /
- *                                 special_physical_type_candidates) for a
- *                                 separate, human-reviewed pass -- same
- *                                 principle as the Yu-Gi-Oh! KACB/PCY work.
+ *   Release/product membership -> NOT generated here. promo_types is
+ *                                 preserved verbatim as JSON on
+ *                                 binder_cards for later curated review --
+ *                                 it mixes distribution context
+ *                                 (prerelease/buyabox), classification
+ *                                 (boosterfun/universesbeyond), and
+ *                                 treatment (surgefoil/confettifoil),
+ *                                 which need human judgement to separate,
+ *                                 never an automatic rule.
  *
- * Physical-only catalog: digital=true cards are excluded and counted
- * (excluded_digital_objects). Nothing else is auto-excluded by layout or
- * set_type (tokens, emblems, schemes, planes, vanguards, art series,
- * oversized, memorabilia, minigame sets all stay IN as ordinary cards) --
- * every non-digital card object must become exactly one binder_cards row,
- * enforced as a hard FAIL if any are silently dropped.
+ * Physical-only catalog: digital=true cards are excluded and counted.
+ * Nothing else is auto-excluded by layout or set_type (tokens, emblems,
+ * schemes, planes, vanguards, art series, oversized, memorabilia all stay
+ * IN as ordinary cards) -- every non-digital card object must become
+ * exactly one binder_cards row. Scryfall's `oversized` flag is preserved
+ * via physical_format_code (nullable, "oversized" | null) rather than
+ * excluding anything, so Pokémon Jumbo cards can reuse the same column
+ * later without another schema change.
+ *
+ * Streaming end-to-end, bounded memory regardless of catalog size: the
+ * bulk file is read line-by-line (gzgets, never loaded whole), and every
+ * generated CSV is written incrementally through an open file handle as
+ * each row is produced -- no cards/variants/external_ids array is ever
+ * held in full. Uniqueness/orphan checks use small hash sets of just the
+ * ID strings involved (tens of MB for ~110k cards), never the full rows.
  *
  * Dry-run by default: always generates the CSVs + a global validation
  * report. Pass --apply to additionally hand the generated directory to
@@ -57,13 +69,12 @@ class ImportScryfallMagic extends Command
     private const BULK_DATA_LIST_URL = 'https://api.scryfall.com/bulk-data';
     private const SETS_LIST_URL = 'https://api.scryfall.com/sets';
     private const CACHE_DIR = 'scryfall-cache';
-    /** Scryfall rejects requests carrying an HTTP library's default User-Agent (HTTP 400, rule=generic_user_agent). */
+    /** Scryfall rejects requests carrying an HTTP library's default User-Agent (HTTP 400, rule=generic_user_agent) and asks for an explicit Accept header too. */
     private const USER_AGENT = 'Cardora/1.0 (+https://cardora.gr; catalog importer)';
+    private const ACCEPT_HEADER = 'application/json;q=0.9,*/*;q=0.8';
 
-    private array $setRows = [];
-    private array $cardRows = [];
-    private array $variantRows = [];
-    private array $externalIdRows = [];
+    /** @var array<string,resource> */
+    private array $handles = [];
 
     private int $sourceObjects = 0;
     private int $physicalSourceObjects = 0;
@@ -72,8 +83,23 @@ class ImportScryfallMagic extends Command
     private array $sourceSetCodes = []; // set_code => true, seen across ALL objects (physical + digital)
     private array $setsWithPhysicalCards = []; // set_code => true
     private array $digitalOnlySetCounts = []; // set_code => count of digital cards seen (for sets with zero physical cards)
+    private array $writtenSetKeys = []; // set_key => true, dedupe guard for the incrementally-written sets.csv
 
-    private array $scryfallIdsSeen = [];
+    private int $generatedSets = 0;
+    private int $generatedCards = 0;
+    private int $generatedVariants = 0;
+
+    private array $scryfallIdsSeen = []; // id => true (hash set, not a growing list) + a small overflow list of actual dupes
+    private array $duplicateScryfallIds = [];
+    private array $variantKeysSeen = [];
+    private array $duplicateVariantKeys = [];
+    private array $cardKeysSeen = [];
+    private array $duplicateCardKeys = [];
+
+    private int $orphanCards = 0;
+    private int $orphanVariants = 0;
+    private int $brokenSetReferences = 0;
+
     private array $oracleIdsSeen = [];
     private int $cardsWithOracleId = 0;
     private int $cardsWithoutOracleId = 0;
@@ -91,6 +117,12 @@ class ImportScryfallMagic extends Command
 
     private int $upstreamMissingImages = 0;
     private int $importerMissingImages = 0;
+    private int $missingImageEnrichmentRows = 0;
+
+    private int $oversizedCards = 0;
+    private int $cardsWithPromoTypes = 0;
+    private int $promoTypesPreserved = 0;
+    private array $uniquePromoTypesSeen = [];
 
     private array $specialPhysicalTypeCandidates = []; // category => ['count'=>int, 'examples'=>[]]
     private array $promoTypeFrequency = []; // promo_type => ['count'=>int, 'example_cards'=>[], 'example_sets'=>[]]
@@ -127,13 +159,18 @@ class ImportScryfallMagic extends Command
             return self::FAILURE;
         }
 
-        $this->info('Streaming and processing card objects...');
+        $this->openCsvHandles($outDir);
+
+        $this->info('Streaming and processing card objects (bounded memory, incremental writes)...');
         $this->processBulkFile($bulkFilePath, $setsByCode);
         $this->info("Source objects: {$this->sourceObjects} (physical: {$this->physicalSourceObjects}, digital excluded: {$this->excludedDigitalObjects})");
 
-        $this->writeCsvs($outDir);
+        $this->closeCsvHandles();
 
-        $report = $this->buildReport($gitCommit);
+        $peakMemoryMb = round(memory_get_peak_usage(true) / 1024 / 1024, 1);
+        $this->info("Peak memory: {$peakMemoryMb} MB");
+
+        $report = $this->buildReport($gitCommit, $peakMemoryMb);
         $this->printReport($report);
         file_put_contents("{$outDir}/validation_report.json", json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
@@ -161,7 +198,9 @@ class ImportScryfallMagic extends Command
     /**
      * GET /sets, following pagination, cached as a single frozen file
      * (storage/app/scryfall-cache/sets.json) rather than a per-set call
-     * for every one of the ~1100 sets.
+     * for every one of the ~1100 sets. Small (~1100 rows), kept fully in
+     * memory deliberately -- this is not the part of the pipeline that
+     * scales with catalog size.
      *
      * @return array<string,array<string,mixed>>|null set_code => set object
      */
@@ -288,6 +327,7 @@ class ImportScryfallMagic extends Command
 
         file_put_contents($cachePath, $body);
         $sha256 = hash('sha256', $body);
+        unset($body); // don't hold the 75-300MB body in memory a moment longer than necessary
 
         $this->bulkMeta = [
             'source' => 'live',
@@ -302,6 +342,51 @@ class ImportScryfallMagic extends Command
         file_put_contents($metaPath, json_encode($this->bulkMeta, JSON_PRETTY_PRINT));
 
         return $cachePath;
+    }
+
+    private function openCsvHandles(string $outDir): void
+    {
+        $this->handles['sets'] = fopen("{$outDir}/sets.csv", 'w');
+        fputcsv($this->handles['sets'], [
+            'game_slug', 'set_key', 'set_name', 'abbreviation', 'set_code', 'set_type', 'language',
+            'region', 'released_at', 'base_total', 'numbered_total', 'source', 'source_set_id', 'source_url',
+        ]);
+
+        $this->handles['cards'] = fopen("{$outDir}/cards.csv", 'w');
+        fputcsv($this->handles['cards'], [
+            'game_slug', 'set_key', 'card_key', 'oracle_id', 'physical_format_code', 'promo_types',
+            'card_name', 'clean_name', 'collector_number', 'card_type', 'is_promo', 'is_token', 'language',
+        ]);
+
+        $this->handles['variants'] = fopen("{$outDir}/variants.csv", 'w');
+        fputcsv($this->handles['variants'], [
+            'card_key', 'variant_key', 'variant_name', 'variant_type', 'rarity', 'region_code', 'edition_code', 'artist',
+            'image_small', 'image_large', 'sort_order',
+        ]);
+
+        $this->handles['external_ids'] = fopen("{$outDir}/external_ids.csv", 'w');
+        fputcsv($this->handles['external_ids'], [
+            'entity_type', 'entity_key', 'provider', 'external_id', 'external_type', 'external_url',
+        ]);
+
+        $this->handles['missing_images'] = fopen("{$outDir}/missing_images_enrichment.csv", 'w');
+        fputcsv($this->handles['missing_images'], [
+            'card_key', 'scryfall_id', 'card_name', 'set_code', 'collector_number', 'reason',
+        ]);
+
+        $this->handles['games'] = fopen("{$outDir}/games.csv", 'w');
+        fputcsv($this->handles['games'], ['slug', 'name', 'category', 'sort_order']);
+        fputcsv($this->handles['games'], ['magic-the-gathering', 'Magic: The Gathering', 'tcg', 30]);
+        fclose($this->handles['games']);
+        unset($this->handles['games']);
+    }
+
+    private function closeCsvHandles(): void
+    {
+        foreach ($this->handles as $handle) {
+            fclose($handle);
+        }
+        $this->handles = [];
     }
 
     /** @param array<string,array<string,mixed>> $setsByCode */
@@ -321,6 +406,7 @@ class ImportScryfallMagic extends Command
             }
             $line = rtrim($line, ',');
             $card = json_decode($line, true);
+            unset($line); // don't hold the raw line string alongside the decoded array
             if (! is_array($card) || ! isset($card['id'])) {
                 continue;
             }
@@ -347,12 +433,26 @@ class ImportScryfallMagic extends Command
     private function processCard(array $card, array $setsByCode): void
     {
         $scryfallId = $card['id'];
-        $this->scryfallIdsSeen[] = $scryfallId;
+        if (isset($this->scryfallIdsSeen[$scryfallId])) {
+            $this->duplicateScryfallIds[] = $scryfallId;
+        } else {
+            $this->scryfallIdsSeen[$scryfallId] = true;
+        }
         $cardKey = "magic:scryfall:{$scryfallId}";
+        if (isset($this->cardKeysSeen[$cardKey])) {
+            $this->duplicateCardKeys[] = $cardKey;
+        } else {
+            $this->cardKeysSeen[$cardKey] = true;
+        }
 
         $setCode = $card['set'] ?? '';
         $setKey = 'magic-' . $this->slug($setCode);
-        $this->registerSet($setCode, $setKey, $card, $setsByCode);
+        $this->registerSet($setKey, $setCode, $card, $setsByCode);
+        // Structural guarantee, verified rather than assumed: the set this
+        // card claims must exist (we just wrote it, or it already existed).
+        if (! isset($this->writtenSetKeys[$setKey])) {
+            $this->brokenSetReferences++;
+        }
 
         $isMultifaced = isset($card['card_faces']) && is_array($card['card_faces']) && count($card['card_faces']) > 0;
         $faces = $isMultifaced ? $card['card_faces'] : [];
@@ -386,15 +486,24 @@ class ImportScryfallMagic extends Command
         if ($usedFaceFallback) {
             $this->multifacedUsingFaceImageFallback++;
         }
+        $reason = null;
         if ($imageUris === null || ($imageSmall === '' && $imageLarge === '')) {
             $this->upstreamMissingImages++;
+            $reason = 'upstream_missing_image';
             if ($isMultifaced) {
                 $this->multifacedMissingAllImages++;
+                $reason = 'multifaced_missing_all_images';
             }
         } elseif ($imageSmall === '' && $imageLarge === '') {
             // imageUris was non-empty upstream but our extraction produced
             // nothing usable -- an importer bug, not an upstream data gap.
             $this->importerMissingImages++;
+        }
+        if ($reason !== null) {
+            fputcsv($this->handles['missing_images'], [
+                $cardKey, $scryfallId, $card['name'] ?? '', $setCode, $card['collector_number'] ?? '', $reason,
+            ]);
+            $this->missingImageEnrichmentRows++;
         }
 
         $lang = strtoupper((string) ($card['lang'] ?? 'en'));
@@ -403,24 +512,35 @@ class ImportScryfallMagic extends Command
         $isToken = in_array($card['layout'] ?? '', ['token', 'double_faced_token'], true)
             || str_starts_with((string) ($card['type_line'] ?? ''), 'Token');
 
-        $this->cardRows[] = [
-            'game_slug' => 'magic-the-gathering',
-            'set_key' => $setKey,
-            'card_key' => $cardKey,
-            'oracle_id' => $oracleId ?? '',
-            'card_name' => $card['name'] ?? $cardKey,
-            'clean_name' => $card['name'] ?? $cardKey,
-            'collector_number' => $card['collector_number'] ?? '',
-            'card_type' => $card['type_line'] ?? '',
-            'is_promo' => ($card['promo'] ?? false) ? 'TRUE' : 'FALSE',
-            'is_token' => $isToken ? 'TRUE' : 'FALSE',
-            'language' => $lang,
-        ];
+        $physicalFormatCode = ($card['oversized'] ?? false) === true ? 'oversized' : '';
+        if ($physicalFormatCode === 'oversized') {
+            $this->oversizedCards++;
+        }
+
+        $promoTypesJson = '';
+        $promoTypes = $card['promo_types'] ?? [];
+        if ($promoTypes !== []) {
+            $promoTypesJson = json_encode(array_values($promoTypes));
+            $this->cardsWithPromoTypes++;
+            foreach ($promoTypes as $pt) {
+                $this->uniquePromoTypesSeen[$pt] = true;
+            }
+        }
+
+        fputcsv($this->handles['cards'], [
+            'magic-the-gathering', $setKey, $cardKey, $oracleId ?? '', $physicalFormatCode, $promoTypesJson,
+            $card['name'] ?? $cardKey, $card['name'] ?? $cardKey, $card['collector_number'] ?? '',
+            $card['type_line'] ?? '', ($card['promo'] ?? false) ? 'TRUE' : 'FALSE', $isToken ? 'TRUE' : 'FALSE', $lang,
+        ]);
+        if ($promoTypesJson !== '') {
+            $this->promoTypesPreserved++;
+        }
+        $this->generatedCards++;
 
         $this->buildVariants($card, $cardKey, $imageSmall, $imageLarge);
         $this->buildExternalIds($card, $cardKey);
         $this->classifySpecialPhysicalType($card, $setCode);
-        $this->tallyPromoTypes($card, $setCode);
+        $this->tallyPromoTypes($promoTypes, $card, $setCode);
     }
 
     /** @param array<string,mixed> $card */
@@ -444,19 +564,23 @@ class ImportScryfallMagic extends Command
                 $this->unexpectedFinishCounts[$finish] = ($this->unexpectedFinishCounts[$finish] ?? 0) + 1;
             }
 
-            $this->variantRows[] = [
-                'card_key' => $cardKey,
-                'variant_key' => "{$cardKey}:{$finish}",
-                'variant_name' => ucfirst(str_replace('_', ' ', $finish)),
-                'variant_type' => $finish,
-                'rarity' => $card['rarity'] ?? '',
-                'region_code' => '',
-                'edition_code' => '',
-                'artist' => $card['artist'] ?? '',
-                'image_small' => $imageSmall,
-                'image_large' => $imageLarge,
-                'sort_order' => $sortOrder++,
-            ];
+            $variantKey = "{$cardKey}:{$finish}";
+            if (isset($this->variantKeysSeen[$variantKey])) {
+                $this->duplicateVariantKeys[] = $variantKey;
+            } else {
+                $this->variantKeysSeen[$variantKey] = true;
+            }
+            // Structural guarantee, verified: the card this variant belongs
+            // to must already have been written in this same call chain.
+            if (! isset($this->cardKeysSeen[$cardKey])) {
+                $this->orphanVariants++;
+            }
+
+            fputcsv($this->handles['variants'], [
+                $cardKey, $variantKey, ucfirst(str_replace('_', ' ', $finish)), $finish, $card['rarity'] ?? '',
+                '', '', $card['artist'] ?? '', $imageSmall, $imageLarge, $sortOrder++,
+            ]);
+            $this->generatedVariants++;
         }
     }
 
@@ -467,14 +591,7 @@ class ImportScryfallMagic extends Command
             if ($value === null || $value === '') {
                 return;
             }
-            $this->externalIdRows[] = [
-                'entity_type' => $entityType,
-                'entity_key' => $entityKey ?? $cardKey,
-                'provider' => $provider,
-                'external_id' => (string) $value,
-                'external_type' => $type,
-                'external_url' => '',
-            ];
+            fputcsv($this->handles['external_ids'], [$entityType, $entityKey ?? $cardKey, $provider, (string) $value, $type, '']);
         };
 
         $add('scryfall', 'scryfall_id', $card['id'] ?? null);
@@ -488,15 +605,8 @@ class ImportScryfallMagic extends Command
         $add('mtgo', 'mtgo_id', $card['mtgo_id'] ?? null);
         $add('mtgo', 'mtgo_foil_id', $card['mtgo_foil_id'] ?? null);
         $add('arena', 'arena_id', $card['arena_id'] ?? null);
-        foreach ($card['multiverse_ids'] ?? [] as $i => $multiverseId) {
-            $this->externalIdRows[] = [
-                'entity_type' => 'card',
-                'entity_key' => $cardKey,
-                'provider' => 'gatherer',
-                'external_id' => (string) $multiverseId,
-                'external_type' => 'multiverse_id',
-                'external_url' => '',
-            ];
+        foreach ($card['multiverse_ids'] ?? [] as $multiverseId) {
+            $add('gatherer', 'multiverse_id', $multiverseId);
         }
     }
 
@@ -531,10 +641,10 @@ class ImportScryfallMagic extends Command
         }
     }
 
-    /** @param array<string,mixed> $card */
-    private function tallyPromoTypes(array $card, string $setCode): void
+    /** @param array<int,string> $promoTypes @param array<string,mixed> $card */
+    private function tallyPromoTypes(array $promoTypes, array $card, string $setCode): void
     {
-        foreach ($card['promo_types'] ?? [] as $promoType) {
+        foreach ($promoTypes as $promoType) {
             $this->promoTypeFrequency[$promoType]['count'] = ($this->promoTypeFrequency[$promoType]['count'] ?? 0) + 1;
             if (count($this->promoTypeFrequency[$promoType]['example_cards'] ?? []) < 3) {
                 $this->promoTypeFrequency[$promoType]['example_cards'][] = $card['name'] ?? '';
@@ -547,29 +657,21 @@ class ImportScryfallMagic extends Command
     }
 
     /** @param array<string,mixed> $card @param array<string,array<string,mixed>> $setsByCode */
-    private function registerSet(string $setCode, string $setKey, array $card, array $setsByCode): void
+    private function registerSet(string $setKey, string $setCode, array $card, array $setsByCode): void
     {
-        if (isset($this->setRows[$setKey])) {
+        if (isset($this->writtenSetKeys[$setKey])) {
             return;
         }
 
         $meta = $setsByCode[$setCode] ?? null;
-        $this->setRows[$setKey] = [
-            'game_slug' => 'magic-the-gathering',
-            'set_key' => $setKey,
-            'set_name' => $meta['name'] ?? $card['set_name'] ?? $setCode,
-            'abbreviation' => $setCode,
-            'set_code' => $setCode,
-            'set_type' => $meta['set_type'] ?? $card['set_type'] ?? '',
-            'language' => 'EN',
-            'region' => '',
-            'released_at' => $meta['released_at'] ?? $card['released_at'] ?? '',
-            'base_total' => $meta['printed_size'] ?? $meta['card_count'] ?? '',
-            'numbered_total' => $meta['card_count'] ?? '',
-            'source' => 'scryfall',
-            'source_set_id' => $meta['id'] ?? $card['set_id'] ?? '',
-            'source_url' => $meta['scryfall_uri'] ?? $card['scryfall_set_uri'] ?? '',
-        ];
+        fputcsv($this->handles['sets'], [
+            'magic-the-gathering', $setKey, $meta['name'] ?? $card['set_name'] ?? $setCode, $setCode, $setCode,
+            $meta['set_type'] ?? $card['set_type'] ?? '', 'EN', '', $meta['released_at'] ?? $card['released_at'] ?? '',
+            $meta['printed_size'] ?? $meta['card_count'] ?? '', $meta['card_count'] ?? '', 'scryfall',
+            $meta['id'] ?? $card['set_id'] ?? '', $meta['scryfall_uri'] ?? $card['scryfall_set_uri'] ?? '',
+        ]);
+        $this->writtenSetKeys[$setKey] = true;
+        $this->generatedSets++;
     }
 
     private function slug(string $value): string
@@ -597,7 +699,10 @@ class ImportScryfallMagic extends Command
         $maxAttempts = 3;
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             try {
-                $response = Http::timeout(60)->withHeaders(['Accept' => 'application/json', 'User-Agent' => self::USER_AGENT])->get($url);
+                $response = Http::timeout(60)->withHeaders([
+                    'Accept' => self::ACCEPT_HEADER,
+                    'User-Agent' => self::USER_AGENT,
+                ])->get($url);
                 if ($response->successful()) {
                     return $response->json();
                 }
@@ -613,63 +718,9 @@ class ImportScryfallMagic extends Command
         return null;
     }
 
-    private function writeCsvs(string $outDir): void
-    {
-        $this->writeCsv("{$outDir}/games.csv", ['slug', 'name', 'category', 'sort_order'], [
-            ['magic-the-gathering', 'Magic: The Gathering', 'tcg', 30],
-        ]);
-        $this->writeCsv("{$outDir}/sets.csv", [
-            'game_slug', 'set_key', 'set_name', 'abbreviation', 'set_code', 'set_type', 'language',
-            'region', 'released_at', 'base_total', 'numbered_total', 'source', 'source_set_id', 'source_url',
-        ], array_values($this->setRows));
-        $this->writeCsv("{$outDir}/cards.csv", [
-            'game_slug', 'set_key', 'card_key', 'oracle_id', 'card_name', 'clean_name', 'collector_number',
-            'card_type', 'is_promo', 'is_token', 'language',
-        ], $this->cardRows);
-        $this->writeCsv("{$outDir}/variants.csv", [
-            'card_key', 'variant_key', 'variant_name', 'variant_type', 'rarity', 'region_code', 'edition_code', 'artist',
-            'image_small', 'image_large', 'sort_order',
-        ], $this->variantRows);
-        $this->writeCsv("{$outDir}/external_ids.csv", [
-            'entity_type', 'entity_key', 'provider', 'external_id', 'external_type', 'external_url',
-        ], $this->externalIdRows);
-    }
-
-    /** @param array<int,string> $header @param array<int,array<string,mixed>> $rows */
-    private function writeCsv(string $path, array $header, array $rows): void
-    {
-        $handle = fopen($path, 'w');
-        fputcsv($handle, $header);
-        foreach ($rows as $row) {
-            fputcsv($handle, $row);
-        }
-        fclose($handle);
-    }
-
-    private function duplicates(array $values): array
-    {
-        $counts = array_count_values($values);
-
-        return array_keys(array_filter($counts, fn ($n) => $n > 1));
-    }
-
     /** @param array{hash:string,short:string,dirty:bool} $gitCommit */
-    private function buildReport(array $gitCommit): array
+    private function buildReport(array $gitCommit, float $peakMemoryMb): array
     {
-        $cardKeys = array_column($this->cardRows, 'card_key');
-        $variantKeys = array_column($this->variantRows, 'variant_key');
-        $setKeys = array_column($this->setRows, 'set_key');
-
-        $duplicateScryfallIds = $this->duplicates($this->scryfallIdsSeen);
-        $duplicateCardKeys = $this->duplicates($cardKeys);
-        $duplicateVariantKeys = $this->duplicates($variantKeys);
-
-        $setKeySet = array_flip($setKeys);
-        $orphanCards = array_values(array_filter($this->cardRows, fn ($c) => ! isset($setKeySet[$c['set_key']])));
-        $cardKeySet = array_flip($cardKeys);
-        $orphanVariants = array_values(array_filter($this->variantRows, fn ($v) => ! isset($cardKeySet[$v['card_key']])));
-        $brokenSetReferences = $orphanCards; // same structural check, named per spec
-
         $excludedDigitalBySet = [];
         foreach ($this->digitalOnlySetCounts as $code => $count) {
             if (! isset($this->setsWithPhysicalCards[$code])) {
@@ -678,14 +729,14 @@ class ImportScryfallMagic extends Command
         }
 
         $failCounts = [
-            'duplicate_scryfall_ids' => count($duplicateScryfallIds),
-            'duplicate_card_keys' => count($duplicateCardKeys),
-            'duplicate_variant_keys' => count($duplicateVariantKeys),
-            'orphan_cards' => count($orphanCards),
-            'orphan_variants' => count($orphanVariants),
-            'broken_set_references' => count($brokenSetReferences),
+            'duplicate_scryfall_ids' => count($this->duplicateScryfallIds),
+            'duplicate_card_keys' => count($this->duplicateCardKeys),
+            'duplicate_variant_keys' => count($this->duplicateVariantKeys),
+            'orphan_cards' => $this->orphanCards,
+            'orphan_variants' => $this->orphanVariants,
+            'broken_set_references' => $this->brokenSetReferences,
             'importer_missing_images' => $this->importerMissingImages,
-            'physical_objects_silently_dropped' => max(0, $this->physicalSourceObjects - count($this->cardRows)),
+            'physical_objects_silently_dropped' => max(0, $this->physicalSourceObjects - $this->generatedCards),
         ];
         $warningCounts = [
             'upstream_missing_images' => $this->upstreamMissingImages,
@@ -705,6 +756,7 @@ class ImportScryfallMagic extends Command
             'importer_git_commit' => $gitCommit['hash'],
             'importer_git_commit_short' => $gitCommit['short'],
             'importer_working_tree_dirty' => $gitCommit['dirty'],
+            'peak_memory_mb' => $peakMemoryMb,
             'bulk_data' => $this->bulkMeta,
             'sets_metadata' => $this->setsMeta,
 
@@ -713,18 +765,18 @@ class ImportScryfallMagic extends Command
             'excluded_digital_objects' => $this->excludedDigitalObjects,
 
             'source_sets' => count($this->sourceSetCodes),
-            'generated_sets' => count($this->setRows),
-            'generated_cards' => count($this->cardRows),
-            'generated_variants' => count($this->variantRows),
+            'generated_sets' => $this->generatedSets,
+            'generated_cards' => $this->generatedCards,
+            'generated_variants' => $this->generatedVariants,
 
-            'unique_scryfall_ids' => count(array_unique($this->scryfallIdsSeen)),
-            'duplicate_scryfall_ids' => $duplicateScryfallIds,
-            'duplicate_card_keys' => $duplicateCardKeys,
-            'duplicate_variant_keys' => $duplicateVariantKeys,
+            'unique_scryfall_ids' => count($this->scryfallIdsSeen),
+            'duplicate_scryfall_ids' => $this->duplicateScryfallIds,
+            'duplicate_card_keys' => $this->duplicateCardKeys,
+            'duplicate_variant_keys' => $this->duplicateVariantKeys,
 
-            'orphan_cards' => array_column($orphanCards, 'card_key'),
-            'orphan_variants' => array_column($orphanVariants, 'variant_key'),
-            'broken_set_references' => array_column($brokenSetReferences, 'card_key'),
+            'orphan_cards' => $this->orphanCards,
+            'orphan_variants' => $this->orphanVariants,
+            'broken_set_references' => $this->brokenSetReferences,
 
             'cards_with_oracle_id' => $this->cardsWithOracleId,
             'cards_without_oracle_id' => $this->cardsWithoutOracleId,
@@ -745,6 +797,12 @@ class ImportScryfallMagic extends Command
 
             'upstream_missing_images' => $this->upstreamMissingImages,
             'importer_missing_images' => $this->importerMissingImages,
+            'missing_images_enrichment_rows' => $this->missingImageEnrichmentRows,
+
+            'oversized_cards' => $this->oversizedCards,
+            'cards_with_promo_types' => $this->cardsWithPromoTypes,
+            'unique_promo_types' => count($this->uniquePromoTypesSeen),
+            'promo_types_preserved' => $this->promoTypesPreserved,
 
             'excluded_digital_by_set' => $excludedDigitalBySet,
 
@@ -760,6 +818,7 @@ class ImportScryfallMagic extends Command
         $this->newLine();
         $this->info("=== Validation report (importer {$r['importer_git_commit_short']}) ===");
         $this->table(['Metric', 'Value'], [
+            ['peak_memory_mb', $r['peak_memory_mb']],
             ['source_objects', $r['source_objects']],
             ['physical_source_objects', $r['physical_source_objects']],
             ['excluded_digital_objects', $r['excluded_digital_objects']],
@@ -771,9 +830,9 @@ class ImportScryfallMagic extends Command
             ['duplicate_scryfall_ids (FAIL)', count($r['duplicate_scryfall_ids'])],
             ['duplicate_card_keys (FAIL)', count($r['duplicate_card_keys'])],
             ['duplicate_variant_keys (FAIL)', count($r['duplicate_variant_keys'])],
-            ['orphan_cards (FAIL)', count($r['orphan_cards'])],
-            ['orphan_variants (FAIL)', count($r['orphan_variants'])],
-            ['broken_set_references (FAIL)', count($r['broken_set_references'])],
+            ['orphan_cards (FAIL)', $r['orphan_cards']],
+            ['orphan_variants (FAIL)', $r['orphan_variants']],
+            ['broken_set_references (FAIL)', $r['broken_set_references']],
             ['physical_objects_silently_dropped (FAIL)', $r['physical_objects_silently_dropped']],
             ['importer_missing_images (FAIL)', $r['importer_missing_images']],
             ['cards_with_oracle_id', $r['cards_with_oracle_id']],
@@ -789,24 +848,30 @@ class ImportScryfallMagic extends Command
             ['multifaced_using_face_image_fallback', $r['multifaced_using_face_image_fallback']],
             ['multifaced_missing_all_images (WARNING)', $r['multifaced_missing_all_images']],
             ['upstream_missing_images (WARNING)', $r['upstream_missing_images']],
+            ['missing_images_enrichment_rows', $r['missing_images_enrichment_rows']],
+            ['oversized_cards', $r['oversized_cards']],
+            ['cards_with_promo_types', $r['cards_with_promo_types']],
+            ['unique_promo_types', $r['unique_promo_types']],
+            ['promo_types_preserved', $r['promo_types_preserved']],
             ['STATUS', $r['status']],
         ]);
 
         $this->newLine();
         $this->comment('Language distribution:');
-        arsort($r['language_distribution']);
-        foreach ($r['language_distribution'] as $lang => $count) {
+        $langs = $r['language_distribution'];
+        arsort($langs);
+        foreach ($langs as $lang => $count) {
             $this->line("  {$lang}: {$count}");
         }
 
         $this->newLine();
-        $this->comment('Special physical type candidates (NOT excluded — for review):');
+        $this->comment('Special physical type candidates (all KEPT — for awareness, not exclusion):');
         foreach ($r['special_physical_type_candidates'] as $category => $data) {
             $this->line("  {$category}: {$data['count']}");
         }
 
         $this->newLine();
-        $this->comment('Promo type frequency (top 30, NOT converted to releases yet):');
+        $this->comment('Promo type frequency (top 30, preserved as JSON on binder_cards, NOT converted to releases):');
         $promoTypes = $r['promo_type_frequency'];
         uasort($promoTypes, fn ($a, $b) => $b['count'] <=> $a['count']);
         foreach (array_slice($promoTypes, 0, 30, true) as $type => $data) {
