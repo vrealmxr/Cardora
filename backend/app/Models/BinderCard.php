@@ -58,4 +58,15 @@ class BinderCard extends Model
     {
         return $this->hasMany(BinderCardVariant::class, 'card_id')->orderBy('sort_order');
     }
+
+    /**
+     * No FK — see {@see BinderCardVariant::externalIds()}. Card-level
+     * mappings are for providers that key at the canonical-card level
+     * (e.g. Scrydex), not per-printing.
+     */
+    public function externalIds(): HasMany
+    {
+        return $this->hasMany(BinderCardExternalId::class, 'entity_key', 'card_key')
+            ->where('entity_type', 'card');
+    }
 }

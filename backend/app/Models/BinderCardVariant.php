@@ -32,8 +32,14 @@ class BinderCardVariant extends Model
         return $this->belongsTo(BinderCard::class, 'card_id');
     }
 
+    /**
+     * No FK — binder_card_external_ids is keyed by (entity_type,
+     * entity_key), not a numeric column, since one provider mapping can
+     * point at either a card or a variant.
+     */
     public function externalIds(): HasMany
     {
-        return $this->hasMany(BinderCardExternalId::class, 'variant_id');
+        return $this->hasMany(BinderCardExternalId::class, 'entity_key', 'variant_key')
+            ->where('entity_type', 'variant');
     }
 }

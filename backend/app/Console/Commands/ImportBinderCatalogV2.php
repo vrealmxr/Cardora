@@ -63,7 +63,7 @@ class ImportBinderCatalogV2 extends Command
         }
 
         if ($run('external_ids') && is_file("{$dir}/external_ids.csv")) {
-            $this->importExternalIds("{$dir}/external_ids.csv", $variantIdByKey);
+            $this->importExternalIds("{$dir}/external_ids.csv", $cardIdByKey, $variantIdByKey);
         }
 
         $this->refreshSetCardCounts(array_values($setIdByKey));
@@ -143,8 +143,8 @@ class ImportBinderCatalogV2 extends Command
                 'language' => $this->nullIfEmpty($r['language'] ?? null) ?? 'EN',
                 'region' => $this->nullIfEmpty($r['region'] ?? null),
                 'released_at' => $this->parseDate($r['released_at'] ?? null),
-                'official_total' => $this->nullIfEmpty($r['official_total'] ?? null),
-                'printed_total' => $this->nullIfEmpty($r['printed_total'] ?? null),
+                'base_total' => $this->nullIfEmpty($r['base_total'] ?? null),
+                'numbered_total' => $this->nullIfEmpty($r['numbered_total'] ?? null),
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -160,7 +160,7 @@ class ImportBinderCatalogV2 extends Command
                 array_values($chunk),
                 ['set_key'],
                 ['game_id', 'source', 'source_set_id', 'source_url', 'name', 'abbreviation', 'set_code',
-                    'set_type', 'language', 'region', 'released_at', 'official_total', 'printed_total', 'updated_at'],
+                    'set_type', 'language', 'region', 'released_at', 'base_total', 'numbered_total', 'updated_at'],
             );
         }
 
@@ -286,8 +286,11 @@ class ImportBinderCatalogV2 extends Command
         return DB::table('binder_card_variants')->pluck('id', 'variant_key')->map(fn ($v) => (int) $v)->all();
     }
 
-    /** @param array<string,int> $variantIdByKey */
-    private function importExternalIds(string $path, array $variantIdByKey): void
+    /**
+     * @param array<string,int> $cardIdByKey
+     * @param array<string,int> $variantIdByKey
+     */
+    private function importExternalIds(string $path, array $cardIdByKey, array $variantIdByKey): void
     {
         [$header, $handle] = $this->openCsv($path);
         $now = now();
@@ -300,17 +303,25 @@ class ImportBinderCatalogV2 extends Command
                 continue;
             }
 
-            $variantId = $variantIdByKey[$r['variant_key'] ?? ''] ?? null;
-            if ($variantId === null) {
+            $entityType = $r['entity_type'] ?? '';
+            $entityKey = $r['entity_key'] ?? '';
+            $entityExists = match ($entityType) {
+                'card' => isset($cardIdByKey[$entityKey]),
+                'variant' => isset($variantIdByKey[$entityKey]),
+                default => false,
+            };
+            if (! $entityExists) {
                 $skipped++;
 
                 continue;
             }
 
             $rows[] = [
-                'variant_id' => $variantId,
+                'entity_type' => $entityType,
+                'entity_key' => $entityKey,
                 'provider' => $r['provider'],
                 'external_id' => $r['external_id'],
+                'external_type' => $this->nullIfEmpty($r['external_type'] ?? null),
                 'external_url' => $this->nullIfEmpty($r['external_url'] ?? null),
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -319,14 +330,14 @@ class ImportBinderCatalogV2 extends Command
         fclose($handle);
 
         if ($skipped > 0) {
-            $this->warn("  external_ids.csv: skipped {$skipped} rows with unknown variant_key");
+            $this->warn("  external_ids.csv: skipped {$skipped} rows with unknown/unmatched entity_type+entity_key");
         }
 
         foreach (array_chunk($rows, self::CHUNK) as $chunk) {
             DB::table('binder_card_external_ids')->upsert(
                 $chunk,
-                ['provider', 'external_id'],
-                ['variant_id', 'external_url', 'updated_at'],
+                ['provider', 'external_type', 'external_id'],
+                ['entity_type', 'entity_key', 'external_url', 'updated_at'],
             );
         }
 

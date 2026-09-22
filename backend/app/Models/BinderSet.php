@@ -27,16 +27,16 @@ class BinderSet extends Model
         'region',
         'released_at',
         'card_count',
-        'official_total',
-        'printed_total',
+        'base_total',
+        'numbered_total',
     ];
 
     protected $casts = [
         'external_group_id' => 'integer',
         'released_at' => 'datetime',
         'card_count' => 'integer',
-        'official_total' => 'integer',
-        'printed_total' => 'integer',
+        'base_total' => 'integer',
+        'numbered_total' => 'integer',
     ];
 
     public function game(): BelongsTo

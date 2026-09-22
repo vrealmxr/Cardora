@@ -4,21 +4,17 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BinderCardExternalId extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'variant_id',
+        'entity_type',
+        'entity_key',
         'provider',
         'external_id',
+        'external_type',
         'external_url',
     ];
-
-    public function variant(): BelongsTo
-    {
-        return $this->belongsTo(BinderCardVariant::class, 'variant_id');
-    }
 }
