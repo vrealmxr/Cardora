@@ -15,20 +15,22 @@ use Illuminate\Support\Facades\Http;
  * pricing is planned as a separate, later market-sync pass, not part of
  * the canonical catalog import.
  *
- * Dry-run by default: always generates the CSVs + a validation report.
- * Pass --apply to additionally hand the generated directory to
- * cardora:binder-import-v2 (the only thing that ever writes to the DB),
- * and only if the report is a clean PASS.
+ * Dry-run by default: always generates the CSVs + a validation report
+ * (global + per-set). Pass --apply to additionally hand the generated
+ * directory to cardora:binder-import-v2 (the only thing that ever writes
+ * to the DB), and only if the report is PASS or PASS_WITH_WARNINGS — never
+ * on FAIL, which includes any permanent fetch failure (we can't know the
+ * catalog is complete otherwise).
  */
 class ImportTcgdexPokemon extends Command
 {
     protected $signature = 'cardora:tcgdex-import-pokemon
         {--set=* : TCGdex set id(s) to fetch, e.g. sv03.5. Omit to fetch every English Pokémon set.}
         {--out= : Directory to write games/sets/cards/variants/external_ids CSVs into (default: storage/app/tcgdex-pokemon)}
-        {--apply : Also run cardora:binder-import-v2 on the generated CSVs. Only runs if the validation report is a clean PASS. Without this flag nothing touches the database.}
+        {--apply : Also run cardora:binder-import-v2 on the generated CSVs. Only runs on PASS or PASS_WITH_WARNINGS. Without this flag nothing touches the database.}
         {--delay-ms=80 : Delay between TCGdex card-detail requests, in milliseconds (politeness against the public API)}';
 
-    protected $description = 'Fetch Pokémon catalog data from TCGdex and generate catalog v2 import CSVs, with a dry-run validation report';
+    protected $description = 'Fetch Pokémon catalog data from TCGdex and generate catalog v2 import CSVs, with a global + per-set dry-run validation report';
 
     private const BASE_URL = 'https://api.tcgdex.net/v2/en';
 
@@ -44,8 +46,7 @@ class ImportTcgdexPokemon extends Command
         'wPromo' => ['W Promotional', 'w_promo', 5],
     ];
 
-    private array $failures = [];
-    private int $apiRequestsTotal = 0;
+    private array $failures = []; // ['type'=>'set'|'card','set_id'=>..,'card_id'=>?,'reason'=>..]
     private int $apiRequestsFailed = 0; // failed HTTP attempts, including ones later retried successfully
     private int $apiRequestsRetried = 0; // retry attempts issued (attempt #2, #3, ... after a failed attempt)
 
@@ -57,6 +58,9 @@ class ImportTcgdexPokemon extends Command
 
             return self::FAILURE;
         }
+
+        $gitCommit = $this->currentGitCommit();
+        $this->info("Importer version: {$gitCommit['hash']}" . ($gitCommit['dirty'] ? ' (dirty working tree)' : ''));
 
         $this->info('Fetching set list from TCGdex...');
         $allSets = $this->getJson(self::BASE_URL . '/sets');
@@ -82,23 +86,25 @@ class ImportTcgdexPokemon extends Command
         $cardRows = [];
         $variantRows = [];
         $externalIdRows = [];
-        $sourceCardCount = 0;
         $setCardCountChecks = [];
         $firstEditionFindings = [];
         $variantHasSourceImage = []; // variant_key => bool, kept out of variantRows so the CSV columns stay exact
+        $setSourceCardCounts = []; // set_key => count(cards) TCGdex's set listing said this set has
+        $setMeta = []; // set_key => ['set_id'=>.., 'set_name'=>..], incl. sets whose fetch failed
 
         foreach ($setsToFetch as $i => $setBrief) {
             $setId = $setBrief['id'];
+            $setKey = $this->toSetKey($setId);
+            $setMeta[$setKey] = ['set_id' => $setId, 'set_name' => $setBrief['name'] ?? $setId];
             $this->line(sprintf('[%d/%d] Set %s (%s)', $i + 1, count($setsToFetch), $setId, $setBrief['name'] ?? '?'));
 
             $set = $this->getJson(self::BASE_URL . "/sets/{$setId}");
             if ($set === null) {
-                $this->failures[] = ['type' => 'set', 'id' => $setId, 'reason' => 'fetch failed'];
+                $this->failures[] = ['type' => 'set', 'set_id' => $setId, 'card_id' => null, 'reason' => 'fetch failed'];
 
                 continue;
             }
 
-            $setKey = 'pokemon-' . strtolower($setId);
             $setRows[] = [
                 'game_slug' => 'pokemon',
                 'set_key' => $setKey,
@@ -125,7 +131,7 @@ class ImportTcgdexPokemon extends Command
             ];
 
             $cardBriefs = $set['cards'] ?? [];
-            $sourceCardCount += count($cardBriefs);
+            $setSourceCardCounts[$setKey] = count($cardBriefs);
 
             // The set's own cardCount.total is TCGdex's independent tally —
             // comparing it to len(cards) catches the API's card list and its
@@ -145,7 +151,7 @@ class ImportTcgdexPokemon extends Command
 
                 $card = $this->getJson(self::BASE_URL . "/cards/{$cardId}");
                 if ($card === null) {
-                    $this->failures[] = ['type' => 'card', 'id' => $cardId, 'reason' => 'fetch failed'];
+                    $this->failures[] = ['type' => 'card', 'set_id' => $setId, 'card_id' => $cardId, 'reason' => 'fetch failed'];
 
                     continue;
                 }
@@ -237,16 +243,33 @@ class ImportTcgdexPokemon extends Command
                 }
 
                 if ($hasFirstEdition) {
+                    $reason = match (true) {
+                        $skippedUnresolvedFinishes !== [] => sprintf(
+                            'Card has >1 true finish (%s) but variants_detailed 1st-edition stamp does not confirm which one — no 1st-edition variant generated for: %s',
+                            implode(',', $trueFinishes),
+                            implode(',', $skippedUnresolvedFinishes),
+                        ),
+                        $inferredWithoutStampConfirmation !== [] => sprintf(
+                            'Card has a single finish (%s) but variants_detailed has no 1st-edition-stamped entry to confirm it — generated %s_1st_edition inferred from the global firstEdition flag only',
+                            implode(',', $trueFinishes),
+                            $inferredWithoutStampConfirmation[0],
+                        ),
+                        default => '',
+                    };
                     $firstEditionFindings[] = [
                         'set_id' => $setId,
+                        'set_key' => $setKey,
                         'card_id' => $cardId,
                         'card_key' => $cardKey,
+                        'card_name' => $card['name'] ?? $cardId,
                         'raw_variant_flags' => $flags,
+                        'variants_detailed' => $card['variants_detailed'] ?? null,
                         'finish_flags_true' => $trueFinishes,
                         'stamped_finish_types' => array_keys($stampedFinishes),
                         'generated_1st_edition_finishes' => $generatedFirstEditionFinishes,
                         'inferred_without_stamp_confirmation' => $inferredWithoutStampConfirmation,
                         'skipped_unresolved_finishes' => $skippedUnresolvedFinishes,
+                        'reason' => $reason,
                         // Warning-worthy whenever we couldn't cleanly confirm
                         // the edition/finish pairing from variants_detailed —
                         // either we guessed (inferred) or gave up (skipped).
@@ -258,8 +281,47 @@ class ImportTcgdexPokemon extends Command
 
         $this->writeCsvs($outDir, $setRows, $cardRows, $variantRows, $externalIdRows);
 
-        $report = $this->buildReport($setsToFetch, $sourceCardCount, $setRows, $cardRows, $variantRows, $externalIdRows, $setCardCountChecks, $variantHasSourceImage, $firstEditionFindings);
-        $this->printReport($report);
+        $cardKeyToSetKey = array_column($cardRows, 'set_key', 'card_key');
+        $allScopeSetKeys = array_keys($setMeta);
+
+        $global = $this->computeMetrics(
+            $allScopeSetKeys,
+            $gitCommit,
+            $setMeta,
+            $setSourceCardCounts,
+            $setRows,
+            $cardRows,
+            $variantRows,
+            $externalIdRows,
+            $setCardCountChecks,
+            $variantHasSourceImage,
+            $firstEditionFindings,
+            $cardKeyToSetKey,
+        );
+
+        $perSet = [];
+        foreach ($allScopeSetKeys as $setKey) {
+            $perSet[] = $this->computeMetrics(
+                [$setKey],
+                $gitCommit,
+                $setMeta,
+                $setSourceCardCounts,
+                $setRows,
+                $cardRows,
+                $variantRows,
+                $externalIdRows,
+                $setCardCountChecks,
+                $variantHasSourceImage,
+                $firstEditionFindings,
+                $cardKeyToSetKey,
+                perSet: true,
+            );
+        }
+
+        $report = ['global' => $global, 'per_set' => $perSet];
+
+        $this->printGlobalReport($global);
+        $this->printPerSetSummary($perSet);
         file_put_contents("{$outDir}/validation_report.json", json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         $this->newLine();
@@ -271,16 +333,39 @@ class ImportTcgdexPokemon extends Command
             return self::SUCCESS;
         }
 
-        if ($report['status'] === 'FAIL') {
+        if ($global['status'] === 'FAIL') {
             $this->error('Validation FAILed — refusing to --apply. Fix the issues above (or re-run without --apply to just inspect the CSVs) first.');
 
             return self::FAILURE;
         }
 
-        $this->info("Validation {$report['status']} — running cardora:binder-import-v2...");
+        $this->info("Validation {$global['status']} — running cardora:binder-import-v2...");
         $exit = $this->call('cardora:binder-import-v2', ['--path' => $outDir]);
 
         return $exit === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function toSetKey(string $tcgdexSetId): string
+    {
+        return 'pokemon-' . strtolower($tcgdexSetId);
+    }
+
+    /** @return array{hash: string, short: string, dirty: bool} */
+    private function currentGitCommit(): array
+    {
+        // base_path() (backend/) is inside the repo, so -C here resolves the
+        // same repo-wide HEAD as the repo root would — but pathspecs below
+        // must then be relative to backend/, not to the repo root.
+        $repoDir = escapeshellarg(base_path());
+        $hash = trim((string) shell_exec("git -C {$repoDir} rev-parse HEAD 2>&1"));
+        $short = trim((string) shell_exec("git -C {$repoDir} rev-parse --short HEAD 2>&1"));
+        $dirty = trim((string) shell_exec("git -C {$repoDir} status --porcelain -- app/Console/Commands/ImportTcgdexPokemon.php 2>&1")) !== '';
+
+        return [
+            'hash' => str_starts_with($hash, 'fatal') ? 'unknown (not a git checkout?)' : $hash,
+            'short' => str_starts_with($short, 'fatal') ? 'unknown' : $short,
+            'dirty' => $dirty,
+        ];
     }
 
     /**
@@ -318,7 +403,6 @@ class ImportTcgdexPokemon extends Command
         $maxAttempts = 3;
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            $this->apiRequestsTotal++;
             $isLastAttempt = $attempt === $maxAttempts;
 
             try {
@@ -390,7 +474,16 @@ class ImportTcgdexPokemon extends Command
     }
 
     /**
-     * @param array<int,array<string,mixed>> $setsInScope
+     * Computes the same metric set for an arbitrary scope of set_keys — the
+     * global report passes every set_key in scope, a per-set report passes
+     * exactly one. Everything is derived by filtering the already-collected
+     * flat rows down to that scope, so global and per-set numbers can never
+     * drift apart from using different logic.
+     *
+     * @param array<int,string> $scopeSetKeys
+     * @param array{hash:string,short:string,dirty:bool} $gitCommit
+     * @param array<string,array{set_id:string,set_name:string}> $setMeta
+     * @param array<string,int> $setSourceCardCounts
      * @param array<int,array<string,mixed>> $setRows
      * @param array<int,array<string,mixed>> $cardRows
      * @param array<int,array<string,mixed>> $variantRows
@@ -398,10 +491,13 @@ class ImportTcgdexPokemon extends Command
      * @param array<int,array<string,mixed>> $setCardCountChecks
      * @param array<string,bool> $variantHasSourceImage
      * @param array<int,array<string,mixed>> $firstEditionFindings
+     * @param array<string,string> $cardKeyToSetKey
      */
-    private function buildReport(
-        array $setsInScope,
-        int $sourceCardCount,
+    private function computeMetrics(
+        array $scopeSetKeys,
+        array $gitCommit,
+        array $setMeta,
+        array $setSourceCardCounts,
         array $setRows,
         array $cardRows,
         array $variantRows,
@@ -409,30 +505,44 @@ class ImportTcgdexPokemon extends Command
         array $setCardCountChecks,
         array $variantHasSourceImage,
         array $firstEditionFindings,
+        array $cardKeyToSetKey,
+        bool $perSet = false,
     ): array {
-        $setKeys = array_column($setRows, 'set_key');
-        $cardKeys = array_column($cardRows, 'card_key');
-        $variantKeys = array_column($variantRows, 'variant_key');
+        $scope = array_flip($scopeSetKeys);
 
-        // card_key/set_key are derived 1:1 from the TCGdex source id, so a
-        // duplicate key here already implies a duplicate source id — but we
-        // also check external_ids directly (entity_type=card rows) since
-        // that's the literal "source_card_id unique within tcgdex" ask.
-        $duplicateSetKeys = $this->duplicates($setKeys);
-        $duplicateCardKeys = $this->duplicates($cardKeys);
-        $duplicateVariantKeys = $this->duplicates($variantKeys);
+        $setsScoped = array_values(array_filter($setRows, fn ($s) => isset($scope[$s['set_key']])));
+        $cardsScoped = array_values(array_filter($cardRows, fn ($c) => isset($scope[$c['set_key']])));
+        $variantsScoped = array_values(array_filter($variantRows, fn ($v) => isset($scope[$cardKeyToSetKey[$v['card_key']] ?? null])));
+        $externalIdsScoped = array_values(array_filter($externalIdRows, function ($e) use ($scope, $cardKeyToSetKey) {
+            return match ($e['entity_type']) {
+                'set' => isset($scope[$e['entity_key']]),
+                'card' => isset($scope[$cardKeyToSetKey[$e['entity_key']] ?? null]),
+                default => false,
+            };
+        }));
+        $countChecksScoped = array_values(array_filter($setCardCountChecks, fn ($c) => isset($scope[$c['set_key']])));
+        $firstEdScoped = array_values(array_filter($firstEditionFindings, fn ($f) => isset($scope[$f['set_key']])));
+        $failuresScoped = array_values(array_filter($this->failures, fn ($f) => isset($scope[$this->toSetKey($f['set_id'])])));
+
+        $setKeysGenerated = array_column($setsScoped, 'set_key');
+        $cardKeysGenerated = array_column($cardsScoped, 'card_key');
+        $variantKeysGenerated = array_column($variantsScoped, 'variant_key');
+
+        $duplicateSetKeys = $this->duplicates($setKeysGenerated);
+        $duplicateCardKeys = $this->duplicates($cardKeysGenerated);
+        $duplicateVariantKeys = $this->duplicates($variantKeysGenerated);
 
         $tcgdexCardExternalIds = array_column(
-            array_filter($externalIdRows, fn ($e) => $e['entity_type'] === 'card' && $e['provider'] === 'tcgdex'),
+            array_filter($externalIdsScoped, fn ($e) => $e['entity_type'] === 'card' && $e['provider'] === 'tcgdex'),
             'external_id',
         );
         $duplicateSourceCardIds = $this->duplicates($tcgdexCardExternalIds);
 
-        $setKeySet = array_flip($setKeys);
-        $orphanCards = array_values(array_filter($cardRows, fn ($c) => ! isset($setKeySet[$c['set_key']])));
+        $setKeySet = array_flip($setKeysGenerated);
+        $orphanCards = array_values(array_filter($cardsScoped, fn ($c) => ! isset($setKeySet[$c['set_key']])));
 
-        $cardKeySet = array_flip($cardKeys);
-        $orphanVariants = array_values(array_filter($variantRows, fn ($v) => ! isset($cardKeySet[$v['card_key']])));
+        $cardKeySet = array_flip($cardKeysGenerated);
+        $orphanVariants = array_values(array_filter($variantsScoped, fn ($v) => ! isset($cardKeySet[$v['card_key']])));
 
         // Split by whose fault it is: TCGdex simply not having the image yet
         // (upstream, doesn't block — TCGdex's own docs say a missing `image`
@@ -440,7 +550,7 @@ class ImportTcgdexPokemon extends Command
         // but our own CSV row ending up empty/malformed (our bug, blocks).
         $upstreamMissingImages = [];
         $importerMissingImages = [];
-        foreach ($variantRows as $v) {
+        foreach ($variantsScoped as $v) {
             $hadSource = $variantHasSourceImage[$v['variant_key']] ?? false;
             $urlLooksValid = str_starts_with((string) $v['image_large'], 'http');
             if (! $hadSource && ! $urlLooksValid) {
@@ -450,26 +560,25 @@ class ImportTcgdexPokemon extends Command
             }
         }
 
-        $totalsInverted = array_values(array_filter($setRows, function ($s) {
+        $totalsInverted = array_values(array_filter($setsScoped, function ($s) {
             return $s['base_total'] !== '' && $s['numbered_total'] !== '' && (int) $s['base_total'] > (int) $s['numbered_total'];
         }));
 
-        $cardCountMismatches = array_values(array_filter(
-            $setCardCountChecks,
+        $countMismatches = array_values(array_filter(
+            $countChecksScoped,
             fn ($c) => $c['api_card_count_total'] !== $c['cards_array_length'],
         ));
 
-        $ambiguousFirstEdition = array_values(array_filter($firstEditionFindings, fn ($f) => $f['ambiguous']));
+        $ambiguousFirstEdition = array_values(array_filter($firstEdScoped, fn ($f) => $f['ambiguous']));
 
-        $setsFetchFailed = count(array_filter($this->failures, fn ($f) => $f['type'] === 'set'));
-        $cardsFetchFailed = count(array_filter($this->failures, fn ($f) => $f['type'] === 'card'));
+        $setsFetchFailed = count(array_filter($failuresScoped, fn ($f) => $f['type'] === 'set'));
+        $cardsFetchFailed = count(array_filter($failuresScoped, fn ($f) => $f['type'] === 'card'));
 
-        $setsMissing = count($setsInScope) - count($setRows);
-        $cardsMissing = $sourceCardCount - count($cardRows);
+        $sourceCards = array_sum(array_intersect_key($setSourceCardCounts, $scope));
 
         $failCounts = [
-            'sets_missing' => max($setsMissing, 0),
-            'cards_missing' => max($cardsMissing, 0),
+            'sets_missing' => max(count($scopeSetKeys) - count($setsScoped), 0),
+            'cards_missing' => max($sourceCards - count($cardsScoped), 0),
             'duplicate_set_keys' => count($duplicateSetKeys),
             'duplicate_card_keys' => count($duplicateCardKeys),
             'duplicate_variant_keys' => count($duplicateVariantKeys),
@@ -477,11 +586,12 @@ class ImportTcgdexPokemon extends Command
             'orphan_cards' => count($orphanCards),
             'orphan_variants' => count($orphanVariants),
             'totals_inverted' => count($totalsInverted),
-            'card_count_mismatches' => count($cardCountMismatches),
+            'count_mismatches' => count($countMismatches),
             'importer_missing_images' => count($importerMissingImages),
-            // Any permanent fetch failure means we can't be sure the catalog
-            // is actually complete — this must FAIL, never just warn.
-            'fetch_failures' => count($this->failures),
+            // Any permanent fetch failure means we can't be sure this scope's
+            // catalog is actually complete — this must FAIL, never just warn.
+            'sets_fetch_failed' => $setsFetchFailed,
+            'cards_fetch_failed' => $cardsFetchFailed,
         ];
         $warningCounts = [
             'upstream_missing_images' => count($upstreamMissingImages),
@@ -494,31 +604,56 @@ class ImportTcgdexPokemon extends Command
             default => 'PASS',
         };
 
-        return [
+        $result = [
             'status' => $status,
-            'api_requests_failed' => $this->apiRequestsFailed,
-            'api_requests_retried' => $this->apiRequestsRetried,
-            'sets_fetch_failed' => $setsFetchFailed,
-            'cards_fetch_failed' => $cardsFetchFailed,
-            'sets' => ['source' => count($setsInScope), 'imported' => count($setRows), 'missing' => max($setsMissing, 0)],
-            'cards' => ['source' => $sourceCardCount, 'imported' => count($cardRows), 'missing' => max($cardsMissing, 0)],
-            'variants' => ['imported' => count($variantRows)],
+            'source_sets' => count($scopeSetKeys),
+            'fetched_sets' => count($setsScoped),
+            'generated_sets' => count($setsScoped),
+            'source_cards' => $sourceCards,
+            'fetched_cards' => count($cardsScoped),
+            'generated_cards' => count($cardsScoped),
+            'generated_variants' => count($variantsScoped),
+            'duplicate_source_card_ids' => $duplicateSourceCardIds,
+            'duplicate_variant_keys' => $duplicateVariantKeys,
             'duplicate_set_keys' => $duplicateSetKeys,
             'duplicate_card_keys' => $duplicateCardKeys,
-            'duplicate_variant_keys' => $duplicateVariantKeys,
-            'duplicate_source_card_ids' => $duplicateSourceCardIds,
             'orphan_cards' => array_column($orphanCards, 'card_key'),
             'orphan_variants' => array_column($orphanVariants, 'variant_key'),
+            'count_mismatches' => $countMismatches,
+            'totals_inverted' => array_column($totalsInverted, 'set_key'),
             'upstream_missing_images' => $upstreamMissingImages,
             'importer_missing_images' => $importerMissingImages,
-            'totals_inverted' => array_column($totalsInverted, 'set_key'),
-            'card_count_mismatches' => $cardCountMismatches,
-            'cards_with_first_edition' => count($firstEditionFindings),
-            'cards_with_first_edition_and_multiple_finishes' => count(array_filter($firstEditionFindings, fn ($f) => count($f['finish_flags_true']) > 1)),
-            'ambiguous_first_edition_mappings' => array_map(fn ($f) => $f['card_key'], $ambiguousFirstEdition),
-            'ambiguous_first_edition_details' => $ambiguousFirstEdition,
-            'fetch_failures' => $this->failures,
+            'ambiguous_first_edition_mappings' => array_map(fn ($f) => [
+                'set_id' => $f['set_id'],
+                'card_id' => $f['card_id'],
+                'card_name' => $f['card_name'],
+                'raw_variant_flags' => $f['raw_variant_flags'],
+                'variants_detailed' => $f['variants_detailed'],
+                'reason' => $f['reason'],
+            ], $ambiguousFirstEdition),
+            'sets_fetch_failed' => $setsFetchFailed,
+            'cards_fetch_failed' => $cardsFetchFailed,
+            'fetch_failures' => $failuresScoped,
         ];
+
+        if ($perSet) {
+            $setKey = $scopeSetKeys[0];
+            $result = array_merge([
+                'set_key' => $setKey,
+                'set_id' => $setMeta[$setKey]['set_id'] ?? null,
+                'set_name' => $setMeta[$setKey]['set_name'] ?? null,
+            ], $result);
+        } else {
+            $result = array_merge([
+                'importer_git_commit' => $gitCommit['hash'],
+                'importer_git_commit_short' => $gitCommit['short'],
+                'importer_working_tree_dirty' => $gitCommit['dirty'],
+                'api_requests_failed' => $this->apiRequestsFailed,
+                'api_requests_retried' => $this->apiRequestsRetried,
+            ], $result);
+        }
+
+        return $result;
     }
 
     private function duplicates(array $values): array
@@ -528,69 +663,75 @@ class ImportTcgdexPokemon extends Command
         return array_keys(array_filter($counts, fn ($n) => $n > 1));
     }
 
-    private function printReport(array $r): void
+    private function printGlobalReport(array $g): void
     {
         $this->newLine();
-        $this->info('=== Validation report ===');
+        $this->info("=== Global validation report (importer {$g['importer_git_commit_short']}) ===");
         $this->table(['Metric', 'Value'], [
-            ['API requests failed (attempts)', $r['api_requests_failed']],
-            ['API requests retried', $r['api_requests_retried']],
-            ['Sets fetch failed (permanent)', $r['sets_fetch_failed']],
-            ['Cards fetch failed (permanent)', $r['cards_fetch_failed']],
-            ['Sets — source', $r['sets']['source']],
-            ['Sets — imported', $r['sets']['imported']],
-            ['Sets — missing', $r['sets']['missing']],
-            ['Cards — source', $r['cards']['source']],
-            ['Cards — imported', $r['cards']['imported']],
-            ['Cards — missing', $r['cards']['missing']],
-            ['Variants — imported', $r['variants']['imported']],
-            ['Duplicate card_key', count($r['duplicate_card_keys'])],
-            ['Duplicate set_key', count($r['duplicate_set_keys'])],
-            ['Duplicate variant_key', count($r['duplicate_variant_keys'])],
-            ['Duplicate source_card_id (tcgdex)', count($r['duplicate_source_card_ids'])],
-            ['Orphan cards', count($r['orphan_cards'])],
-            ['Orphan variants', count($r['orphan_variants'])],
-            ['Upstream missing images (WARNING)', count($r['upstream_missing_images'])],
-            ['Importer missing images (FAIL)', count($r['importer_missing_images'])],
-            ['base_total > numbered_total', count($r['totals_inverted'])],
-            ['Set card-count mismatches (API total vs fetched)', count($r['card_count_mismatches'])],
-            ['Cards with first edition', $r['cards_with_first_edition']],
-            ['  ...with >1 finish flag true', $r['cards_with_first_edition_and_multiple_finishes']],
-            ['  ...ambiguous mapping (WARNING)', count($r['ambiguous_first_edition_mappings'])],
-            ['Fetch failures', count($r['fetch_failures'])],
-            ['Status', $r['status']],
+            ['api_requests_failed', $g['api_requests_failed']],
+            ['api_requests_retried', $g['api_requests_retried']],
+            ['sets_fetch_failed', $g['sets_fetch_failed']],
+            ['cards_fetch_failed', $g['cards_fetch_failed']],
+            ['source_sets', $g['source_sets']],
+            ['fetched_sets', $g['fetched_sets']],
+            ['generated_sets', $g['generated_sets']],
+            ['source_cards', $g['source_cards']],
+            ['fetched_cards', $g['fetched_cards']],
+            ['generated_cards', $g['generated_cards']],
+            ['generated_variants', $g['generated_variants']],
+            ['duplicate_source_card_ids', count($g['duplicate_source_card_ids'])],
+            ['duplicate_variant_keys', count($g['duplicate_variant_keys'])],
+            ['orphan_cards', count($g['orphan_cards'])],
+            ['orphan_variants', count($g['orphan_variants'])],
+            ['count_mismatches', count($g['count_mismatches'])],
+            ['totals_inverted', count($g['totals_inverted'])],
+            ['upstream_missing_images (WARNING)', count($g['upstream_missing_images'])],
+            ['importer_missing_images (FAIL)', count($g['importer_missing_images'])],
+            ['ambiguous_first_edition_mappings (WARNING)', count($g['ambiguous_first_edition_mappings'])],
+            ['STATUS', $g['status']],
         ]);
 
-        $listKeys = [
-            'duplicate_card_keys', 'duplicate_set_keys', 'duplicate_variant_keys', 'duplicate_source_card_ids',
-            'orphan_cards', 'orphan_variants', 'totals_inverted', 'importer_missing_images',
-        ];
+        $listKeys = ['duplicate_source_card_ids', 'duplicate_variant_keys', 'orphan_cards', 'orphan_variants', 'totals_inverted', 'importer_missing_images'];
         foreach ($listKeys as $key) {
-            if ($r[$key] !== []) {
-                $this->warn(ucfirst(str_replace('_', ' ', $key)) . ': ' . implode(', ', array_slice($r[$key], 0, 20)));
+            if ($g[$key] !== []) {
+                $this->warn(ucfirst(str_replace('_', ' ', $key)) . ': ' . implode(', ', array_slice($g[$key], 0, 20)));
             }
         }
-        if ($r['upstream_missing_images'] !== []) {
-            $this->comment('Upstream missing images (TCGdex has no image field yet, not our fault): ' . count($r['upstream_missing_images']) . ' variants, e.g. ' . implode(', ', array_slice($r['upstream_missing_images'], 0, 5)));
-        }
-        foreach ($r['ambiguous_first_edition_details'] as $f) {
-            $this->warn(sprintf(
-                '  ambiguous first-edition: set=%s card=%s (%s) | raw flags: %s | stamp confirms: [%s] | generated: [%s] | inferred w/o stamp: [%s] | skipped unresolved: [%s]',
-                $f['set_id'],
-                $f['card_id'],
-                $f['card_key'],
-                json_encode($f['raw_variant_flags']),
-                implode(',', $f['stamped_finish_types']),
-                implode(',', $f['generated_1st_edition_finishes']),
-                implode(',', $f['inferred_without_stamp_confirmation']),
-                implode(',', $f['skipped_unresolved_finishes']),
-            ));
-        }
-        foreach ($r['card_count_mismatches'] as $m) {
+        foreach ($g['count_mismatches'] as $m) {
             $this->warn("  set {$m['set_key']}: API cardCount.total={$m['api_card_count_total']} but fetched {$m['cards_array_length']} cards");
         }
-        foreach ($this->failures as $f) {
-            $this->warn("  fetch failure [{$f['type']}] {$f['id']}: {$f['reason']}");
+        foreach ($g['ambiguous_first_edition_mappings'] as $f) {
+            $this->warn(sprintf('  ambiguous first-edition: set=%s card=%s (%s) — %s | raw flags: %s', $f['set_id'], $f['card_id'], $f['card_name'], $f['reason'], json_encode($f['raw_variant_flags'])));
         }
+        foreach ($g['fetch_failures'] as $f) {
+            $this->warn("  fetch failure [{$f['type']}] set={$f['set_id']} card=" . ($f['card_id'] ?? '-') . ": {$f['reason']}");
+        }
+    }
+
+    /** @param array<int,array<string,mixed>> $perSet */
+    private function printPerSetSummary(array $perSet): void
+    {
+        $this->newLine();
+        $this->info('=== Per-set summary (' . count($perSet) . ' sets; full detail in validation_report.json) ===');
+
+        $counts = array_count_values(array_column($perSet, 'status'));
+        $this->line(sprintf(
+            'PASS: %d | PASS_WITH_WARNINGS: %d | FAIL: %d',
+            $counts['PASS'] ?? 0,
+            $counts['PASS_WITH_WARNINGS'] ?? 0,
+            $counts['FAIL'] ?? 0,
+        ));
+
+        $notPassing = array_values(array_filter($perSet, fn ($s) => $s['status'] !== 'PASS'));
+        if ($notPassing === []) {
+            $this->info('Every set is a clean PASS.');
+
+            return;
+        }
+
+        $this->table(
+            ['set_id', 'set_name', 'cards', 'variants', 'status'],
+            array_map(fn ($s) => [$s['set_id'], $s['set_name'], "{$s['generated_cards']}/{$s['source_cards']}", $s['generated_variants'], $s['status']], $notPassing),
+        );
     }
 }
