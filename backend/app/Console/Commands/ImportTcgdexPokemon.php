@@ -32,12 +32,15 @@ class ImportTcgdexPokemon extends Command
 
     private const BASE_URL = 'https://api.tcgdex.net/v2/en';
 
-    /** flag => [variant_name, variant_type, sort_order] */
+    /**
+     * finish flag => [variant_name, variant_type, sort_order]. 'firstEdition'
+     * is deliberately NOT here — it's an edition, handled as a modifier on
+     * top of these finishes (see the per-card loop), not a finish itself.
+     */
     private const VARIANT_LABELS = [
         'normal' => ['Normal', 'normal', 1],
         'reverse' => ['Reverse Holo', 'reverse_holo', 2],
         'holo' => ['Holo', 'holo', 3],
-        'firstEdition' => ['1st Edition', '1st_edition', 4],
         'wPromo' => ['W Promotional', 'w_promo', 5],
     ];
 
@@ -166,53 +169,82 @@ class ImportTcgdexPokemon extends Command
                     'external_url' => '',
                 ];
 
+                // 'firstEdition' is an EDITION, not a finish — it modifies a
+                // finish ("Holo, 1st Edition" vs "Holo, Unlimited"), it isn't
+                // a peer option alongside normal/reverse/holo. So finishes
+                // and edition are resolved separately, then combined.
                 $flags = $card['variants'] ?? [];
-                $trueFlags = array_keys(array_filter($flags));
-                if ($trueFlags === []) {
-                    $trueFlags = ['normal']; // schema requires >=1 variant per card
+                $trueFinishes = array_keys(array_filter(array_intersect_key($flags, self::VARIANT_LABELS)));
+                if ($trueFinishes === []) {
+                    $trueFinishes = ['normal']; // schema requires >=1 variant per card
+                }
+                $hasFirstEdition = ($flags['firstEdition'] ?? false) === true;
+
+                // variants_detailed is per TCGdex's own docs not fully clean
+                // (duplicate-looking entries for the same real printing), but
+                // an entry's (type, "1st-edition" in stamp) pair is the only
+                // signal that ties the edition to a SPECIFIC finish, so it's
+                // used only for that yes/no check, never for row counts.
+                $stampedFinishes = [];
+                foreach ($card['variants_detailed'] ?? [] as $vd) {
+                    if (in_array('1st-edition', $vd['stamp'] ?? [], true) && isset($vd['type'])) {
+                        $stampedFinishes[$vd['type']] = true;
+                    }
                 }
 
                 $baseImage = $card['image'] ?? null;
-                foreach ($trueFlags as $flag) {
-                    [$variantName, $variantType, $sortOrder] = self::VARIANT_LABELS[$flag] ?? [ucfirst($flag), $flag, 9];
-                    $variantKey = "{$cardKey}-{$variantType}";
-                    $variantRows[] = [
-                        'card_key' => $cardKey,
-                        'variant_key' => $variantKey,
-                        'variant_name' => $variantName,
-                        'variant_type' => $variantType,
-                        'rarity' => $card['rarity'] ?? '',
-                        'artist' => $card['illustrator'] ?? '',
-                        'image_small' => $baseImage ? "{$baseImage}/low.webp" : '',
-                        'image_large' => $baseImage ? "{$baseImage}/high.webp" : '',
-                        'sort_order' => $sortOrder,
-                    ];
-                    $variantHasSourceImage[$variantKey] = $baseImage !== null;
+                $generatedFirstEditionFinishes = [];
+                $inferredWithoutStampConfirmation = [];
+                $skippedUnresolvedFinishes = [];
+
+                foreach ($trueFinishes as $finish) {
+                    if (! isset(self::VARIANT_LABELS[$finish])) {
+                        continue;
+                    }
+                    [$variantName, $variantType, $sortOrder] = self::VARIANT_LABELS[$finish];
+                    $this->addVariantRow($variantRows, $variantHasSourceImage, $cardKey, $variantType, $variantName, $sortOrder, $card, $baseImage);
+
+                    if (! $hasFirstEdition) {
+                        continue;
+                    }
+
+                    $confirmedByStamp = isset($stampedFinishes[$finish]);
+                    if (! $confirmedByStamp && count($trueFinishes) > 1) {
+                        // >1 finish exists and nothing ties the 1st-edition
+                        // stamp to *this* one specifically — don't guess.
+                        $skippedUnresolvedFinishes[] = $finish;
+
+                        continue;
+                    }
+
+                    $this->addVariantRow(
+                        $variantRows,
+                        $variantHasSourceImage,
+                        $cardKey,
+                        "{$variantType}_1st_edition",
+                        "{$variantName} (1st Edition)",
+                        $sortOrder + 10,
+                        $card,
+                        $baseImage,
+                    );
+                    $generatedFirstEditionFinishes[] = $finish;
+                    if (! $confirmedByStamp) {
+                        $inferredWithoutStampConfirmation[] = $finish;
+                    }
                 }
 
-                // Diagnostic only — does NOT change how variant rows above are
-                // built. 'firstEdition' is an edition, not a finish, so a
-                // card that is both firstEdition=true and true on >1 finish
-                // flag (or whose variants_detailed 1st-edition stamps span
-                // >1 finish type) can't be resolved to "which finish is the
-                // 1st edition" from the flags alone — see ImportTcgdexPokemon
-                // finding on Base Set Charizard #4 (holo + firstEdition).
-                if (($flags['firstEdition'] ?? false) === true) {
-                    $finishFlagsTrue = array_values(array_intersect(array_keys(array_filter($flags)), ['normal', 'reverse', 'holo']));
-                    $stampedTypes = [];
-                    foreach ($card['variants_detailed'] ?? [] as $vd) {
-                        if (in_array('1st-edition', $vd['stamp'] ?? [], true)) {
-                            $stampedTypes[] = $vd['type'] ?? null;
-                        }
-                    }
-                    $stampedTypes = array_values(array_unique(array_filter($stampedTypes)));
-
-                    $ambiguous = count($finishFlagsTrue) > 1 || count($stampedTypes) !== 1;
+                if ($hasFirstEdition) {
                     $firstEditionFindings[] = [
                         'card_key' => $cardKey,
-                        'finish_flags_true' => $finishFlagsTrue,
-                        'stamped_finish_types' => $stampedTypes,
-                        'ambiguous' => $ambiguous,
+                        'finish_flags_true' => $trueFinishes,
+                        'stamped_finish_types' => array_keys($stampedFinishes),
+                        'generated_1st_edition_finishes' => $generatedFirstEditionFinishes,
+                        'inferred_without_stamp_confirmation' => $inferredWithoutStampConfirmation,
+                        'skipped_unresolved_finishes' => $skippedUnresolvedFinishes,
+                        // Warning-worthy whenever we couldn't cleanly confirm
+                        // the edition/finish pairing from variants_detailed —
+                        // either we guessed (inferred) or gave up (skipped).
+                        'ambiguous' => $inferredWithoutStampConfirmation !== [] || $skippedUnresolvedFinishes !== [],
                     ];
                 }
             }
@@ -243,6 +275,36 @@ class ImportTcgdexPokemon extends Command
         $exit = $this->call('cardora:binder-import-v2', ['--path' => $outDir]);
 
         return $exit === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $variantRows
+     * @param array<string,bool> $variantHasSourceImage
+     * @param array<string,mixed> $card
+     */
+    private function addVariantRow(
+        array &$variantRows,
+        array &$variantHasSourceImage,
+        string $cardKey,
+        string $variantType,
+        string $variantName,
+        int $sortOrder,
+        array $card,
+        ?string $baseImage,
+    ): void {
+        $variantKey = "{$cardKey}-{$variantType}";
+        $variantRows[] = [
+            'card_key' => $cardKey,
+            'variant_key' => $variantKey,
+            'variant_name' => $variantName,
+            'variant_type' => $variantType,
+            'rarity' => $card['rarity'] ?? '',
+            'artist' => $card['illustrator'] ?? '',
+            'image_small' => $baseImage ? "{$baseImage}/low.webp" : '',
+            'image_large' => $baseImage ? "{$baseImage}/high.webp" : '',
+            'sort_order' => $sortOrder,
+        ];
+        $variantHasSourceImage[$variantKey] = $baseImage !== null;
     }
 
     private function getJson(string $url): ?array
@@ -471,10 +533,13 @@ class ImportTcgdexPokemon extends Command
         }
         foreach ($r['ambiguous_first_edition_details'] as $f) {
             $this->warn(sprintf(
-                '  ambiguous first-edition: %s (finish flags true: [%s], 1st-edition stamp seen on: [%s])',
+                '  ambiguous first-edition: %s (finishes: [%s], stamp confirms: [%s], generated 1st-ed rows for: [%s], inferred w/o stamp: [%s], skipped unresolved: [%s])',
                 $f['card_key'],
                 implode(',', $f['finish_flags_true']),
                 implode(',', $f['stamped_finish_types']),
+                implode(',', $f['generated_1st_edition_finishes']),
+                implode(',', $f['inferred_without_stamp_confirmation']),
+                implode(',', $f['skipped_unresolved_finishes']),
             ));
         }
         foreach ($r['card_count_mismatches'] as $m) {
