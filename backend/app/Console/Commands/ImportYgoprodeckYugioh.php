@@ -81,6 +81,9 @@ class ImportYgoprodeckYugioh extends Command
     private array $supplementalExcludedSpecialFormat = []; // status=excluded_special_format rows, reported not imported
     private array $cardKeyOrigin = []; // card_key => 'primary'|'supplemental', used for the report split
     private int $importerMissingImages = 0; // fallback_card_artwork was expected but the generated URL is empty/malformed
+    private array $variantOverrides = []; // rows from supplemental_variant_overrides.csv
+    private int $regionSpecificVariants = 0;
+    private int $editionSpecificVariants = 0;
 
     public function handle(): int
     {
@@ -122,8 +125,10 @@ class ImportYgoprodeckYugioh extends Command
         // Anniversary reprint) — set_name is the only field confirmed
         // unique across all 1035 rows.
         $canonicalSets = [];
+        $canonicalSetNameByLowercase = []; // strtolower(set_name) => real set_name, for the casing-typo fallback below
         foreach ($allSets as $s) {
             $canonicalSets[$s['set_name']] = $s;
+            $canonicalSetNameByLowercase[strtolower($s['set_name'])] = $s['set_name'];
         }
 
         // How many distinct sets share the same raw set_code — used below
@@ -188,10 +193,21 @@ class ImportYgoprodeckYugioh extends Command
 
             $resolvedAny = false;
             foreach ($cardSets as $cs) {
-                $setName = $cs['set_name'] ?? null;
+                $rawSetName = $cs['set_name'] ?? null;
                 $fullSetCode = $cs['set_code'] ?? null;
-                if ($setName === null || $fullSetCode === null || ! isset($canonicalSets[$setName])) {
-                    $entry = ['card_name' => $card['name'] ?? '?', 'set_name' => $setName, 'set_code' => $fullSetCode];
+
+                // YGOPRODeck's own card_sets entries aren't always cased
+                // identically to their cardsets.php registration for the
+                // same real set (e.g. "...Promotional Cards" vs
+                // "...promotional cards") — fall back to a case-insensitive
+                // match rather than treating a pure casing difference as a
+                // genuinely unknown set.
+                $setName = $rawSetName !== null && isset($canonicalSets[$rawSetName])
+                    ? $rawSetName
+                    : $canonicalSetNameByLowercase[strtolower((string) $rawSetName)] ?? null;
+
+                if ($setName === null || $fullSetCode === null) {
+                    $entry = ['card_name' => $card['name'] ?? '?', 'set_name' => $rawSetName, 'set_code' => $fullSetCode];
                     $this->unresolvedSetReferences[] = $entry;
                     if ($isToken) {
                         $this->unresolvedPhysicalTokens[] = $entry;
@@ -215,7 +231,7 @@ class ImportYgoprodeckYugioh extends Command
                         'origin' => 'primary',
                     ];
                 }
-                $groups[$setKey][$fullSetCode]['rarities'][$rarity] = true;
+                $groups[$setKey][$fullSetCode]['rarities'][$rarity] ??= ['region_code' => null, 'edition_code' => null];
             }
 
             if ($isSkill && $resolvedAny) {
@@ -227,6 +243,7 @@ class ImportYgoprodeckYugioh extends Command
         }
 
         $this->mergeSupplementalCards($groups, $canonicalSets);
+        $this->applyVariantOverrides($groups, $canonicalSetNameByLowercase);
 
         // Full set_codes (e.g. "MRD-EN061") that appear under more than one
         // set_key (e.g. "Metal Raiders" and its 25th Anniversary reprint,
@@ -286,14 +303,25 @@ class ImportYgoprodeckYugioh extends Command
                 }
 
                 $sortOrder = 1;
-                foreach (array_keys($group['rarities']) as $rarity) {
+                foreach ($group['rarities'] as $rarity => $dims) {
+                    // The uniqueness concept is card + rarity + region_code
+                    // + edition_code (+ whatever other real printing
+                    // dimension shows up later) — never just card + rarity.
+                    // variant_name/variant_type stay the plain rarity name;
+                    // region/edition live in their own structured columns,
+                    // not smuggled into a display string.
+                    $regionCode = $dims['region_code'] ?? null;
+                    $editionCode = $dims['edition_code'] ?? null;
                     $variantType = $this->slug($rarity ?: 'unknown');
+                    $keySuffix = ($regionCode ? "-{$regionCode}" : '') . ($editionCode ? "-{$editionCode}" : '');
                     $this->variantRows[] = [
                         'card_key' => $cardKey,
-                        'variant_key' => "{$cardKey}-{$variantType}",
+                        'variant_key' => "{$cardKey}-{$variantType}{$keySuffix}",
                         'variant_name' => $rarity ?: 'Unknown',
                         'variant_type' => $variantType,
                         'rarity' => $rarity,
+                        'region_code' => $regionCode ?? '',
+                        'edition_code' => $editionCode ?? '',
                         'artist' => '',
                         'image_small' => $group['image']['small'],
                         'image_large' => $group['image']['large'],
@@ -356,12 +384,16 @@ class ImportYgoprodeckYugioh extends Command
      */
     private function loadSupplementalData(): void
     {
-        $path = base_path(self::SUPPLEMENTAL_DIR) . '/supplemental_cards.csv';
-        if (! is_file($path)) {
-            return;
+        $cardsPath = base_path(self::SUPPLEMENTAL_DIR) . '/supplemental_cards.csv';
+        if (is_file($cardsPath)) {
+            foreach ($this->readCsv($cardsPath) as $row) {
+                $this->supplementalCardsBySet[$row['set_name']][] = $row;
+            }
         }
-        foreach ($this->readCsv($path) as $row) {
-            $this->supplementalCardsBySet[$row['set_name']][] = $row;
+
+        $variantsPath = base_path(self::SUPPLEMENTAL_DIR) . '/supplemental_variant_overrides.csv';
+        if (is_file($variantsPath)) {
+            $this->variantOverrides = $this->readCsv($variantsPath);
         }
     }
 
@@ -433,7 +465,46 @@ class ImportYgoprodeckYugioh extends Command
                         'source_url' => $row['source_url'],
                     ];
                 }
-                $groups[$setKey][$fullSetCode]['rarities'][$row['rarity']] = true;
+                $groups[$setKey][$fullSetCode]['rarities'][$row['rarity']] ??= ['region_code' => null, 'edition_code' => null];
+            }
+        }
+    }
+
+    /**
+     * Applies database/data/ygoprodeck-supplemental/supplemental_variant_overrides.csv
+     * — tags region_code/edition_code onto specific (set, collector_number,
+     * rarity) variants that already exist in $groups (built by the primary
+     * loop and/or mergeSupplementalCards() above), rather than creating new
+     * cards. This is where e.g. Yu-Gi-Oh! Tag Force 5 promos' Ultra Rare
+     * (North America) vs Super Rare (Europe) split gets tagged — the two
+     * rarities were already distinct rows; this just adds the region fact.
+     *
+     * @param array<string,array<string,array<string,mixed>>> $groups
+     * @param array<string,string> $canonicalSetNameByLowercase
+     */
+    private function applyVariantOverrides(array &$groups, array $canonicalSetNameByLowercase): void
+    {
+        foreach ($this->variantOverrides as $row) {
+            $setName = $canonicalSetNameByLowercase[strtolower($row['set_name'])] ?? $row['set_name'];
+            $setKey = $this->toSetKey($setName);
+            $fullSetCode = $row['collector_number'];
+            $rarity = $row['rarity'];
+
+            if (! isset($groups[$setKey][$fullSetCode]['rarities'][$rarity])) {
+                $this->warn("  supplemental_variant_overrides.csv: no existing variant for {$setName} / {$fullSetCode} / \"{$rarity}\" — override NOT applied");
+
+                continue;
+            }
+
+            $regionCode = $row['region_code'] !== '' ? $row['region_code'] : null;
+            $editionCode = $row['edition_code'] !== '' ? $row['edition_code'] : null;
+            $groups[$setKey][$fullSetCode]['rarities'][$rarity] = ['region_code' => $regionCode, 'edition_code' => $editionCode];
+
+            if ($regionCode !== null) {
+                $this->regionSpecificVariants++;
+            }
+            if ($editionCode !== null) {
+                $this->editionSpecificVariants++;
             }
         }
     }
@@ -557,7 +628,7 @@ class ImportYgoprodeckYugioh extends Command
             'card_type', 'is_promo', 'is_token', 'language',
         ], $this->cardRows);
         $this->writeCsv("{$outDir}/variants.csv", [
-            'card_key', 'variant_key', 'variant_name', 'variant_type', 'rarity', 'artist',
+            'card_key', 'variant_key', 'variant_name', 'variant_type', 'rarity', 'region_code', 'edition_code', 'artist',
             'image_small', 'image_large', 'sort_order',
         ], $this->variantRows);
         $this->writeCsv("{$outDir}/external_ids.csv", [
@@ -683,6 +754,9 @@ class ImportYgoprodeckYugioh extends Command
 
             'non_unique_set_codes_skipped' => $this->nonUniqueSetCodesSkipped,
             'non_unique_card_codes_skipped' => $this->nonUniqueCardCodesSkipped,
+
+            'region_specific_variants' => $this->regionSpecificVariants,
+            'edition_specific_variants' => $this->editionSpecificVariants,
         ];
     }
 
@@ -721,6 +795,8 @@ class ImportYgoprodeckYugioh extends Command
             ['importer_missing_images (FAIL)', $r['importer_missing_images']],
             ['non_unique_set_codes_skipped (info)', $r['non_unique_set_codes_skipped']],
             ['non_unique_card_codes_skipped (info)', $r['non_unique_card_codes_skipped']],
+            ['region_specific_variants', $r['region_specific_variants']],
+            ['edition_specific_variants', $r['edition_specific_variants']],
             ['STATUS', $r['status']],
         ]);
 
