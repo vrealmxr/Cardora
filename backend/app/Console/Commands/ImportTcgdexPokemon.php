@@ -77,6 +77,7 @@ class ImportTcgdexPokemon extends Command
         $variantRows = [];
         $externalIdRows = [];
         $sourceCardCount = 0;
+        $setCardCountChecks = [];
 
         foreach ($setsToFetch as $i => $setBrief) {
             $setId = $setBrief['id'];
@@ -117,6 +118,18 @@ class ImportTcgdexPokemon extends Command
 
             $cardBriefs = $set['cards'] ?? [];
             $sourceCardCount += count($cardBriefs);
+
+            // The set's own cardCount.total is TCGdex's independent tally —
+            // comparing it to len(cards) catches the API's card list and its
+            // own summary count disagreeing, which a plain source/imported
+            // diff (computed from the same cards array) could never catch.
+            if (($set['cardCount']['total'] ?? null) !== null) {
+                $setCardCountChecks[] = [
+                    'set_key' => $setKey,
+                    'api_card_count_total' => $set['cardCount']['total'],
+                    'cards_array_length' => count($cardBriefs),
+                ];
+            }
 
             foreach ($cardBriefs as $cardBrief) {
                 $cardId = $cardBrief['id'];
@@ -177,7 +190,7 @@ class ImportTcgdexPokemon extends Command
 
         $this->writeCsvs($outDir, $setRows, $cardRows, $variantRows, $externalIdRows);
 
-        $report = $this->buildReport($setsToFetch, $sourceCardCount, $setRows, $cardRows, $variantRows);
+        $report = $this->buildReport($setsToFetch, $sourceCardCount, $setRows, $cardRows, $variantRows, $externalIdRows, $setCardCountChecks);
         $this->printReport($report);
         file_put_contents("{$outDir}/validation_report.json", json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
@@ -260,16 +273,35 @@ class ImportTcgdexPokemon extends Command
      * @param array<int,array<string,mixed>> $setRows
      * @param array<int,array<string,mixed>> $cardRows
      * @param array<int,array<string,mixed>> $variantRows
+     * @param array<int,array<string,mixed>> $externalIdRows
+     * @param array<int,array<string,mixed>> $setCardCountChecks
      */
-    private function buildReport(array $setsInScope, int $sourceCardCount, array $setRows, array $cardRows, array $variantRows): array
-    {
+    private function buildReport(
+        array $setsInScope,
+        int $sourceCardCount,
+        array $setRows,
+        array $cardRows,
+        array $variantRows,
+        array $externalIdRows,
+        array $setCardCountChecks,
+    ): array {
         $setKeys = array_column($setRows, 'set_key');
         $cardKeys = array_column($cardRows, 'card_key');
+        $variantKeys = array_column($variantRows, 'variant_key');
 
         // card_key/set_key are derived 1:1 from the TCGdex source id, so a
-        // duplicate key here already implies a duplicate source id.
+        // duplicate key here already implies a duplicate source id — but we
+        // also check external_ids directly (entity_type=card rows) since
+        // that's the literal "source_card_id unique within tcgdex" ask.
         $duplicateSetKeys = $this->duplicates($setKeys);
         $duplicateCardKeys = $this->duplicates($cardKeys);
+        $duplicateVariantKeys = $this->duplicates($variantKeys);
+
+        $tcgdexCardExternalIds = array_column(
+            array_filter($externalIdRows, fn ($e) => $e['entity_type'] === 'card' && $e['provider'] === 'tcgdex'),
+            'external_id',
+        );
+        $duplicateSourceCardIds = $this->duplicates($tcgdexCardExternalIds);
 
         $setKeySet = array_flip($setKeys);
         $orphanCards = array_values(array_filter($cardRows, fn ($c) => ! isset($setKeySet[$c['set_key']])));
@@ -279,6 +311,15 @@ class ImportTcgdexPokemon extends Command
 
         $missingImages = array_values(array_filter($variantRows, fn ($v) => ($v['image_large'] ?? '') === ''));
 
+        $totalsInverted = array_values(array_filter($setRows, function ($s) {
+            return $s['base_total'] !== '' && $s['numbered_total'] !== '' && (int) $s['base_total'] > (int) $s['numbered_total'];
+        }));
+
+        $cardCountMismatches = array_values(array_filter(
+            $setCardCountChecks,
+            fn ($c) => $c['api_card_count_total'] !== $c['cards_array_length'],
+        ));
+
         $setsMissing = count($setsInScope) - count($setRows);
         $cardsMissing = $sourceCardCount - count($cardRows);
 
@@ -287,8 +328,12 @@ class ImportTcgdexPokemon extends Command
             'cards_missing' => max($cardsMissing, 0),
             'duplicate_set_keys' => count($duplicateSetKeys),
             'duplicate_card_keys' => count($duplicateCardKeys),
+            'duplicate_variant_keys' => count($duplicateVariantKeys),
+            'duplicate_source_card_ids' => count($duplicateSourceCardIds),
             'orphan_cards' => count($orphanCards),
             'orphan_variants' => count($orphanVariants),
+            'totals_inverted' => count($totalsInverted),
+            'card_count_mismatches' => count($cardCountMismatches),
             'fetch_failures' => count($this->failures),
         ];
         $status = array_sum($failCounts) === 0 ? 'PASS' : 'FAIL';
@@ -300,9 +345,13 @@ class ImportTcgdexPokemon extends Command
             'variants' => ['imported' => count($variantRows)],
             'duplicate_set_keys' => $duplicateSetKeys,
             'duplicate_card_keys' => $duplicateCardKeys,
+            'duplicate_variant_keys' => $duplicateVariantKeys,
+            'duplicate_source_card_ids' => $duplicateSourceCardIds,
             'orphan_cards' => array_column($orphanCards, 'card_key'),
             'orphan_variants' => array_column($orphanVariants, 'variant_key'),
             'missing_images' => array_column($missingImages, 'variant_key'),
+            'totals_inverted' => array_column($totalsInverted, 'set_key'),
+            'card_count_mismatches' => $cardCountMismatches,
             'fetch_failures' => $this->failures,
         ];
     }
@@ -328,17 +377,24 @@ class ImportTcgdexPokemon extends Command
             ['Variants — imported', $r['variants']['imported']],
             ['Duplicate card_key', count($r['duplicate_card_keys'])],
             ['Duplicate set_key', count($r['duplicate_set_keys'])],
+            ['Duplicate variant_key', count($r['duplicate_variant_keys'])],
+            ['Duplicate source_card_id (tcgdex)', count($r['duplicate_source_card_ids'])],
             ['Orphan cards', count($r['orphan_cards'])],
             ['Orphan variants', count($r['orphan_variants'])],
             ['Missing images', count($r['missing_images'])],
+            ['base_total > numbered_total', count($r['totals_inverted'])],
+            ['Set card-count mismatches (API total vs fetched)', count($r['card_count_mismatches'])],
             ['Fetch failures', count($r['fetch_failures'])],
             ['Status', $r['status']],
         ]);
 
-        foreach (['duplicate_card_keys', 'duplicate_set_keys', 'orphan_cards', 'orphan_variants'] as $key) {
+        foreach (['duplicate_card_keys', 'duplicate_set_keys', 'duplicate_variant_keys', 'duplicate_source_card_ids', 'orphan_cards', 'orphan_variants', 'totals_inverted'] as $key) {
             if ($r[$key] !== []) {
                 $this->warn(ucfirst(str_replace('_', ' ', $key)) . ': ' . implode(', ', array_slice($r[$key], 0, 20)));
             }
+        }
+        foreach ($r['card_count_mismatches'] as $m) {
+            $this->warn("  set {$m['set_key']}: API cardCount.total={$m['api_card_count_total']} but fetched {$m['cards_array_length']} cards");
         }
         foreach ($this->failures as $f) {
             $this->warn("  fetch failure [{$f['type']}] {$f['id']}: {$f['reason']}");
