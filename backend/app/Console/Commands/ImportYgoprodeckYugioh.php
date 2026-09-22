@@ -48,6 +48,7 @@ class ImportYgoprodeckYugioh extends Command
 
     private const CARDINFO_URL = 'https://db.ygoprodeck.com/api/v7/cardinfo.php';
     private const CARDSETS_URL = 'https://db.ygoprodeck.com/api/v7/cardsets.php';
+    private const SUPPLEMENTAL_DIR = 'database/data/ygoprodeck-supplemental';
 
     private int $apiRequestsFailed = 0;
     private int $apiRequestsRetried = 0;
@@ -76,6 +77,11 @@ class ImportYgoprodeckYugioh extends Command
     private int $nonUniqueSetCodesSkipped = 0; // set_code shared by >1 set_name — external_id row skipped, set row itself unaffected
     private int $nonUniqueCardCodesSkipped = 0; // full set_code shared by >1 set — external_id row skipped, card row itself unaffected
 
+    private array $supplementalCardsBySet = []; // set_name => [rows from supplemental_cards.csv]
+    private array $supplementalExcludedSpecialFormat = []; // status=excluded_special_format rows, reported not imported
+    private array $cardKeyOrigin = []; // card_key => 'primary'|'supplemental', used for the report split
+    private int $importerMissingImages = 0; // fallback_card_artwork was expected but the generated URL is empty/malformed
+
     public function handle(): int
     {
         $outDir = rtrim((string) ($this->option('out') ?: storage_path('app/ygoprodeck-yugioh')), '/');
@@ -87,6 +93,8 @@ class ImportYgoprodeckYugioh extends Command
 
         $gitCommit = $this->currentGitCommit();
         $this->info("Importer version: {$gitCommit['hash']}" . ($gitCommit['dirty'] ? ' (dirty working tree)' : ''));
+
+        $this->loadSupplementalData();
 
         $this->info('Fetching cardsets.php (canonical set list)...');
         $allSets = $this->getJson(self::CARDSETS_URL);
@@ -204,6 +212,7 @@ class ImportYgoprodeckYugioh extends Command
                         'is_token' => $isToken,
                         'rarities' => [],
                         'image' => $imageInfo,
+                        'origin' => 'primary',
                     ];
                 }
                 $groups[$setKey][$fullSetCode]['rarities'][$rarity] = true;
@@ -216,6 +225,8 @@ class ImportYgoprodeckYugioh extends Command
                 $this->physicalTokensIncluded++;
             }
         }
+
+        $this->mergeSupplementalCards($groups, $canonicalSets);
 
         // Full set_codes (e.g. "MRD-EN061") that appear under more than one
         // set_key (e.g. "Metal Raiders" and its 25th Anniversary reprint,
@@ -246,7 +257,18 @@ class ImportYgoprodeckYugioh extends Command
                     'is_token' => $group['is_token'] ? 'TRUE' : 'FALSE',
                     'language' => 'EN',
                 ];
-                if (count($setKeysByFullCode[$fullSetCode]) === 1) {
+                $this->cardKeyOrigin[$cardKey] = $group['origin'] ?? 'primary';
+
+                if ($group['origin'] === 'supplemental') {
+                    $this->externalIdRows[] = [
+                        'entity_type' => 'card',
+                        'entity_key' => $cardKey,
+                        'provider' => $group['source_provider'],
+                        'external_id' => $fullSetCode,
+                        'external_type' => 'manual_research',
+                        'external_url' => $group['source_url'],
+                    ];
+                } elseif (count($setKeysByFullCode[$fullSetCode]) === 1) {
                     $this->externalIdRows[] = [
                         'entity_type' => 'card',
                         'entity_key' => $cardKey,
@@ -257,6 +279,10 @@ class ImportYgoprodeckYugioh extends Command
                     ];
                 } else {
                     $this->nonUniqueCardCodesSkipped++;
+                }
+
+                if ($group['image']['status'] === 'fallback_card_artwork' && $group['image']['large'] === '') {
+                    $this->importerMissingImages++;
                 }
 
                 $sortOrder = 1;
@@ -322,6 +348,96 @@ class ImportYgoprodeckYugioh extends Command
     }
 
     /** @param array<string,mixed> $card @return array{small:string,large:string,status:string} */
+    /**
+     * Loads database/data/ygoprodeck-supplemental/supplemental_cards.csv —
+     * hand-researched fills for sets where YGOPRODeck has zero card_sets
+     * data. Never used automatically; only the exact set_name values
+     * present in this file are affected.
+     */
+    private function loadSupplementalData(): void
+    {
+        $path = base_path(self::SUPPLEMENTAL_DIR) . '/supplemental_cards.csv';
+        if (! is_file($path)) {
+            return;
+        }
+        foreach ($this->readCsv($path) as $row) {
+            $this->supplementalCardsBySet[$row['set_name']][] = $row;
+        }
+    }
+
+    /** @return array<int,array<string,string>> */
+    private function readCsv(string $path): array
+    {
+        $handle = fopen($path, 'r');
+        $header = fgetcsv($handle) ?: [];
+        $rows = [];
+        $lineNo = 1;
+        while (($row = fgetcsv($handle)) !== false) {
+            $lineNo++;
+            if (count($row) !== count($header)) {
+                $this->warn("  {$path}:{$lineNo}: column count mismatch, skipping row");
+
+                continue;
+            }
+            $rows[] = array_combine($header, $row);
+        }
+        fclose($handle);
+
+        return $rows;
+    }
+
+    /**
+     * Merges supplemental_cards.csv rows into the primary $groups structure
+     * so both flow through the exact same emission/classification logic
+     * afterwards. `status=excluded_special_format` rows never enter
+     * $groups (no Card/Variant rows) — recorded separately for the report
+     * and roadmap instead.
+     *
+     * @param array<string,array<string,array<string,mixed>>> $groups
+     * @param array<string,array<string,mixed>> $canonicalSets
+     */
+    private function mergeSupplementalCards(array &$groups, array $canonicalSets): void
+    {
+        foreach ($this->supplementalCardsBySet as $setName => $rows) {
+            if (! isset($canonicalSets[$setName])) {
+                $this->warn("  supplemental_cards.csv: set_name \"{$setName}\" not found in YGOPRODeck cardsets.php (typo/casing mismatch?) — its rows were NOT merged");
+
+                continue;
+            }
+            $setKey = $this->toSetKey($setName);
+
+            foreach ($rows as $row) {
+                if ($row['status'] === 'excluded_special_format') {
+                    $this->supplementalExcludedSpecialFormat[] = [
+                        'set_name' => $setName,
+                        'card_id' => $row['card_id'],
+                        'card_name' => $row['card_name'],
+                        'reason' => $row['exclusion_reason'],
+                        'source_url' => $row['source_url'],
+                    ];
+
+                    continue;
+                }
+
+                $fullSetCode = $row['collector_number'];
+                if (! isset($groups[$setKey][$fullSetCode])) {
+                    $groups[$setKey][$fullSetCode] = [
+                        'card_name' => $row['card_name'],
+                        'card_type' => $row['card_type'],
+                        'ygoprodeck_id' => null,
+                        'is_token' => false,
+                        'rarities' => [],
+                        'image' => ['small' => '', 'large' => '', 'status' => 'no_artwork'],
+                        'origin' => 'supplemental',
+                        'source_provider' => $row['source_provider'],
+                        'source_url' => $row['source_url'],
+                    ];
+                }
+                $groups[$setKey][$fullSetCode]['rarities'][$row['rarity']] = true;
+            }
+        }
+    }
+
     private function resolveImage(array $card): array
     {
         $images = $card['card_images'] ?? [];
@@ -489,6 +605,17 @@ class ImportYgoprodeckYugioh extends Command
         $cardKeySet = array_flip($cardKeys);
         $orphanVariants = array_values(array_filter($this->variantRows, fn ($v) => ! isset($cardKeySet[$v['card_key']])));
 
+        $primarySourceCards = count(array_filter($this->cardKeyOrigin, fn ($o) => $o === 'primary'));
+        $supplementalCards = count(array_filter($this->cardKeyOrigin, fn ($o) => $o === 'supplemental'));
+
+        // set_keys that received at least one supplemental (status=include) card
+        $supplementalSetKeys = [];
+        foreach ($this->supplementalCardsBySet as $setName => $rows) {
+            if (array_filter($rows, fn ($r) => $r['status'] === 'include') !== []) {
+                $supplementalSetKeys[$this->toSetKey($setName)] = true;
+            }
+        }
+
         $failCounts = [
             'duplicate_set_keys' => count($duplicateSetKeys),
             'duplicate_card_keys' => count($duplicateCardKeys),
@@ -497,6 +624,7 @@ class ImportYgoprodeckYugioh extends Command
             'orphan_cards' => count($orphanCards),
             'orphan_variants' => count($orphanVariants),
             'upstream_missing_card_data' => count($this->upstreamMissingCardData),
+            'importer_missing_images' => $this->importerMissingImages,
         ];
         $warningCounts = [
             'expected_unique_vs_numbered_differences' => count($this->expectedUniqueVsNumberedDifferences),
@@ -520,28 +648,39 @@ class ImportYgoprodeckYugioh extends Command
             'api_requests_failed' => $this->apiRequestsFailed,
             'api_requests_retried' => $this->apiRequestsRetried,
             'cache_hits' => $this->cacheHits,
-            'source_sets' => count($this->setRows),
-            'generated_sets_with_cards' => count($this->setActualCardCounts),
+
+            'primary_source_sets' => count($this->setRows),
+            'supplemental_sets' => count($supplementalSetKeys),
+            'generated_sets' => count($this->setActualCardCounts),
+
+            'primary_source_cards' => $primarySourceCards,
+            'supplemental_cards' => $supplementalCards,
             'generated_cards' => count($this->cardRows),
             'generated_variants' => count($this->variantRows),
+
             'skill_cards_included' => $this->skillCardsIncluded,
             'physical_tokens_included' => $this->physicalTokensIncluded,
             'tokens_excluded_nonphysical' => $this->tokensExcludedNonphysical,
             'unresolved_physical_tokens' => $this->unresolvedPhysicalTokens,
-            'duplicate_set_keys' => $duplicateSetKeys,
-            'duplicate_card_keys' => $duplicateCardKeys,
-            'duplicate_variant_keys' => $duplicateVariantKeys,
-            'duplicate_source_card_ids' => $duplicateSourceCardIds,
+            'excluded_special_format' => $this->supplementalExcludedSpecialFormat,
+
+            'duplicate_sets' => $duplicateSetKeys,
+            'duplicate_cards' => $duplicateCardKeys,
+            'duplicate_variants' => $duplicateVariantKeys,
+            'duplicate_source_ids' => $duplicateSourceCardIds,
+
             'orphan_cards' => array_column($orphanCards, 'card_key'),
             'orphan_variants' => array_column($orphanVariants, 'variant_key'),
-            'upstream_missing_card_data' => $this->upstreamMissingCardData,
-            'expected_unique_vs_numbered_differences' => $this->expectedUniqueVsNumberedDifferences,
+
+            'unresolved_source_gaps' => $this->upstreamMissingCardData,
             'unresolved_set_references' => $this->unresolvedSetReferences,
-            'image_mapping' => [
-                'fallback_card_artwork' => $this->fallbackArtworkCards,
-                'ambiguous_multiple_artworks' => $this->ambiguousArtworkCards,
-                'no_artwork' => $this->noArtworkCards,
-            ],
+            'expected_unique_vs_numbered_differences' => $this->expectedUniqueVsNumberedDifferences,
+
+            'fallback_card_artwork' => $this->fallbackArtworkCards,
+            'ambiguous_multiple_artworks' => $this->ambiguousArtworkCards,
+            'no_artwork' => $this->noArtworkCards,
+            'importer_missing_images' => $this->importerMissingImages,
+
             'non_unique_set_codes_skipped' => $this->nonUniqueSetCodesSkipped,
             'non_unique_card_codes_skipped' => $this->nonUniqueCardCodesSkipped,
         ];
@@ -555,38 +694,49 @@ class ImportYgoprodeckYugioh extends Command
             ['api_requests_failed', $r['api_requests_failed']],
             ['api_requests_retried', $r['api_requests_retried']],
             ['cache_hits', $r['cache_hits']],
-            ['source_sets', $r['source_sets']],
-            ['generated_sets_with_cards', $r['generated_sets_with_cards']],
+            ['primary_source_sets', $r['primary_source_sets']],
+            ['supplemental_sets', $r['supplemental_sets']],
+            ['generated_sets', $r['generated_sets']],
+            ['primary_source_cards', $r['primary_source_cards']],
+            ['supplemental_cards', $r['supplemental_cards']],
             ['generated_cards', $r['generated_cards']],
             ['generated_variants', $r['generated_variants']],
             ['skill_cards_included', $r['skill_cards_included']],
             ['physical_tokens_included', $r['physical_tokens_included']],
             ['tokens_excluded_nonphysical', $r['tokens_excluded_nonphysical']],
             ['unresolved_physical_tokens', count($r['unresolved_physical_tokens'])],
-            ['duplicate_set_keys', count($r['duplicate_set_keys'])],
-            ['duplicate_card_keys', count($r['duplicate_card_keys'])],
-            ['duplicate_variant_keys', count($r['duplicate_variant_keys'])],
-            ['duplicate_source_card_ids', count($r['duplicate_source_card_ids'])],
+            ['excluded_special_format', count($r['excluded_special_format'])],
+            ['duplicate_sets', count($r['duplicate_sets'])],
+            ['duplicate_cards', count($r['duplicate_cards'])],
+            ['duplicate_variants', count($r['duplicate_variants'])],
+            ['duplicate_source_ids', count($r['duplicate_source_ids'])],
             ['orphan_cards', count($r['orphan_cards'])],
             ['orphan_variants', count($r['orphan_variants'])],
-            ['upstream_missing_card_data (FAIL)', count($r['upstream_missing_card_data'])],
-            ['expected_unique_vs_numbered_differences (WARNING)', count($r['expected_unique_vs_numbered_differences'])],
+            ['unresolved_source_gaps (FAIL)', count($r['unresolved_source_gaps'])],
             ['unresolved_set_references (WARNING)', count($r['unresolved_set_references'])],
-            ['image: fallback_card_artwork', $r['image_mapping']['fallback_card_artwork']],
-            ['image: ambiguous_multiple_artworks', $r['image_mapping']['ambiguous_multiple_artworks']],
-            ['image: no_artwork', $r['image_mapping']['no_artwork']],
+            ['expected_unique_vs_numbered_differences (WARNING)', count($r['expected_unique_vs_numbered_differences'])],
+            ['fallback_card_artwork', $r['fallback_card_artwork']],
+            ['ambiguous_multiple_artworks', $r['ambiguous_multiple_artworks']],
+            ['no_artwork', $r['no_artwork']],
+            ['importer_missing_images (FAIL)', $r['importer_missing_images']],
             ['non_unique_set_codes_skipped (info)', $r['non_unique_set_codes_skipped']],
             ['non_unique_card_codes_skipped (info)', $r['non_unique_card_codes_skipped']],
             ['STATUS', $r['status']],
         ]);
 
-        foreach (['duplicate_set_keys', 'duplicate_card_keys', 'duplicate_variant_keys', 'duplicate_source_card_ids', 'orphan_cards', 'orphan_variants'] as $key) {
+        foreach (['duplicate_sets', 'duplicate_cards', 'duplicate_variants', 'duplicate_source_ids', 'orphan_cards', 'orphan_variants'] as $key) {
             if ($r[$key] !== []) {
                 $this->warn(ucfirst(str_replace('_', ' ', $key)) . ': ' . implode(', ', array_slice($r[$key], 0, 20)));
             }
         }
-        foreach (array_slice($r['upstream_missing_card_data'], 0, 20) as $m) {
-            $this->error("  upstream_missing_card_data: {$m['set_key']} — expected {$m['expected']}, got {$m['actual']}");
+        foreach ($r['excluded_special_format'] as $e) {
+            $this->comment("  excluded (special format): {$e['set_name']} / {$e['card_id']} ({$e['card_name']}) — {$e['reason']}");
+        }
+        foreach (array_slice($r['unresolved_source_gaps'], 0, 20) as $m) {
+            $this->error("  unresolved_source_gap: {$m['set_key']} — expected {$m['expected']}, got {$m['actual']}");
+        }
+        foreach ($r['unresolved_set_references'] as $u) {
+            $this->warn("  unresolved_set_reference: {$u['card_name']} -> \"{$u['set_name']}\" ({$u['set_code']})");
         }
     }
 }
