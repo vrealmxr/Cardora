@@ -45,6 +45,9 @@ class ImportTcgdexPokemon extends Command
     ];
 
     private array $failures = [];
+    private int $apiRequestsTotal = 0;
+    private int $apiRequestsFailed = 0; // failed HTTP attempts, including ones later retried successfully
+    private int $apiRequestsRetried = 0; // retry attempts issued (attempt #2, #3, ... after a failed attempt)
 
     public function handle(): int
     {
@@ -235,7 +238,10 @@ class ImportTcgdexPokemon extends Command
 
                 if ($hasFirstEdition) {
                     $firstEditionFindings[] = [
+                        'set_id' => $setId,
+                        'card_id' => $cardId,
                         'card_key' => $cardKey,
+                        'raw_variant_flags' => $flags,
                         'finish_flags_true' => $trueFinishes,
                         'stamped_finish_types' => array_keys($stampedFinishes),
                         'generated_1st_edition_finishes' => $generatedFirstEditionFinishes,
@@ -309,21 +315,44 @@ class ImportTcgdexPokemon extends Command
 
     private function getJson(string $url): ?array
     {
-        try {
-            $response = Http::timeout(20)->retry(2, 300)->get($url);
-        } catch (\Throwable $e) {
-            $this->warn("  fetch failed: {$url} ({$e->getMessage()})");
+        $maxAttempts = 3;
 
-            return null;
-        }
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $this->apiRequestsTotal++;
+            $isLastAttempt = $attempt === $maxAttempts;
 
-        if (! $response->successful()) {
+            try {
+                $response = Http::timeout(20)->get($url);
+            } catch (\Throwable $e) {
+                $this->apiRequestsFailed++;
+                if (! $isLastAttempt) {
+                    $this->apiRequestsRetried++;
+                    usleep(300_000);
+
+                    continue;
+                }
+                $this->warn("  fetch failed: {$url} ({$e->getMessage()})");
+
+                return null;
+            }
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            $this->apiRequestsFailed++;
+            if (! $isLastAttempt) {
+                $this->apiRequestsRetried++;
+                usleep(300_000);
+
+                continue;
+            }
             $this->warn("  fetch failed: {$url} (HTTP {$response->status()})");
 
             return null;
         }
 
-        return $response->json();
+        return null; // unreachable
     }
 
     /** @param array<int,array<string,mixed>> $sets @param array<int,array<string,mixed>> $cards @param array<int,array<string,mixed>> $variants @param array<int,array<string,mixed>> $externalIds */
@@ -432,6 +461,9 @@ class ImportTcgdexPokemon extends Command
 
         $ambiguousFirstEdition = array_values(array_filter($firstEditionFindings, fn ($f) => $f['ambiguous']));
 
+        $setsFetchFailed = count(array_filter($this->failures, fn ($f) => $f['type'] === 'set'));
+        $cardsFetchFailed = count(array_filter($this->failures, fn ($f) => $f['type'] === 'card'));
+
         $setsMissing = count($setsInScope) - count($setRows);
         $cardsMissing = $sourceCardCount - count($cardRows);
 
@@ -447,6 +479,8 @@ class ImportTcgdexPokemon extends Command
             'totals_inverted' => count($totalsInverted),
             'card_count_mismatches' => count($cardCountMismatches),
             'importer_missing_images' => count($importerMissingImages),
+            // Any permanent fetch failure means we can't be sure the catalog
+            // is actually complete — this must FAIL, never just warn.
             'fetch_failures' => count($this->failures),
         ];
         $warningCounts = [
@@ -462,6 +496,10 @@ class ImportTcgdexPokemon extends Command
 
         return [
             'status' => $status,
+            'api_requests_failed' => $this->apiRequestsFailed,
+            'api_requests_retried' => $this->apiRequestsRetried,
+            'sets_fetch_failed' => $setsFetchFailed,
+            'cards_fetch_failed' => $cardsFetchFailed,
             'sets' => ['source' => count($setsInScope), 'imported' => count($setRows), 'missing' => max($setsMissing, 0)],
             'cards' => ['source' => $sourceCardCount, 'imported' => count($cardRows), 'missing' => max($cardsMissing, 0)],
             'variants' => ['imported' => count($variantRows)],
@@ -495,6 +533,10 @@ class ImportTcgdexPokemon extends Command
         $this->newLine();
         $this->info('=== Validation report ===');
         $this->table(['Metric', 'Value'], [
+            ['API requests failed (attempts)', $r['api_requests_failed']],
+            ['API requests retried', $r['api_requests_retried']],
+            ['Sets fetch failed (permanent)', $r['sets_fetch_failed']],
+            ['Cards fetch failed (permanent)', $r['cards_fetch_failed']],
             ['Sets — source', $r['sets']['source']],
             ['Sets — imported', $r['sets']['imported']],
             ['Sets — missing', $r['sets']['missing']],
@@ -533,9 +575,11 @@ class ImportTcgdexPokemon extends Command
         }
         foreach ($r['ambiguous_first_edition_details'] as $f) {
             $this->warn(sprintf(
-                '  ambiguous first-edition: %s (finishes: [%s], stamp confirms: [%s], generated 1st-ed rows for: [%s], inferred w/o stamp: [%s], skipped unresolved: [%s])',
+                '  ambiguous first-edition: set=%s card=%s (%s) | raw flags: %s | stamp confirms: [%s] | generated: [%s] | inferred w/o stamp: [%s] | skipped unresolved: [%s]',
+                $f['set_id'],
+                $f['card_id'],
                 $f['card_key'],
-                implode(',', $f['finish_flags_true']),
+                json_encode($f['raw_variant_flags']),
                 implode(',', $f['stamped_finish_types']),
                 implode(',', $f['generated_1st_edition_finishes']),
                 implode(',', $f['inferred_without_stamp_confirmation']),
