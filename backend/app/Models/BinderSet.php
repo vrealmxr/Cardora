@@ -48,4 +48,16 @@ class BinderSet extends Model
     {
         return $this->hasMany(BinderCard::class, 'set_id');
     }
+
+    /**
+     * No FK — see {@see BinderCardVariant::externalIds()}. Set-level
+     * mappings are for providers keyed on the expansion itself (e.g.
+     * Scrydex expansion id, TCGplayer group id, Cardmarket expansion id),
+     * independent of the Sets sheet's own source/source_set_id columns.
+     */
+    public function externalIds(): HasMany
+    {
+        return $this->hasMany(BinderCardExternalId::class, 'entity_key', 'set_key')
+            ->where('entity_type', 'set');
+    }
 }

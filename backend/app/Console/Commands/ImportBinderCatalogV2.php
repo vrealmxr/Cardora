@@ -63,7 +63,7 @@ class ImportBinderCatalogV2 extends Command
         }
 
         if ($run('external_ids') && is_file("{$dir}/external_ids.csv")) {
-            $this->importExternalIds("{$dir}/external_ids.csv", $cardIdByKey, $variantIdByKey);
+            $this->importExternalIds("{$dir}/external_ids.csv", $setIdByKey, $cardIdByKey, $variantIdByKey);
         }
 
         $this->refreshSetCardCounts(array_values($setIdByKey));
@@ -287,10 +287,11 @@ class ImportBinderCatalogV2 extends Command
     }
 
     /**
+     * @param array<string,int> $setIdByKey
      * @param array<string,int> $cardIdByKey
      * @param array<string,int> $variantIdByKey
      */
-    private function importExternalIds(string $path, array $cardIdByKey, array $variantIdByKey): void
+    private function importExternalIds(string $path, array $setIdByKey, array $cardIdByKey, array $variantIdByKey): void
     {
         [$header, $handle] = $this->openCsv($path);
         $now = now();
@@ -306,6 +307,7 @@ class ImportBinderCatalogV2 extends Command
             $entityType = $r['entity_type'] ?? '';
             $entityKey = $r['entity_key'] ?? '';
             $entityExists = match ($entityType) {
+                'set' => isset($setIdByKey[$entityKey]),
                 'card' => isset($cardIdByKey[$entityKey]),
                 'variant' => isset($variantIdByKey[$entityKey]),
                 default => false,
