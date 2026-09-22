@@ -1,0 +1,2 @@
+set_id,set_type_override,source_provider,source_url,source_retrieved_at,verification_source,notes
+sp,sample_prototype,bulbapedia,https://bulbapedia.bulbagarden.net/wiki/Sample_Set_(TCG),2026-09-22,tcgdex set metadata (cardCount=10 matches only the NY 2002 subgroup),"TCGdex's own set_type is left as 'main' by default; this set is characterized as sample/prototype per product decision, not a normal expansion."

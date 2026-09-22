@@ -57,6 +57,21 @@ class ImportTcgdexPokemon extends Command
         'wPromo' => ['W Promotional', 'w_promo', 5],
     ];
 
+    /**
+     * set_id => reason. A structural/categorical decision (which sets need
+     * a dedicated importer later), not card DATA — unlike the supplemental
+     * card lists, which live in database/data/tcgdex-supplemental/ and are
+     * never hardcoded here. "jumbo" (oversized physical cards) has its own
+     * numbering/product model that doesn't fit Game→Set→Card→Variant
+     * cleanly (many are oversized reprints of existing cards), so TCGdex's
+     * cardCount=160 isn't treated as canonical truth for it.
+     */
+    private const EXCLUDED_SPECIAL_FORMAT_SETS = [
+        'jumbo' => 'oversized_physical_format_requires_dedicated_catalog',
+    ];
+
+    private const SUPPLEMENTAL_DIR = 'database/data/tcgdex-supplemental';
+
     private array $failures = []; // ['type'=>'set'|'card','set_id'=>..,'card_id'=>?,'reason'=>..] — items still unresolved after the retry pass
     private int $apiRequestsFailed = 0; // failed HTTP attempts, including ones later retried successfully
     private int $apiRequestsRetried = 0; // retry attempts issued (attempt #2, #3, ... after a failed attempt)
@@ -73,8 +88,11 @@ class ImportTcgdexPokemon extends Command
     private array $setMeta = []; // set_key => ['set_id'=>.., 'set_name'=>..], incl. excluded/failed sets
     private array $excludedDigitalSets = []; // TCG Pocket (serie.id=tcgp) sets, kept out of the physical catalog
     private int $excludedDigitalCardCount = 0;
-    private array $upstreamMissingCardData = []; // set fetch succeeded but returned 0 cards despite a non-zero cardCount
+    private array $excludedSpecialFormatSets = []; // e.g. jumbo — real physical cards, but needs a dedicated importer later
+    private array $upstreamMissingCardData = []; // set fetch succeeded but returned 0 cards despite a non-zero cardCount, AND no supplemental data covers it
     private array $expectedUniqueVsNumberedDifferences = []; // set returned SOME cards, just fewer/more than cardCount.total — normal for kits/special products, not a failure
+    private array $supplementalCardsBySet = []; // set_id => [card rows from supplemental_cards.csv]
+    private array $supplementalSetOverrides = []; // set_id => ['set_type_override'=>..., ...provenance]
 
     private string $sourceMode = 'api';
     private ?array $snapshotManifest = null;
@@ -113,6 +131,8 @@ class ImportTcgdexPokemon extends Command
         } else {
             $this->info('Source: live api.tcgdex.net');
         }
+
+        $this->loadSupplementalData();
 
         $this->info('Fetching set list...');
         $allSets = $this->fetchSetsList();
@@ -211,6 +231,22 @@ class ImportTcgdexPokemon extends Command
             return;
         }
 
+        // Real physical cards, but a numbering/product model (oversized
+        // reprints of existing cards) that doesn't fit this importer —
+        // needs its own normalization later, not TCGdex's cardCount taken
+        // at face value.
+        if (isset(self::EXCLUDED_SPECIAL_FORMAT_SETS[$setId])) {
+            $this->excludedSpecialFormatSets[] = [
+                'set_id' => $setId,
+                'set_name' => $set['name'] ?? $setBriefName,
+                'reason' => self::EXCLUDED_SPECIAL_FORMAT_SETS[$setId],
+            ];
+
+            return;
+        }
+
+        $setOverride = $this->supplementalSetOverrides[$setId] ?? null;
+
         $this->setMeta[$setKey] = ['set_id' => $setId, 'set_name' => $set['name'] ?? $setBriefName];
         $this->setRows[] = [
             'game_slug' => 'pokemon',
@@ -218,7 +254,7 @@ class ImportTcgdexPokemon extends Command
             'set_name' => $set['name'] ?? $setId,
             'abbreviation' => $set['abbreviation']['official'] ?? '',
             'set_code' => $setId,
-            'set_type' => 'main',
+            'set_type' => $setOverride['set_type_override'] ?? 'main',
             'language' => 'EN',
             'region' => '',
             'released_at' => $set['releaseDate'] ?? '',
@@ -237,16 +273,31 @@ class ImportTcgdexPokemon extends Command
             'external_url' => '',
         ];
 
-        $this->setSourceCardCounts[$setKey] = count($cardBriefs);
+        // If TCGdex itself has zero cards for this set, fall back to hand-
+        // researched supplemental data when we have it for this specific
+        // set_id — tracked separately (primary vs supplemental) rather than
+        // silently merged, so the report always shows where each card's
+        // data actually came from.
+        $usingSupplemental = false;
+        if ($cardBriefs === [] && isset($this->supplementalCardsBySet[$setId])) {
+            $usingSupplemental = true;
+            foreach ($this->supplementalCardsBySet[$setId] as $supplementalCard) {
+                $this->processSupplementalCard($setId, $setKey, $supplementalCard);
+            }
+            $this->setSourceCardCounts[$setKey] = count($this->supplementalCardsBySet[$setId]);
+        } else {
+            $this->setSourceCardCounts[$setKey] = count($cardBriefs);
+        }
 
         // Three distinct meanings for "the numbers don't match", not one
         // generic count_mismatch: an empty cards array despite a non-zero
-        // cardCount is a genuine upstream gap (FAIL, needs a second source);
-        // a non-zero-but-different count is normal for kits/special
-        // products where "numbered positions" != "unique canonical cards"
-        // (warning only, never auto-FAIL).
+        // cardCount is a genuine upstream gap (FAIL, needs a second source
+        // — unless supplemental data just resolved it) — a non-zero-but-
+        // different count is normal for kits/special products where
+        // "numbered positions" != "unique canonical cards" (warning only,
+        // never auto-FAIL).
         $apiTotal = $set['cardCount']['total'] ?? null;
-        if ($apiTotal !== null && count($cardBriefs) !== $apiTotal) {
+        if (! $usingSupplemental && $apiTotal !== null && count($cardBriefs) !== $apiTotal) {
             $entry = ['set_id' => $setId, 'set_key' => $setKey, 'api_card_count_total' => $apiTotal, 'cards_array_length' => count($cardBriefs)];
             if (count($cardBriefs) === 0) {
                 $this->upstreamMissingCardData[] = $entry;
@@ -384,6 +435,46 @@ class ImportTcgdexPokemon extends Command
     }
 
     /**
+     * Builds Card/Variant/ExternalId rows from a hand-researched
+     * supplemental_cards.csv row instead of a TCGdex API/snapshot response.
+     * Deliberately does NOT run the finish/first-edition detection
+     * processCard() does — we have no variants_detailed for these, so we
+     * generate exactly one "Normal" variant per card rather than guess at
+     * finishes that were never confirmed. The external_id provider is the
+     * supplemental row's own source_provider (e.g. "bulbapedia"), never
+     * "tcgdex", so it's traceable which cards came from where.
+     *
+     * @param array<string,string> $row
+     */
+    private function processSupplementalCard(string $setId, string $setKey, array $row): void
+    {
+        $cardKey = 'pokemon-' . strtolower($row['card_id']);
+
+        $this->cardRows[] = [
+            'game_slug' => 'pokemon',
+            'set_key' => $setKey,
+            'card_key' => $cardKey,
+            'card_name' => $row['card_name'],
+            'clean_name' => $row['card_name'],
+            'collector_number' => $row['collector_number'],
+            'card_type' => $row['card_type'] ?: '',
+            'is_promo' => 'FALSE',
+            'is_token' => 'FALSE',
+            'language' => 'EN',
+        ];
+        $this->externalIdRows[] = [
+            'entity_type' => 'card',
+            'entity_key' => $cardKey,
+            'provider' => $row['source_provider'],
+            'external_id' => $row['card_id'],
+            'external_type' => 'manual_research',
+            'external_url' => $row['source_url'],
+        ];
+
+        $this->addVariantRow($cardKey, 'normal', 'Normal', 1, ['rarity' => $row['rarity'] ?? '', 'illustrator' => ''], null);
+    }
+
+    /**
      * A dedicated pass over ONLY the items still unresolved after getJson()'s
      * own per-request retries — a transient blip during a long run (rate
      * limiting, a dropped connection) shouldn't force a full re-run of the
@@ -471,6 +562,66 @@ class ImportTcgdexPokemon extends Command
      * there to be exactly one under storage/app/tcgdex-snapshots so a stale
      * or ambiguous default can never be picked silently.
      */
+    /**
+     * Loads database/data/tcgdex-supplemental/{supplemental_sets,supplemental_cards}.csv
+     * — hand-researched fills for specific sets where TCGdex has zero card
+     * data, each row carrying its own provenance (source, url, retrieved
+     * date, a second cross-check source). Never fabricated here in code;
+     * a set with no rows in these files that's still missing TCGdex data
+     * stays an unresolved upstream_missing_card_data gap.
+     */
+    private function loadSupplementalData(): void
+    {
+        $dir = base_path(self::SUPPLEMENTAL_DIR);
+
+        $setsPath = "{$dir}/supplemental_sets.csv";
+        if (is_file($setsPath)) {
+            foreach ($this->readCsv($setsPath) as $row) {
+                $this->supplementalSetOverrides[$row['set_id']] = $row;
+            }
+        }
+
+        $cardsPath = "{$dir}/supplemental_cards.csv";
+        if (is_file($cardsPath)) {
+            foreach ($this->readCsv($cardsPath) as $row) {
+                $this->supplementalCardsBySet[$row['set_id']][] = $row;
+            }
+        }
+
+        if ($this->supplementalCardsBySet !== []) {
+            $this->info(sprintf(
+                'Loaded supplemental data: %d set(s) (%s)',
+                count($this->supplementalCardsBySet),
+                implode(', ', array_keys($this->supplementalCardsBySet)),
+            ));
+        }
+    }
+
+    /** @return array<int,array<string,string>> */
+    private function readCsv(string $path): array
+    {
+        $handle = fopen($path, 'r');
+        $header = fgetcsv($handle) ?: [];
+        $rows = [];
+        $lineNo = 1;
+        while (($row = fgetcsv($handle)) !== false) {
+            $lineNo++;
+            if (count($row) !== count($header)) {
+                // array_combine() throws (not just returns false) on a
+                // length mismatch in PHP 8 — most likely an unquoted comma
+                // in a free-text column. Skip the row rather than crash the
+                // whole import over one malformed CSV line.
+                $this->warn("  {$path}:{$lineNo}: column count mismatch (expected " . count($header) . ', got ' . count($row) . '), skipping row');
+
+                continue;
+            }
+            $rows[] = array_combine($header, $row);
+        }
+        fclose($handle);
+
+        return $rows;
+    }
+
     private function loadSnapshot(): bool
     {
         $snapshotDir = $this->option('snapshot');
@@ -710,6 +861,17 @@ class ImportTcgdexPokemon extends Command
         );
         $duplicateSourceCardIds = $this->duplicates($tcgdexCardExternalIds);
 
+        // Every card's provider (tcgdex = primary, anything else = a
+        // database/data/tcgdex-supplemental/ source) so the report always
+        // shows where each card's data actually came from.
+        $cardProviders = array_column(
+            array_filter($externalIdsScoped, fn ($e) => $e['entity_type'] === 'card'),
+            'provider',
+            'entity_key',
+        );
+        $primaryCardsScoped = array_values(array_filter($cardsScoped, fn ($c) => ($cardProviders[$c['card_key']] ?? null) === 'tcgdex'));
+        $supplementalCardsScoped = array_values(array_filter($cardsScoped, fn ($c) => ($cardProviders[$c['card_key']] ?? null) !== 'tcgdex'));
+
         $setKeySet = array_flip($setKeysGenerated);
         $orphanCards = array_values(array_filter($cardsScoped, fn ($c) => ! isset($setKeySet[$c['set_key']])));
 
@@ -772,12 +934,15 @@ class ImportTcgdexPokemon extends Command
         };
 
         $excludedDigitalSetsScoped = $perSet ? [] : $this->excludedDigitalSets; // exclusion is global-only, not meaningful per physical set
+        $excludedSpecialFormatSetsScoped = $perSet ? [] : $this->excludedSpecialFormatSets;
 
         $result = [
             'status' => $status,
             'source_physical_sets' => count($scopeSetKeys),
             'generated_sets' => count($setsScoped),
             'source_physical_cards' => $sourceCards,
+            'primary_source_cards' => count($primaryCardsScoped),
+            'supplemental_cards' => count($supplementalCardsScoped),
             'generated_cards' => count($cardsScoped),
             'generated_variants' => count($variantsScoped),
             'duplicate_source_card_ids' => $duplicateSourceCardIds,
@@ -824,6 +989,7 @@ class ImportTcgdexPokemon extends Command
                 'cache_hits' => $this->cacheHits,
                 'excluded_digital_sets' => $excludedDigitalSetsScoped,
                 'excluded_digital_cards' => $this->excludedDigitalCardCount,
+                'excluded_special_format_sets' => $excludedSpecialFormatSetsScoped,
             ], $result);
         }
 
@@ -850,9 +1016,12 @@ class ImportTcgdexPokemon extends Command
             ['cache_hits', $g['cache_hits']],
             ['excluded_digital_sets (TCG Pocket)', count($g['excluded_digital_sets'])],
             ['excluded_digital_cards (TCG Pocket)', $g['excluded_digital_cards']],
+            ['excluded_special_format_sets', count($g['excluded_special_format_sets'])],
             ['source_physical_sets', $g['source_physical_sets']],
             ['generated_sets', $g['generated_sets']],
             ['source_physical_cards', $g['source_physical_cards']],
+            ['  primary_source_cards', $g['primary_source_cards']],
+            ['  supplemental_cards', $g['supplemental_cards']],
             ['generated_cards', $g['generated_cards']],
             ['generated_variants', $g['generated_variants']],
             ['duplicate_source_card_ids', count($g['duplicate_source_card_ids'])],
@@ -878,6 +1047,9 @@ class ImportTcgdexPokemon extends Command
         }
         foreach ($g['excluded_digital_sets'] as $s) {
             $this->comment("  excluded (TCG Pocket): {$s['set_id']} ({$s['set_name']}) — {$s['card_count']} cards");
+        }
+        foreach ($g['excluded_special_format_sets'] as $s) {
+            $this->comment("  excluded (special format): {$s['set_id']} ({$s['set_name']}) — {$s['reason']}");
         }
         foreach ($g['upstream_missing_card_data'] as $m) {
             $this->error("  upstream_missing_card_data: set {$m['set_id']} — metadata says {$m['api_card_count_total']} cards, API returned 0");
