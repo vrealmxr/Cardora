@@ -84,6 +84,7 @@ class ImportYgoprodeckYugioh extends Command
     private array $variantOverrides = []; // rows from supplemental_variant_overrides.csv
     private int $regionSpecificVariants = 0;
     private int $editionSpecificVariants = 0;
+    private array $overriddenCardKeys = []; // card_key => true, cards touched by supplemental_variant_overrides.csv (region/edition tagging on an existing variant, no new card/variant created by this alone)
 
     public function handle(): int
     {
@@ -499,6 +500,7 @@ class ImportYgoprodeckYugioh extends Command
             $regionCode = $row['region_code'] !== '' ? $row['region_code'] : null;
             $editionCode = $row['edition_code'] !== '' ? $row['edition_code'] : null;
             $groups[$setKey][$fullSetCode]['rarities'][$rarity] = ['region_code' => $regionCode, 'edition_code' => $editionCode];
+            $this->overriddenCardKeys[$this->toCardKey($setKey, $fullSetCode)] = true;
 
             if ($regionCode !== null) {
                 $this->regionSpecificVariants++;
@@ -687,6 +689,26 @@ class ImportYgoprodeckYugioh extends Command
             }
         }
 
+        // Disambiguated origin split requested for the TF05 reconciliation:
+        // a "primary" set/card needs zero supplemental data at all; a
+        // "supplemental_only" set/card exists ONLY because upstream had no
+        // card_sets data for it whatsoever (the upstream_missing_card_data
+        // gap-fill case, e.g. Adidas Collaboration Card). A card can be
+        // fully primary-sourced yet still have a variant_overrides.csv row
+        // (TF05) — that's "supplemental_overridden", tracked separately
+        // from "supplemental_only" since it creates zero new cards/sets.
+        $setsWithPrimaryCard = [];
+        $setsWithSupplementalCard = [];
+        foreach ($this->cardRows as $c) {
+            $origin = $this->cardKeyOrigin[$c['card_key']] ?? 'primary';
+            if ($origin === 'primary') {
+                $setsWithPrimaryCard[$c['set_key']] = true;
+            } else {
+                $setsWithSupplementalCard[$c['set_key']] = true;
+            }
+        }
+        $supplementalOnlySetKeys = array_diff_key($setsWithSupplementalCard, $setsWithPrimaryCard);
+
         $failCounts = [
             'duplicate_set_keys' => count($duplicateSetKeys),
             'duplicate_card_keys' => count($duplicateCardKeys),
@@ -723,11 +745,16 @@ class ImportYgoprodeckYugioh extends Command
             'primary_source_sets' => count($this->setRows),
             'supplemental_sets' => count($supplementalSetKeys),
             'generated_sets' => count($this->setActualCardCounts),
+            'primary_sets' => count($setsWithPrimaryCard),
+            'supplemental_only_sets' => count($supplementalOnlySetKeys),
 
             'primary_source_cards' => $primarySourceCards,
             'supplemental_cards' => $supplementalCards,
             'generated_cards' => count($this->cardRows),
             'generated_variants' => count($this->variantRows),
+            'primary_cards' => $primarySourceCards,
+            'supplemental_only_cards' => $supplementalCards,
+            'supplemental_overridden_cards' => count($this->overriddenCardKeys),
 
             'skill_cards_included' => $this->skillCardsIncluded,
             'physical_tokens_included' => $this->physicalTokensIncluded,
@@ -771,10 +798,15 @@ class ImportYgoprodeckYugioh extends Command
             ['primary_source_sets', $r['primary_source_sets']],
             ['supplemental_sets', $r['supplemental_sets']],
             ['generated_sets', $r['generated_sets']],
+            ['primary_sets', $r['primary_sets']],
+            ['supplemental_only_sets', $r['supplemental_only_sets']],
             ['primary_source_cards', $r['primary_source_cards']],
             ['supplemental_cards', $r['supplemental_cards']],
             ['generated_cards', $r['generated_cards']],
             ['generated_variants', $r['generated_variants']],
+            ['primary_cards', $r['primary_cards']],
+            ['supplemental_only_cards', $r['supplemental_only_cards']],
+            ['supplemental_overridden_cards', $r['supplemental_overridden_cards']],
             ['skill_cards_included', $r['skill_cards_included']],
             ['physical_tokens_included', $r['physical_tokens_included']],
             ['tokens_excluded_nonphysical', $r['tokens_excluded_nonphysical']],
