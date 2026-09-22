@@ -82,30 +82,57 @@ for provenance rather than deleted outright. The importer now also tracks
 `fullyExcludedSetNames`: when every row for a set_name is excluded (no
 `include` rows), the canonical Set row itself is dropped if it ends up with
 zero real cards, instead of tripping the `unresolved_source_gaps` FAIL gate
-(reported via `dropped_fully_excluded_sets`, never silently). The `Limited
-Collector's Edition` should be modeled in the future as a **product/release**
-that contains the `...promotional cards` cards, not as a second canonical
-card set — the schema doesn't yet have that release/product concept
-(canonical card/printing vs. release/product membership are currently
-conflated), see the KACB/YUCB audit below for the same underlying gap.
+(reported via `dropped_fully_excluded_sets`, never silently). `Limited
+Collector's Edition` is now modeled as a `binder_releases` row instead (see
+`supplemental_releases.csv`), with the 5 primary `...promotional cards`
+cards getting a `promo_inclusion` membership toward it via
+`supplemental_release_memberships.csv` — one canonical card, an additional
+product membership, no duplicate.
 
-## KACB-EN001 / YUCB-EN001 — same printing, different regional box product (not merged)
+## KACB-EN001 / YUCB-EN001 — same printing, different regional box products (release/membership layer added)
 
 Audited 2026-09-23 after the PCY finding raised the same question for
 `Kaiba's Collector Box` (KACB-EN001, NA, 2017-11-17) and `Yugi's Collector
-Box` (YUCB-EN001, NA, 2017-11-17): both also appear under `Yugi & Kaiba
-Collector Box` (2018-03-29). Unlike PCY, this is **not** a data-entry
-duplicate — confirmed via Yugipedia/Fandom (authoritative wiki, not
-inferred from set name/date alone): `Yugi & Kaiba Collector Box` "is the
+Box` (YUCB-EN001, NA, 2017-09-15): both promo cards also appear under
+`Yugi & Kaiba Collector Box` (2018-03-29). Unlike PCY, this was **not** a
+data-entry duplicate — confirmed via Yugipedia/Fandom (authoritative wiki,
+not inferred from set name/date alone): `Yugi & Kaiba Collector Box` "is the
 European equivalent of the North American Yugi's Collector Box and Kaiba's
 Collector Box" (Europe/Oceania/France/Germany/Italy, 2018-03-29), bundling
-*both* promo cards (YUCB-EN001 + KACB-EN001) into one box, where NA split
-the same two cards across two separate boxes. Same card, same code, same
-Ultra Rare rarity in all three listings — a real product/release-membership
-difference, not a printing difference (unlike TF05, where NA/EU genuinely
-differ in *rarity*). **Left as 2 separate canonical cards per box for now**
-— merging would need the same release/product-membership modeling gap
-noted above (one canonical printing, multiple release memberships), which
-the current schema can't express without either duplicating the canonical
-card (current state) or losing the box-membership information entirely.
-Do not auto-merge without that schema work.
+*both* promo cards into one box where NA split them across two separate
+boxes. Same card, same code, same Ultra Rare rarity in every listing — a
+real product/release-membership difference, not a printing difference
+(unlike TF05, where NA/EU genuinely differ in *rarity* — that stays modeled
+as 2 variants, correctly).
+
+This confirmed the need for a dedicated Release/Card_Release_Membership
+layer (`binder_releases`, `binder_card_release_memberships` — additive
+migration, `binder_cards.set_id` untouched and still the primary/canonical
+checklist grouping). Resolution, applied 2026-09-23:
+
+- **KACB-EN001**: the two canonical cards were merged. Survivor = the
+  primary-sourced card under `Yugi & Kaiba Collector Box` (preferred over
+  the manually-researched supplemental one, consistent with this project's
+  general primary-over-supplemental precedence). The supplemental
+  `Kaiba's Collector Box` card+variant were deleted after confirming zero
+  `products`/`binder_user_cards` dependencies on either candidate; its
+  `manual_research` external_id (collectorscache.com) was transferred to
+  the survivor's `entity_key` rather than dropped. `Kaiba's Collector Box`
+  itself is no longer a canonical Set (dropped via the same
+  `fullyExcludedSetNames`/`dropped_fully_excluded_sets` mechanism as PCY —
+  see `supplemental_cards.csv`'s `now_modeled_as_release_membership`
+  exclusion reason) and is now a `binder_releases` row instead. The
+  survivor card gets 2 memberships: `Kaiba's Collector Box` (region `na`)
+  and `Yugi & Kaiba Collector Box` (region `eu`, also its own set_id).
+- **YUCB-EN001**: no merge needed — only one canonical card exists (under
+  `Yugi's Collector Box`, unchanged). It was simply missing a membership
+  toward `Yugi & Kaiba Collector Box`, which primary YGOPRODeck data never
+  had a `card_sets` entry for (only the KACB half resolved there) — added
+  per Yugipedia's official card list for that box.
+- `region_code` was deliberately **not** set on either card's variant —
+  region here characterizes the *release*, not the physical card/printing
+  (see `binder_releases.region_code`), unlike TF05 where region genuinely
+  changes the printed rarity.
+
+See `supplemental_releases.csv` / `supplemental_release_memberships.csv`
+for full provenance on every release and membership row.

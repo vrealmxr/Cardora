@@ -13,10 +13,10 @@ use Illuminate\Support\Facades\DB;
 class ImportBinderCatalogV2 extends Command
 {
     protected $signature = 'cardora:binder-import-v2
-        {--path= : Directory containing games.csv, sets.csv, cards.csv, variants.csv, external_ids.csv}
-        {--only= : Comma-separated list of files to import (e.g. games,sets)}';
+        {--path= : Directory containing games.csv, sets.csv, cards.csv, variants.csv, external_ids.csv, and optionally releases.csv/release_memberships.csv}
+        {--only= : Comma-separated list of files to import (e.g. games,sets or release_memberships)}';
 
-    protected $description = 'Import the Games/Sets/Cards/Variants/External_IDs catalog template (canonical card + variant model) into binder_* tables';
+    protected $description = 'Import the Games/Sets/Cards/Variants/External_IDs catalog template (canonical card + variant model), plus the optional additive Releases/Card_Release_Memberships layer, into binder_* tables';
 
     private const CHUNK = 500;
 
@@ -64,6 +64,17 @@ class ImportBinderCatalogV2 extends Command
 
         if ($run('external_ids') && is_file("{$dir}/external_ids.csv")) {
             $this->importExternalIds("{$dir}/external_ids.csv", $setIdByKey, $cardIdByKey, $variantIdByKey);
+        }
+
+        $releaseIdByKey = [];
+        if ($run('releases') && is_file("{$dir}/releases.csv")) {
+            $releaseIdByKey = $this->importReleases("{$dir}/releases.csv", $gameIdBySlug);
+        } else {
+            $releaseIdByKey = DB::table('binder_releases')->pluck('id', 'release_key')->map(fn ($v) => (int) $v)->all();
+        }
+
+        if ($run('release_memberships') && is_file("{$dir}/release_memberships.csv")) {
+            $this->importReleaseMemberships("{$dir}/release_memberships.csv", $cardIdByKey, $releaseIdByKey);
         }
 
         $this->refreshSetCardCounts(array_values($setIdByKey));
@@ -346,6 +357,110 @@ class ImportBinderCatalogV2 extends Command
         }
 
         $this->line('external_ids.csv: ' . count($rows) . ' external ids');
+    }
+
+    /** @param array<string,int> $gameIdBySlug @return array<string,int> release_key => id */
+    private function importReleases(string $path, array $gameIdBySlug): array
+    {
+        [$header, $handle] = $this->openCsv($path);
+        $now = now();
+        $rows = [];
+        $skipped = 0;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $r = $this->record($header, $row);
+            if (! $r || ($r['release_key'] ?? '') === '') {
+                continue;
+            }
+
+            $gameId = $gameIdBySlug[$r['game_slug'] ?? ''] ?? null;
+            if ($gameId === null) {
+                $skipped++;
+
+                continue;
+            }
+
+            $rows[$r['release_key']] = [
+                'game_id' => $gameId,
+                'release_key' => $r['release_key'],
+                'release_name' => $r['release_name'] ?? $r['release_key'],
+                'release_type' => $r['release_type'] ?? 'unknown',
+                'region_code' => $this->nullIfEmpty($r['region_code'] ?? null),
+                'released_at' => $this->parseDate($r['released_at'] ?? null),
+                'source_provider' => $this->nullIfEmpty($r['source_provider'] ?? null),
+                'source_external_id' => $this->nullIfEmpty($r['source_external_id'] ?? null),
+                'notes' => $this->nullIfEmpty($r['notes'] ?? null),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        fclose($handle);
+
+        if ($skipped > 0) {
+            $this->warn("  releases.csv: skipped {$skipped} rows with unknown game_slug");
+        }
+
+        foreach (array_chunk($rows, self::CHUNK, true) as $chunk) {
+            DB::table('binder_releases')->upsert(
+                array_values($chunk),
+                ['release_key'],
+                ['game_id', 'release_name', 'release_type', 'region_code', 'released_at', 'source_provider', 'source_external_id', 'notes', 'updated_at'],
+            );
+        }
+
+        $this->line('releases.csv: ' . count($rows) . ' releases');
+
+        return DB::table('binder_releases')->pluck('id', 'release_key')->map(fn ($v) => (int) $v)->all();
+    }
+
+    /** @param array<string,int> $cardIdByKey @param array<string,int> $releaseIdByKey */
+    private function importReleaseMemberships(string $path, array $cardIdByKey, array $releaseIdByKey): void
+    {
+        [$header, $handle] = $this->openCsv($path);
+        $now = now();
+        $rows = [];
+        $skipped = 0;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $r = $this->record($header, $row);
+            if (! $r) {
+                continue;
+            }
+
+            $cardId = $cardIdByKey[$r['card_key'] ?? ''] ?? null;
+            $releaseId = $releaseIdByKey[$r['release_key'] ?? ''] ?? null;
+            if ($cardId === null || $releaseId === null) {
+                $skipped++;
+
+                continue;
+            }
+
+            $rows["{$cardId}:{$releaseId}"] = [
+                'card_id' => $cardId,
+                'release_id' => $releaseId,
+                'membership_type' => $this->nullIfEmpty($r['membership_type'] ?? null),
+                'source_provider' => $this->nullIfEmpty($r['source_provider'] ?? null),
+                'source_reference' => $this->nullIfEmpty($r['source_reference'] ?? null),
+                'notes' => $this->nullIfEmpty($r['notes'] ?? null),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        fclose($handle);
+
+        if ($skipped > 0) {
+            $this->warn("  release_memberships.csv: skipped {$skipped} rows with unknown card_key/release_key");
+        }
+
+        foreach (array_chunk($rows, self::CHUNK, true) as $chunk) {
+            DB::table('binder_card_release_memberships')->upsert(
+                array_values($chunk),
+                ['card_id', 'release_id'],
+                ['membership_type', 'source_provider', 'source_reference', 'notes', 'updated_at'],
+            );
+        }
+
+        $this->line('release_memberships.csv: ' . count($rows) . ' release memberships');
     }
 
     private function refreshSetCardCounts(array $setIds): void

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BinderCard extends Model
@@ -57,6 +58,20 @@ class BinderCard extends Model
     public function variants(): HasMany
     {
         return $this->hasMany(BinderCardVariant::class, 'card_id')->orderBy('sort_order');
+    }
+
+    /**
+     * Additive, separate from {@see set()}: the same canonical printing can
+     * be sold as part of more than one retail product/release (e.g. the
+     * same Blue-Eyes White Dragon promo shipping in both "Kaiba's Collector
+     * Box" and "Yugi & Kaiba Collector Box") without that being a second
+     * canonical card. set_id stays the primary/canonical checklist grouping.
+     */
+    public function releases(): BelongsToMany
+    {
+        return $this->belongsToMany(BinderRelease::class, 'binder_card_release_memberships', 'card_id', 'release_id')
+            ->withPivot(['membership_type', 'source_provider', 'source_reference', 'notes'])
+            ->withTimestamps();
     }
 
     /**

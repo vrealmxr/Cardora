@@ -88,6 +88,12 @@ class ImportYgoprodeckYugioh extends Command
     private array $fullyExcludedSetNames = []; // set_name => true, every supplemental_cards.csv row for this set is excluded_special_format (no "include" rows) -- e.g. a set later found to be a duplicate canonical printing of another set's content
     private array $droppedFullyExcludedSets = []; // set_names actually dropped from setRows because they ended up with zero real cards (reported, never silent)
 
+    private array $supplementalReleases = []; // release_key => row, from supplemental_releases.csv
+    private array $supplementalReleaseMemberships = []; // raw rows from supplemental_release_memberships.csv
+    private array $releaseRows = [];
+    private array $releaseMembershipRows = [];
+    private int $releaseMembershipsUnresolved = 0; // csv rows whose (set_name, collector_number) or release_key didn't resolve -- warned, not written
+
     public function handle(): int
     {
         $outDir = rtrim((string) ($this->option('out') ?: storage_path('app/ygoprodeck-yugioh')), '/');
@@ -351,6 +357,8 @@ class ImportYgoprodeckYugioh extends Command
             }
         }
 
+        $this->buildReleases($canonicalSetNameByLowercase);
+
         // Same three-way classification used for the Pokémon importer:
         // zero grouped cards despite a non-zero canonical count is a real
         // gap; a non-zero-but-different count is normal (e.g. a set whose
@@ -428,6 +436,18 @@ class ImportYgoprodeckYugioh extends Command
         $variantsPath = base_path(self::SUPPLEMENTAL_DIR) . '/supplemental_variant_overrides.csv';
         if (is_file($variantsPath)) {
             $this->variantOverrides = $this->readCsv($variantsPath);
+        }
+
+        $releasesPath = base_path(self::SUPPLEMENTAL_DIR) . '/supplemental_releases.csv';
+        if (is_file($releasesPath)) {
+            foreach ($this->readCsv($releasesPath) as $row) {
+                $this->supplementalReleases[$row['release_key']] = $row;
+            }
+        }
+
+        $releaseMembershipsPath = base_path(self::SUPPLEMENTAL_DIR) . '/supplemental_release_memberships.csv';
+        if (is_file($releaseMembershipsPath)) {
+            $this->supplementalReleaseMemberships = $this->readCsv($releaseMembershipsPath);
         }
     }
 
@@ -541,6 +561,68 @@ class ImportYgoprodeckYugioh extends Command
             if ($editionCode !== null) {
                 $this->editionSpecificVariants++;
             }
+        }
+    }
+
+    /**
+     * Builds releases.csv / release_memberships.csv from
+     * supplemental_releases.csv / supplemental_release_memberships.csv —
+     * the additive Release/Card_Release_Membership layer (separate from
+     * binder_cards.set_id, which stays the primary/canonical checklist
+     * grouping). Expresses "this same physical printing also shipped in
+     * another product" (e.g. Kaiba's Collector Box + Yugi & Kaiba Collector
+     * Box both containing KACB-EN001) WITHOUT creating a second canonical
+     * card — the fix for the KACB/YUCB/PCY duplicate-canonical-card class
+     * of bug found during production spot-checks.
+     *
+     * @param array<string,string> $canonicalSetNameByLowercase
+     */
+    private function buildReleases(array $canonicalSetNameByLowercase): void
+    {
+        foreach ($this->supplementalReleases as $releaseKey => $row) {
+            $this->releaseRows[$releaseKey] = [
+                'game_slug' => 'yugioh',
+                'release_key' => $releaseKey,
+                'release_name' => $row['release_name'],
+                'release_type' => $row['release_type'],
+                'region_code' => $row['region_code'],
+                'released_at' => $row['released_at'],
+                'source_provider' => $row['source_provider'],
+                'source_external_id' => $row['source_external_id'],
+                'notes' => $row['notes'],
+            ];
+        }
+
+        $cardKeySet = array_flip(array_column($this->cardRows, 'card_key'));
+        $seenPairs = [];
+
+        foreach ($this->supplementalReleaseMemberships as $row) {
+            $setName = $canonicalSetNameByLowercase[strtolower($row['set_name'])] ?? $row['set_name'];
+            $setKey = $this->toSetKey($setName);
+            $cardKey = $this->toCardKey($setKey, $row['collector_number']);
+            $releaseKey = $row['release_key'];
+
+            if (! isset($cardKeySet[$cardKey]) || ! isset($this->releaseRows[$releaseKey])) {
+                $this->warn("  supplemental_release_memberships.csv: could not resolve card \"{$row['set_name']}\" / {$row['collector_number']} or release \"{$releaseKey}\" — membership NOT created");
+                $this->releaseMembershipsUnresolved++;
+
+                continue;
+            }
+
+            $pairKey = "{$cardKey}:{$releaseKey}";
+            if (isset($seenPairs[$pairKey])) {
+                continue; // supplemental data listed the same (card, release) pair twice -- de-duped, not an error
+            }
+            $seenPairs[$pairKey] = true;
+
+            $this->releaseMembershipRows[] = [
+                'card_key' => $cardKey,
+                'release_key' => $releaseKey,
+                'membership_type' => $row['membership_type'],
+                'source_provider' => $row['source_provider'],
+                'source_reference' => $row['source_reference'],
+                'notes' => $row['notes'],
+            ];
         }
     }
 
@@ -669,6 +751,12 @@ class ImportYgoprodeckYugioh extends Command
         $this->writeCsv("{$outDir}/external_ids.csv", [
             'entity_type', 'entity_key', 'provider', 'external_id', 'external_type', 'external_url',
         ], $this->externalIdRows);
+        $this->writeCsv("{$outDir}/releases.csv", [
+            'game_slug', 'release_key', 'release_name', 'release_type', 'region_code', 'released_at', 'source_provider', 'source_external_id', 'notes',
+        ], array_values($this->releaseRows));
+        $this->writeCsv("{$outDir}/release_memberships.csv", [
+            'card_key', 'release_key', 'membership_type', 'source_provider', 'source_reference', 'notes',
+        ], $this->releaseMembershipRows);
     }
 
     /** @param array<int,string> $header @param array<int,array<string,mixed>> $rows */
@@ -742,7 +830,53 @@ class ImportYgoprodeckYugioh extends Command
         }
         $supplementalOnlySetKeys = array_diff_key($setsWithSupplementalCard, $setsWithPrimaryCard);
 
+        // Release/Card_Release_Membership layer (additive, see buildReleases()).
+        $releaseKeySet = array_flip(array_column($this->releaseRows, 'release_key'));
+        $membershipPairKeys = array_map(fn ($m) => "{$m['card_key']}:{$m['release_key']}", $this->releaseMembershipRows);
+        $duplicateReleaseMemberships = $this->duplicates($membershipPairKeys);
+        $orphanReleaseMemberships = array_values(array_filter(
+            $this->releaseMembershipRows,
+            fn ($m) => ! isset($cardKeySet[$m['card_key']]) || ! isset($releaseKeySet[$m['release_key']]),
+        ));
+        $membershipCountByCard = array_count_values(array_column($this->releaseMembershipRows, 'card_key'));
+        $cardsWithMultipleReleaseMemberships = array_keys(array_filter($membershipCountByCard, fn ($n) => $n > 1));
+
+        // Regression check for the exact bug class fixed this session: same
+        // collector_number, same card name, AND overlapping rarity, across
+        // more than one canonical set — a real duplicate canonical printing
+        // (not just a coincidentally-reused code / intentional reprint with
+        // a different rarity, which is fine and stays as-is).
+        $cardsByCode = [];
+        foreach ($this->cardRows as $c) {
+            $cardsByCode[$c['collector_number']][] = $c;
+        }
+        $variantRaritiesByCardKey = [];
+        foreach ($this->variantRows as $v) {
+            $variantRaritiesByCardKey[$v['card_key']][] = $v['rarity'];
+        }
+        $canonicalDuplicateCandidates = [];
+        foreach ($cardsByCode as $code => $cardsForCode) {
+            $n = count($cardsForCode);
+            for ($i = 0; $i < $n; $i++) {
+                for ($j = $i + 1; $j < $n; $j++) {
+                    $a = $cardsForCode[$i];
+                    $b = $cardsForCode[$j];
+                    if ($a['set_key'] === $b['set_key'] || $a['card_name'] !== $b['card_name']) {
+                        continue;
+                    }
+                    $raritiesA = $variantRaritiesByCardKey[$a['card_key']] ?? [];
+                    $raritiesB = $variantRaritiesByCardKey[$b['card_key']] ?? [];
+                    if (array_intersect($raritiesA, $raritiesB) !== []) {
+                        $canonicalDuplicateCandidates[] = ['card_number' => $code, 'card_a' => $a['card_key'], 'card_b' => $b['card_key']];
+                    }
+                }
+            }
+        }
+
         $failCounts = [
+            'duplicate_release_memberships' => count($duplicateReleaseMemberships),
+            'orphan_release_memberships' => count($orphanReleaseMemberships),
+            'canonical_duplicate_candidates' => count($canonicalDuplicateCandidates),
             'duplicate_set_keys' => count($duplicateSetKeys),
             'duplicate_card_keys' => count($duplicateCardKeys),
             'duplicate_variant_keys' => count($duplicateVariantKeys),
@@ -819,6 +953,13 @@ class ImportYgoprodeckYugioh extends Command
 
             'region_specific_variants' => $this->regionSpecificVariants,
             'edition_specific_variants' => $this->editionSpecificVariants,
+
+            'release_memberships_created' => count($this->releaseMembershipRows),
+            'release_memberships_unresolved' => $this->releaseMembershipsUnresolved,
+            'cards_with_multiple_release_memberships' => count($cardsWithMultipleReleaseMemberships),
+            'duplicate_release_memberships' => $duplicateReleaseMemberships,
+            'orphan_release_memberships' => array_map(fn ($m) => "{$m['card_key']}:{$m['release_key']}", $orphanReleaseMemberships),
+            'canonical_duplicate_candidates' => $canonicalDuplicateCandidates,
         ];
     }
 
@@ -865,6 +1006,12 @@ class ImportYgoprodeckYugioh extends Command
             ['dropped_fully_excluded_sets (info)', count($r['dropped_fully_excluded_sets'])],
             ['region_specific_variants', $r['region_specific_variants']],
             ['edition_specific_variants', $r['edition_specific_variants']],
+            ['release_memberships_created', $r['release_memberships_created']],
+            ['release_memberships_unresolved', $r['release_memberships_unresolved']],
+            ['cards_with_multiple_release_memberships', $r['cards_with_multiple_release_memberships']],
+            ['duplicate_release_memberships (FAIL)', count($r['duplicate_release_memberships'])],
+            ['orphan_release_memberships (FAIL)', count($r['orphan_release_memberships'])],
+            ['canonical_duplicate_candidates (FAIL)', count($r['canonical_duplicate_candidates'])],
             ['STATUS', $r['status']],
         ]);
 
@@ -884,6 +1031,9 @@ class ImportYgoprodeckYugioh extends Command
         }
         foreach ($r['unresolved_set_references'] as $u) {
             $this->warn("  unresolved_set_reference: {$u['card_name']} -> \"{$u['set_name']}\" ({$u['set_code']})");
+        }
+        foreach ($r['canonical_duplicate_candidates'] as $c) {
+            $this->error("  canonical_duplicate_candidate: {$c['card_number']} — {$c['card_a']} <-> {$c['card_b']}");
         }
     }
 }
