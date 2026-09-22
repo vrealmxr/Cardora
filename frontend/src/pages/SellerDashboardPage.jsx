@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import OrderCard from '@/components/orders/OrderCard'
+import StripeAccountManagementModal from '@/components/seller/StripeAccountManagementModal'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
@@ -24,7 +25,6 @@ function SellerDashboardPage() {
     marketplaceAccess,
     getSellerConnectAccount,
     startSellerOnboarding,
-    openSellerStripeDashboard,
     getSellerBalanceSummary,
     getSellerPayoutHistory,
   } = useMarketplace()
@@ -35,6 +35,7 @@ function SellerDashboardPage() {
   const [payoutHistory, setPayoutHistory] = useState([])
   const [feedback, setFeedback] = useState('')
   const [isBusy, setIsBusy] = useState(false)
+  const [stripeManagementOpen, setStripeManagementOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const isEnglish = locale === 'en'
@@ -199,19 +200,9 @@ function SellerDashboardPage() {
     }
   }
 
-  const handleOpenStripeDashboard = async () => {
-    try {
-      setIsBusy(true)
-      setFeedback('')
-      const response = await openSellerStripeDashboard()
-      if (response?.url) {
-        window.open(response.url, '_blank', 'noopener,noreferrer')
-      }
-    } catch (error) {
-      setFeedback(error.message)
-    } finally {
-      setIsBusy(false)
-    }
+  const handleOpenStripeDashboard = () => {
+    setFeedback('')
+    setStripeManagementOpen(true)
   }
 
   return (
@@ -411,6 +402,12 @@ function SellerDashboardPage() {
           </div>
         </section>
       </div>
+
+      <StripeAccountManagementModal
+        open={stripeManagementOpen}
+        onClose={() => setStripeManagementOpen(false)}
+        isEnglish={isEnglish}
+      />
     </div>
   )
 }

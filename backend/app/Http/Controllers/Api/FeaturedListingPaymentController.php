@@ -26,6 +26,17 @@ class FeaturedListingPaymentController extends Controller
             ]);
         }
 
+        if ($featuredService->useProCreditIfAvailable($request->user(), $listing)) {
+            return response()->json([
+                'message' => 'Listing featured using your Cardora PRO monthly credit.',
+                'data' => [
+                    'used_pro_credit' => true,
+                    'listing_id' => $listing->getKey(),
+                    'featured_until' => optional($listing->fresh()->featured_until)->toIso8601String(),
+                ],
+            ], 201);
+        }
+
         $client = $validated['client'] ?? 'web';
         $payment = $featuredService->createCheckout($request->user(), $listing, $client);
 

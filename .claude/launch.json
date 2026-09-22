@@ -6,6 +6,36 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--port", "5199", "--strictPort"],
       "port": 5199
+    },
+    {
+      "name": "orderflow-web",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd \"/Users/vrealm/Documents/VRealm OrderFlow/apps/web\" && npm run dev -- --port 5299 --strictPort"],
+      "port": 5299
+    },
+    {
+      "name": "healthflow-frontend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd \"/Users/vrealm/Documents/GitHub/HealthFlow/frontend\" && npm run dev -- --port 5173 --strictPort"],
+      "port": 5173
+    },
+    {
+      "name": "healthflow-site",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd \"/Users/vrealm/Documents/GitHub/healthflow-site\" && pnpm build && pnpm preview -- --port 5183 --strictPort"],
+      "port": 5183
+    },
+    {
+      "name": "websiteapp-dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd \"/Users/vrealm/Documents/GitHub/websiteapp\" && pnpm exec vite --port 5211 --strictPort"],
+      "port": 5211
+    },
+    {
+      "name": "websiteapp-preview",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd \"/Users/vrealm/Documents/GitHub/websiteapp\" && pnpm exec vite preview --port 5212 --strictPort"],
+      "port": 5212
     }
   ]
 }

@@ -149,7 +149,7 @@ const DOCUMENT = {
 }
 
 function PrivacyPage() {
-  return <LegalDocumentPage document={DOCUMENT} />
+  return <LegalDocumentPage document={DOCUMENT} pageKey="privacy" />
 }
 
 export default PrivacyPage

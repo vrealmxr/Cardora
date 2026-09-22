@@ -1,5 +1,5 @@
-import { KeyRound, Loader2, MailCheck, ShieldCheck } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Crown, KeyRound, Loader2, MailCheck, ShieldCheck } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
@@ -8,6 +8,7 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { cardoraService } from '@/services/cardoraService'
+import { localizePath } from '@/utils/helpers'
 
 const getFieldError = (error, field) => {
   const value = error?.errors?.[field]
@@ -37,6 +38,7 @@ function FeedbackBox({ feedback }) {
 
 function AccountSettingsPage() {
   const { locale } = useI18n()
+  const localized = (path) => localizePath(path, locale)
   const { currentUser, refreshCurrentUser } = useAuth()
   const [emailForm, setEmailForm] = useState({
     email: '',
@@ -55,6 +57,9 @@ function AccountSettingsPage() {
   const [emailSaving, setEmailSaving] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [verificationSending, setVerificationSending] = useState(false)
+  const [proStatus, setProStatus] = useState(null)
+  const [proBusy, setProBusy] = useState(false)
+  const [proError, setProError] = useState(null)
 
   const copy = useMemo(
     () =>
@@ -95,6 +100,16 @@ function AccountSettingsPage() {
             forgotPassword: 'Open password reset',
             saving: 'Saving...',
             sending: 'Sending...',
+            proTitle: 'Cardora PRO',
+            proFreeText: "You're on the free plan.",
+            proActiveText: 'Your Cardora PRO subscription is active.',
+            proTrialText: 'Your free trial is active.',
+            proCancelledText: 'PRO ends on',
+            proActiveUntil: 'Renews on',
+            proUpgrade: 'Upgrade to PRO',
+            proManage: 'Manage on the Cardora PRO page',
+            proCancel: 'Cancel at period end',
+            proResume: 'Resume subscription',
           }
         : {
             eyebrow: 'Ρυθμίσεις λογαριασμού',
@@ -132,15 +147,69 @@ function AccountSettingsPage() {
             forgotPassword: 'Άνοιγμα επαναφοράς κωδικού',
             saving: 'Αποθήκευση...',
             sending: 'Αποστολή...',
+            proTitle: 'Cardora PRO',
+            proFreeText: 'Είσαι στο δωρεάν πλάνο.',
+            proActiveText: 'Η συνδρομή σου στο Cardora PRO είναι ενεργή.',
+            proTrialText: 'Η δωρεάν δοκιμή σου είναι ενεργή.',
+            proCancelledText: 'Το PRO λήγει στις',
+            proActiveUntil: 'Ανανεώνεται στις',
+            proUpgrade: 'Αναβάθμιση σε PRO',
+            proManage: 'Διαχείριση στη σελίδα Cardora PRO',
+            proCancel: 'Ακύρωση στο τέλος της περιόδου',
+            proResume: 'Επανενεργοποίηση συνδρομής',
           },
     [locale],
   )
+
+  useEffect(() => {
+    if (!currentUser) return
+    cardoraService
+      .getProStatus()
+      .then((data) => setProStatus(data))
+      .catch(() => setProStatus(null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id])
 
   if (!currentUser) {
     return <Navigate to="/eisodos" replace state={{ from: '/rythmiseis-logariasmou' }} />
   }
 
   const emailVerified = Boolean(currentUser?.emailVerified ?? currentUser?.emailVerifiedAt)
+  const isPro = Boolean(currentUser?.isPro)
+  const cancelAtPeriodEnd = Boolean(proStatus?.cancelAtPeriodEnd)
+  const currentPeriodEndLabel = proStatus?.currentPeriodEnd
+    ? new Date(proStatus.currentPeriodEnd).toLocaleDateString(locale === 'en' ? 'en-US' : 'el-GR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : null
+
+  const handleCancelPro = async () => {
+    setProError(null)
+    setProBusy(true)
+    try {
+      await cardoraService.cancelProSubscription()
+      setProStatus(await cardoraService.getProStatus())
+    } catch (err) {
+      setProError(err?.message || 'Error')
+    } finally {
+      setProBusy(false)
+    }
+  }
+
+  const handleResumePro = async () => {
+    setProError(null)
+    setProBusy(true)
+    try {
+      await cardoraService.resumeProSubscription()
+      setProStatus(await cardoraService.getProStatus())
+    } catch (err) {
+      setProError(err?.message || 'Error')
+    } finally {
+      setProBusy(false)
+    }
+  }
 
   const handleEmailSubmit = async (event) => {
     event.preventDefault()
@@ -241,6 +310,50 @@ function AccountSettingsPage() {
   return (
     <div className="container pb-16">
       <SectionHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
+
+      <CardSurface className={isPro ? 'featured-glow mb-6' : 'mb-6'}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d7b57b]/70 bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] shadow-[0_10px_24px_rgba(199,157,98,0.3)]">
+              <Crown className="h-5 w-5 text-[#5a3a13]" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-semibold text-ink">{copy.proTitle}</h2>
+              <p className="mt-1 text-sm leading-7 text-mist">
+                {isPro
+                  ? proStatus?.status === 'trialing'
+                    ? copy.proTrialText
+                    : copy.proActiveText
+                  : copy.proFreeText}
+              </p>
+              {isPro && currentPeriodEndLabel ? (
+                <p className="mt-1 text-xs text-slate-400">
+                  {cancelAtPeriodEnd ? copy.proCancelledText : copy.proActiveUntil} {currentPeriodEndLabel}
+                </p>
+              ) : null}
+              {proError ? <p className="mt-1 text-xs text-rose-500">{proError}</p> : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!isPro ? (
+              <Button as={Link} to={localized('/cardora-pro')}>
+                {copy.proUpgrade}
+              </Button>
+            ) : cancelAtPeriodEnd ? (
+              <Button onClick={handleResumePro} disabled={proBusy}>
+                {copy.proResume}
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={handleCancelPro} disabled={proBusy}>
+                {copy.proCancel}
+              </Button>
+            )}
+            <Button as={Link} to={localized('/cardora-pro')} variant="secondary" size="sm">
+              {copy.proManage}
+            </Button>
+          </div>
+        </div>
+      </CardSurface>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <CardSurface>

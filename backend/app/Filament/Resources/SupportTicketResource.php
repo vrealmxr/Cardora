@@ -13,13 +13,13 @@ use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\RestrictableResource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
-class SupportTicketResource extends Resource
+class SupportTicketResource extends RestrictableResource
 {
     protected static ?string $model = SupportTicket::class;
 

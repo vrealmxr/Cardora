@@ -10,10 +10,12 @@
   WalletCards,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import PageSeo from '@/components/PageSeo'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 
 const ICONS = {
@@ -32,7 +34,7 @@ const COPY = {
     title: 'Terms of Use for the Cardora marketplace',
     description:
       'These terms govern how Cardora operates as a collectibles marketplace, how protected payments and seller releases work, and what buyers and sellers must do regarding listings, shipping, disputes and moderation.',
-    updated: 'Last updated: 5 April 2026',
+    updated: 'Last updated: 22 September 2026',
     intro:
       'These terms apply to the Cardora marketplace operated by VRealm I.K.E. They cover user-to-user sales, official Cardora activities, protected payment flows, shipping, verification, moderation and dispute handling.',
     introSecondary:
@@ -80,6 +82,30 @@ const COPY = {
         title: '2. Role of Cardora',
         paragraphs: [
           'Cardora provides marketplace infrastructure, moderation, messaging, search, support and protected payment integrations. In ordinary user-to-user transactions, the contract is between buyer and seller. Cardora is not a bank, carrier or insurer, and payment services are provided through third-party providers such as Stripe and Stripe Connect.',
+        ],
+      },
+      {
+        id: 'pricing',
+        icon: 'general',
+        title: '2a. Fees and how Cardora is paid',
+        paragraphs: [
+          'Cardora earns money mainly through a seller commission withheld from the seller\'s share of each completed sale, plus clearly disclosed fees on specific flows (featured listings, Cardora PRO subscription, trade fee). Unless a flow states otherwise, the current seller commission is:',
+        ],
+        bullets: [
+          'Item value up to €5.00: a flat €1.00 fee (€0.75 for sellers with active Cardora PRO). Because a flat fee here could exceed the item\'s own price, it is added to what the buyer pays instead of deducted from the seller — the seller always receives the item\'s full value.',
+          'Item value €5.01–€300.00: 6.5% (5.0% with Cardora PRO), withheld from the seller\'s share.',
+          'Item value €300.01–€2,000.00: 5.0% (4.0% with Cardora PRO), withheld from the seller\'s share.',
+          'Item value above €2,000.00: 4.0% (3.0% with Cardora PRO), withheld from the seller\'s share.',
+          'Maximum fee cap: €400.00 per sale, across all tiers.',
+          'The commission is calculated on the item\'s clean value only (shipping is excluded from this base).',
+        ],
+      },
+      {
+        id: 'buyer-fee',
+        icon: 'general',
+        title: '2b. Buyer fee',
+        paragraphs: [
+          'In addition to the item price, shipping and any low-value fee described above, Cardora may also apply a general buyer fee as a percentage of the item\'s clean value. The current rate is shown at checkout before payment and may be 0%. Any change to this rate applies only to new orders placed after the relevant flow is updated, never retroactively.',
         ],
       },
       {
@@ -158,7 +184,7 @@ const COPY = {
     title: 'Όροι Χρήσης του marketplace Cardora',
     description:
       'Οι παρόντες όροι ρυθμίζουν τον τρόπο λειτουργίας της Cardora ως marketplace συλλεκτικών, τον τρόπο με τον οποίο λειτουργούν οι προστατευμένες πληρωμές και οι αποδεσμεύσεις, καθώς και τις υποχρεώσεις αγοραστών, πωλητών και χρηστών σε θέματα αγγελιών, αποστολών, διαφορών, moderation και ασφάλειας της πλατφόρμας.',
-    updated: 'Τελευταία ενημέρωση: 5 Απριλίου 2026',
+    updated: 'Τελευταία ενημέρωση: 22 Σεπτεμβρίου 2026',
     intro:
       'Οι παρόντες Όροι Χρήσης διέπουν τη χρήση του marketplace Cardora που λειτουργεί η VRealm Ι.Κ.Ε. και καλύπτουν τις συναλλαγές μεταξύ χρηστών, τις επίσημες δραστηριότητες της Cardora, τα protected payment flows, τις αποστολές, τα disputes, τις επαληθεύσεις και τους μηχανισμούς ασφάλειας της πλατφόρμας.',
     introSecondary:
@@ -282,8 +308,23 @@ const COPY = {
         icon: 'general',
         title: '8. Τιμές, marketplace fees, μεταφορικά και φορολογικές υποχρεώσεις',
         paragraphs: [
-          'Οι τιμές, οι προμήθειες της πλατφόρμας, τα μεταφορικά, τα ασφάλιστρα ή transport protections, οι buyer-facing χρεώσεις και κάθε συναφές ποσό οφείλουν να εμφανίζονται στη σχετική ροή πριν ο χρήστης δεσμευθεί. Η Cardora μπορεί να χρεώνει seller-side commissions, buyer-side fees ή και τα δύο, υπό την προϋπόθεση ότι αυτά γνωστοποιούνται στην αντίστοιχη ροή και στο αντίστοιχο στάδιο.',
-          'Κάθε χρήστης παραμένει υπεύθυνος για τις δικές του φορολογικές, λογιστικές, τελωνειακές και λοιπές νομικές υποχρεώσεις που απορρέουν από την αγοραστική ή πωλητική του δραστηριότητα. Δεν επιτρέπονται hidden surcharges, μη εμφανισμένα μεταφορικά ή off-platform συμπληρωματικές πληρωμές μετά το checkout.',
+          'Η Cardora αμείβεται κυρίως μέσω προμήθειας (seller commission) που παρακρατείται από το ποσό που εισπράττει ο πωλητής κατά την ολοκλήρωση κάθε πώλησης, καθώς και μέσω πρόσθετων, σαφώς εμφανιζόμενων χρεώσεων σε συγκεκριμένες ροές (π.χ. προβεβλημένες αγγελίες, συνδρομή Cardora PRO, τέλος σε trade-ανταλλαγές). Η ακριβής, ενημερωμένη κλίμακα χρέωσης πωλητή είναι πάντα η εξής, εκτός αν αναφέρεται διαφορετικά στη σχετική ροή:',
+        ],
+        bullets: [
+          'Αξία αντικειμένου έως 5,00€: σταθερή χρέωση 1,00€ (0,75€ για πωλητές με ενεργή συνδρομή Cardora PRO). Επειδή σε αυτό το εύρος η σταθερή χρέωση θα μπορούσε να ξεπεράσει την ίδια την αξία του αντικειμένου, προστίθεται στο ποσό που πληρώνει ο αγοραστής αντί να αφαιρεθεί από τον πωλητή — ο πωλητής λαμβάνει πάντα ολόκληρη την αξία του αντικειμένου.',
+          'Αξία αντικειμένου 5,01€–300,00€: 6,5% (5,0% για Cardora PRO), παρακρατούμενο από το ποσό του πωλητή.',
+          'Αξία αντικειμένου 300,01€–2.000,00€: 5,0% (4,0% για Cardora PRO), παρακρατούμενο από το ποσό του πωλητή.',
+          'Αξία αντικειμένου άνω των 2.000,00€: 4,0% (3,0% για Cardora PRO), παρακρατούμενο από το ποσό του πωλητή.',
+          'Ανώτατο πλαφόν προμήθειας: 400,00€ ανά πώληση, σε όλες τις κλίμακες.',
+          'Η προμήθεια υπολογίζεται αποκλειστικά επί της καθαρής αξίας του αντικειμένου (χωρίς μεταφορικά).',
+        ],
+      },
+      {
+        id: 'pricing-buyer-fee',
+        icon: 'general',
+        title: '8α. Χρέωση αγοραστή (buyer fee)',
+        paragraphs: [
+          'Πέραν της τιμής του αντικειμένου, των μεταφορικών και της τυχόν χρέωσης χαμηλής αξίας που περιγράφεται παραπάνω, η Cardora διατηρεί τη δυνατότητα να επιβάλλει και γενικότερη χρέωση αγοραστή (marketplace buyer fee) ως ποσοστό επί της καθαρής αξίας αντικειμένου. Το τρέχον ποσοστό αυτής της χρέωσης είναι δημόσια ορατό στο checkout πριν από κάθε πληρωμή και μπορεί να είναι 0%. Οποιαδήποτε αλλαγή σε αυτό το ποσοστό ισχύει μόνο για νέες παραγγελίες μετά την ενημέρωση της σχετικής ροής, ποτέ αναδρομικά.',
         ],
       },
       {
@@ -294,6 +335,7 @@ const COPY = {
           'Οι πληρωμές αγοραστών πραγματοποιούνται μέσω της checkout μεθόδου που εμφανίζεται στη σχετική ροή, συμπεριλαμβανομένων Stripe Checkout, Stripe payment rails και Stripe Connect όπου αυτά υποστηρίζονται. Για λειτουργικούς λόγους, η Cardora μπορεί να περιγράφει το μοντέλο αυτό ως protected hold ή escrow-style flow. Σε νομικό και λειτουργικό επίπεδο, όμως, οι υπηρεσίες πληρωμών παρέχονται από τρίτο πάροχο και όχι από την Cardora ως αδειοδοτημένο ίδρυμα αποδοχής καταθέσεων.',
           'Η πληρωμή του αγοραστή μπορεί να παραμένει σε pending ή protected hold κατάσταση πριν από την αποδέσμευση προς τον πωλητή. Ο πωλητής δεν αποκτά αυτόματο δικαίωμα payout μόνο και μόνο επειδή ο αγοραστής πάτησε αγορά. Η αποδέσμευση εξαρτάται από τους release conditions της συγκεκριμένης ροής, την κατάσταση της παραγγελίας, την ετοιμότητα payout του πωλητή και την απουσία τεχνικών, νομικών, fraud ή dispute blockers.',
           'Ο πωλητής οφείλει να διατηρεί έγκυρο connected payout account, συμπεριλαμβανομένου Stripe Connect Express account όπου αυτό απαιτείται. Η Cardora μπορεί να μπλοκάρει ή να καθυστερεί την αποδέσμευση όταν ο connected account του πωλητή είναι incomplete, restricted, rejected ή ακατάλληλος για λήψη transfers ή payouts.',
+          'Τεχνικά, ο αγοραστής χρεώνεται το πλήρες ποσό της παραγγελίας (αξία αντικειμένου, μεταφορικά και τυχόν χρεώσεις) μέσω του λογαριασμού Stripe της Cardora. Κατά την αποδέσμευση, η Cardora μεταφέρει (Stripe Transfer) στον πωλητή μόνο το καθαρό ποσό που του αναλογεί μετά την προμήθεια· τα μεταφορικά και η προμήθεια της Cardora δεν μεταφέρονται στον πωλητή και παραμένουν στον λογαριασμό της Cardora, ως ο τρόπος με τον οποίο η Cardora εισπράττει την αμοιβή της.',
         ],
         bullets: [
           'επιτυχής και μη αντιστραφείσα πληρωμή αγοραστή',
@@ -431,10 +473,12 @@ function TermsSection({ section }) {
 function TermsPage() {
   const { locale } = useI18n()
   const copy = COPY[locale] ?? COPY.el
+  const seo = useSeo('terms')
 
   return (
     <div className="container pb-16">
-      <SectionHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
+      <PageSeo pageKey="terms" fallbackTitle={copy.title} fallbackDescription={copy.description} />
+      <SectionHeader eyebrow={copy.eyebrow} title={seo?.h1 || copy.title} description={copy.description} />
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
         <CardSurface className="p-6 sm:p-8">

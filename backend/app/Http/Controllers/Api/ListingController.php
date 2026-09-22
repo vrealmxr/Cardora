@@ -22,7 +22,7 @@ class ListingController extends Controller
     public function index(Request $request, MarketplaceAccessService $marketplaceAccess)
     {
         $listings = Listing::query()
-            ->with(['product.category', 'category', 'seller', 'winningBidder'])
+            ->with(['product.category', 'product.binderCard.set', 'product.binderCard.game', 'category', 'seller', 'winningBidder'])
             ->withCount('bids')
             ->when($request->filled('category_id'), fn ($query) => $query->where('category_id', $request->integer('category_id')))
             ->when($request->filled('seller_id'), fn ($query) => $query->where('seller_id', $request->integer('seller_id')))
@@ -104,7 +104,7 @@ class ListingController extends Controller
             }
         }
 
-        return (new ListingResource($listing->load(['product.category', 'category', 'seller', 'winningBidder'])->loadCount('bids')))
+        return (new ListingResource($listing->load(['product.category', 'product.binderCard.set', 'product.binderCard.game', 'category', 'seller', 'winningBidder'])->loadCount('bids')))
             ->response()
             ->setStatusCode(201);
     }
@@ -122,7 +122,7 @@ class ListingController extends Controller
         }
 
         return new ListingResource(
-            $listing->load(['product.category', 'category', 'seller', 'favorites', 'cartItems', 'bids.bidder', 'winningBidder'])->loadCount('bids')
+            $listing->load(['product.category', 'product.binderCard.set', 'product.binderCard.game', 'category', 'seller', 'favorites', 'cartItems', 'bids.bidder', 'winningBidder'])->loadCount('bids')
         );
     }
 
@@ -171,7 +171,7 @@ class ListingController extends Controller
             }
         }
 
-        return new ListingResource($listing->fresh()->load(['product.category', 'category', 'seller', 'winningBidder'])->loadCount('bids'));
+        return new ListingResource($listing->fresh()->load(['product.category', 'product.binderCard.set', 'product.binderCard.game', 'category', 'seller', 'winningBidder'])->loadCount('bids'));
     }
 
     public function destroy(Listing $listing)

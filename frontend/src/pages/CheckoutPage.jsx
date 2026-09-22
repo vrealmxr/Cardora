@@ -1,5 +1,5 @@
 ﻿import { Home, Package, ShieldCheck, Ticket } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import PickupPointPicker from '@/components/checkout/PickupPointPicker'
 import Button from '@/components/ui/Button'
@@ -9,11 +9,15 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
+import { calculateLowValueFee } from '@/utils/fees'
 import { formatCurrency } from '@/utils/formatters'
 import { normalizeTextTree } from '@/utils/textEncoding'
 
 const MARKETPLACE_FEE_RATE = Number(import.meta.env.VITE_MARKETPLACE_BUYER_FEE_RATE ?? 0.00)
 const roundMoney = (value) => Math.round(Number(value ?? 0) * 100) / 100
+// BoxNow only operates lockers in these countries — must match isBoxNowSupportedCountry()
+// in backend/app/Services/OrderCheckoutService.php.
+const BOXNOW_SUPPORTED_COUNTRIES = ['GR', 'CY', 'BG', 'HR']
 
 function CheckoutPage() {
   const { currentUser, isAuthReady } = useAuth()
@@ -31,9 +35,10 @@ function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState('Stripe Checkout')
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [deliveryType, setDeliveryType] = useState('home')
-  const [selectedPoint, setSelectedPoint] = useState(null)
-  const [selectedCarrier, setSelectedCarrier] = useState(null)
+  // Each cart item can ship with a different seller, so each gets its own carrier/pickup
+  // choice: { [cartItemId]: { carrier, deliveryType, point } }.
+  const [itemShipping, setItemShipping] = useState({})
+  const [countryCode, setCountryCode] = useState('GR')
   const [searchParams] = useSearchParams()
   const acceptedOfferId = Number(searchParams.get('offer') ?? 0) || null
   const acceptedOffer = acceptedOfferId
@@ -53,21 +58,91 @@ function CheckoutPage() {
     : null
   const isPrivateOfferCheckout = Boolean(acceptedOffer)
   const requiresShipping = isPrivateOfferCheckout ? true : cartSummary.containsPhysicalItems
-  const checkoutProduct = isPrivateOfferCheckout
-    ? acceptedOfferProduct ?? null
-    : cartDetailed.find((item) => item.itemType === 'listing')?.product ?? null
-  const availableCarriers = useMemo(() => {
-    const options = Array.isArray(checkoutProduct?.deliveryOptions)
-      ? checkoutProduct.deliveryOptions.filter(Boolean)
-      : []
+  // Every shippable item — cart listings, or the single accepted offer — gets its own
+  // carrier/pickup-point choice below, since different sellers can support different
+  // carriers (or the buyer may just want a different locker per item).
+  const shippableItems = useMemo(() => {
+    if (isPrivateOfferCheckout) {
+      return acceptedOfferProduct ? [{ id: 'offer', product: acceptedOfferProduct, quantity: 1 }] : []
+    }
 
-    if (options.length) return options
-    return checkoutProduct?.deliveryCarrier ? [checkoutProduct.deliveryCarrier] : []
-  }, [checkoutProduct])
-  const checkoutCarrier = selectedCarrier ?? availableCarriers[0] ?? null
-  const carrierSupportsPickup = requiresShipping && Boolean(checkoutCarrier)
-  const carrierSupportsHomeDelivery = checkoutCarrier !== 'boxnow'
-  const isPickupDelivery = carrierSupportsPickup && (checkoutCarrier === 'boxnow' || deliveryType === 'pickup')
+    return cartDetailed.filter((item) => item.itemType === 'listing')
+  }, [isPrivateOfferCheckout, acceptedOfferProduct, cartDetailed])
+
+  const availableCarriersFor = useCallback(
+    (item) => {
+      const options = Array.isArray(item?.product?.deliveryOptions)
+        ? item.product.deliveryOptions.filter(Boolean)
+        : []
+      const allOptions = options.length
+        ? options
+        : item?.product?.deliveryCarrier
+          ? [item.product.deliveryCarrier]
+          : []
+
+      // BoxNow only shows up as a choice for buyers shipping to a country its locker
+      // network actually covers — otherwise it's silently filtered out here rather than
+      // shown and then rejected by the backend at order placement.
+      return allOptions.filter(
+        (carrier) => carrier !== 'boxnow' || BOXNOW_SUPPORTED_COUNTRIES.includes(countryCode),
+      )
+    },
+    [countryCode],
+  )
+
+  // Reconcile per-item shipping state whenever the shippable items or country change: pick a
+  // default carrier for items that don't have one yet, drop entries for items no longer in the
+  // cart, and clear a carrier that's no longer valid (e.g. BoxNow after switching country).
+  useEffect(() => {
+    setItemShipping((current) => {
+      const next = {}
+      let changed = shippableItems.length !== Object.keys(current).length
+
+      shippableItems.forEach((item) => {
+        const carriers = availableCarriersFor(item)
+        const existing = current[item.id]
+        const carrier = existing?.carrier && carriers.includes(existing.carrier) ? existing.carrier : carriers[0] ?? null
+        const carrierChanged = existing?.carrier !== carrier
+        const deliveryType = carrier === 'boxnow' ? 'pickup' : existing?.deliveryType ?? 'home'
+        const point = carrierChanged ? null : existing?.point ?? null
+
+        if (carrierChanged || existing?.deliveryType !== deliveryType || existing?.point !== point) {
+          changed = true
+        }
+
+        next[item.id] = { carrier, deliveryType, point }
+      })
+
+      return changed ? next : current
+    })
+  }, [shippableItems, availableCarriersFor])
+
+  const getItemShippingState = useCallback(
+    (item) => itemShipping[item.id] ?? { carrier: availableCarriersFor(item)[0] ?? null, deliveryType: 'home', point: null },
+    [itemShipping, availableCarriersFor],
+  )
+
+  const setItemCarrier = (itemId, carrier) => {
+    setItemShipping((current) => ({
+      ...current,
+      [itemId]: { carrier, deliveryType: carrier === 'boxnow' ? 'pickup' : 'home', point: null },
+    }))
+  }
+
+  const setItemDeliveryType = (itemId, deliveryType) => {
+    setItemShipping((current) => ({
+      ...current,
+      [itemId]: { ...(current[itemId] ?? {}), deliveryType },
+    }))
+  }
+
+  const setItemPoint = (itemId, point) => {
+    setItemShipping((current) => ({
+      ...current,
+      [itemId]: { ...(current[itemId] ?? {}), point },
+    }))
+  }
+
   const checkoutCancelled = searchParams.get('cancelled') === '1'
   const cancelledOrderId = searchParams.get('order_id')
   const cancelledCleanupRef = useRef(false)
@@ -94,40 +169,6 @@ function CheckoutPage() {
   const checkoutBlockedMessage = invalidOfferMessage || (hasOwnCartItems ? ownItemsMessage : marketplaceBlockedMessage)
   const checkoutBlocked = Boolean(checkoutBlockedMessage)
 
-  useEffect(() => {
-    if (!availableCarriers.length) {
-      setSelectedCarrier(null)
-      return
-    }
-
-    setSelectedCarrier((current) => (current && availableCarriers.includes(current) ? current : availableCarriers[0]))
-  }, [availableCarriers])
-
-  useEffect(() => {
-    if (checkoutCarrier === 'boxnow') {
-      setDeliveryType('pickup')
-    }
-
-    setSelectedPoint(null)
-  }, [checkoutCarrier])
-
-  useEffect(() => {
-    if (!selectedPoint || !checkoutCarrier) {
-      return
-    }
-
-    const pointCarrier = String(selectedPoint.carrier || '').trim().toLowerCase()
-    const pointName = String(selectedPoint.name || '').trim().toLowerCase()
-
-    const mismatchedCarrier = pointCarrier && pointCarrier !== checkoutCarrier
-    const dhlWithBoxNowPoint =
-      checkoutCarrier === 'dhl_express' && (pointName.includes('box now') || pointName.includes('boxnow'))
-
-    if (mismatchedCarrier || dhlWithBoxNowPoint) {
-      setSelectedPoint(null)
-    }
-  }, [checkoutCarrier, selectedPoint])
-
   const copy = normalizeTextTree(
     locale === 'en'
       ? {
@@ -148,8 +189,9 @@ function CheckoutPage() {
           carrier: 'Carrier',
           deliveryMethod: 'Delivery method',
           homeDelivery: 'Home delivery',
-          pickupPoint: checkoutCarrier === 'boxnow' ? 'BoxNow locker' : 'DHL service point',
-          pickupRequired: 'Please select a pickup point to continue.',
+          pickupPointFor: (carrier) => (carrier === 'boxnow' ? 'BoxNow locker' : 'DHL service point'),
+          pickupRequired: 'Please select a pickup point for every item to continue.',
+          itemShippingTitle: 'Delivery for this item',
           paymentMethod: 'Payment method',
           paymentMethods: ['Stripe Checkout'],
           paymentNotice:
@@ -169,6 +211,7 @@ function CheckoutPage() {
           commissionText:
             'Seller fee is calculated on clean item value only: €1 for €0.01-€5, 6.5% for €5.01-€300, 5% for €300.01-€2,000 and 4% above €2,000, with a maximum cap of €400. Included shipping and extra costs stay outside this fee base.',
           buyerFeeLabel: 'Buyer fee',
+          lowValueFeeLabel: 'Cardora fee (items ≤ €5)',
           sellerFeeLabel: 'Seller fee (tiered)',
           paysThisExactAmount: 'The buyer pays the agreed total plus any buyer-side fee shown below.',
           includedPhysical:
@@ -202,8 +245,9 @@ function CheckoutPage() {
           carrier: 'Μεταφορέας',
           deliveryMethod: 'Τρόπος παράδοσης',
           homeDelivery: 'Παράδοση στη διεύθυνση',
-          pickupPoint: checkoutCarrier === 'boxnow' ? 'Locker BoxNow' : 'Σημείο DHL Service Point',
-          pickupRequired: 'Επίλεξε σημείο παραλαβής για να συνεχίσεις.',
+          pickupPointFor: (carrier) => (carrier === 'boxnow' ? 'Locker BoxNow' : 'Σημείο DHL Service Point'),
+          pickupRequired: 'Επίλεξε σημείο παραλαβής για κάθε αντικείμενο για να συνεχίσεις.',
+          itemShippingTitle: 'Αποστολή για αυτό το αντικείμενο',
           paymentMethod: 'Μέθοδος πληρωμής',
           paymentMethods: ['Stripe Checkout'],
           paymentNotice:
@@ -223,6 +267,7 @@ function CheckoutPage() {
           commissionText:
             'Η χρέωση πωλητή υπολογίζεται μόνο στην καθαρή αξία αντικειμένου: 1€ για 0,01€-5€, 6,5% για 5,01€-300€, 5% για 300,01€-2.000€ και 4% πάνω από 2.000€, με ανώτατο πλαφόν 400€. Τα περιλαμβανόμενα μεταφορικά και τυχόν επιπλέον έξοδα μένουν εκτός αυτής της βάσης.',
           buyerFeeLabel: 'Χρέωση αγοραστή',
+          lowValueFeeLabel: 'Χρέωση Cardora (αντικείμενα ≤ 5€)',
           sellerFeeLabel: 'Χρέωση πωλητή (κλιμακωτή)',
           paysThisExactAmount: 'Ο αγοραστής πληρώνει το συμφωνημένο σύνολο μαζί με τυχόν χρέωση αγοραστή που φαίνεται παρακάτω.',
           includedPhysical:
@@ -249,6 +294,9 @@ function CheckoutPage() {
     locale === 'en'
       ? [
           { value: 'GR', label: 'Greece' },
+          { value: 'CY', label: 'Cyprus' },
+          { value: 'BG', label: 'Bulgaria' },
+          { value: 'HR', label: 'Croatia' },
           { value: 'DE', label: 'Germany' },
           { value: 'FR', label: 'France' },
           { value: 'IT', label: 'Italy' },
@@ -260,6 +308,9 @@ function CheckoutPage() {
         ]
       : [
           { value: 'GR', label: 'Ελλάδα' },
+          { value: 'CY', label: 'Κύπρος' },
+          { value: 'BG', label: 'Βουλγαρία' },
+          { value: 'HR', label: 'Κροατία' },
           { value: 'DE', label: 'Γερμανία' },
           { value: 'FR', label: 'Γαλλία' },
           { value: 'IT', label: 'Ιταλία' },
@@ -270,17 +321,17 @@ function CheckoutPage() {
           { value: 'OTHER', label: 'Άλλη χώρα' },
         ]
 
-  const buildShippingAddress = (form) => {
-    if (!requiresShipping) {
-      return null
-    }
+  const isItemPickup = (item, state) => {
+    const carrierSupportsPickup = requiresShipping && Boolean(state.carrier)
+    return carrierSupportsPickup && (state.carrier === 'boxnow' || state.deliveryType === 'pickup')
+  }
 
-    const countryCode = String(form.get('country_code') || 'GR')
+  const buildBaseAddress = (form) => {
     const countryLabel =
       countryOptions.find((country) => country.value === countryCode)?.label ??
       (locale === 'en' ? 'Greece' : 'Ελλάδα')
 
-    const address = {
+    return {
       full_name: String(form.get('full_name') || ''),
       address_line_1: String(form.get('address') || ''),
       phone: String(form.get('phone') || ''),
@@ -288,23 +339,30 @@ function CheckoutPage() {
       postal_code: String(form.get('postal_code') || ''),
       country_code: countryCode === 'OTHER' ? '' : countryCode,
       country: countryLabel,
-      carrier: checkoutCarrier,
+    }
+  }
+
+  const buildItemShippingAddress = (baseAddress, item) => {
+    const state = getItemShippingState(item)
+    const address = {
+      ...baseAddress,
+      carrier: state.carrier,
       delivery_type: 'home_delivery',
     }
 
-    if (isPickupDelivery && selectedPoint) {
-      address.delivery_type = checkoutCarrier === 'boxnow' ? 'locker' : 'service_point'
-      address.address_line_1 = selectedPoint.address || selectedPoint.name || address.address_line_1
-      address.city = address.city || selectedPoint.city || ''
-      address.postal_code = address.postal_code || selectedPoint.postal_code || ''
+    if (isItemPickup(item, state) && state.point) {
+      address.delivery_type = state.carrier === 'boxnow' ? 'locker' : 'service_point'
+      address.address_line_1 = state.point.address || state.point.name || address.address_line_1
+      address.city = address.city || state.point.city || ''
+      address.postal_code = address.postal_code || state.point.postal_code || ''
       address.service_point = {
-        id: selectedPoint.id,
-        name: selectedPoint.name,
-        address: selectedPoint.address,
-        city: selectedPoint.city,
-        postal_code: selectedPoint.postal_code,
-        country_code: selectedPoint.country_code,
-        carrier: selectedPoint.carrier || checkoutCarrier,
+        id: state.point.id,
+        name: state.point.name,
+        address: state.point.address,
+        city: state.point.city,
+        postal_code: state.point.postal_code,
+        country_code: state.point.country_code,
+        carrier: state.point.carrier || state.carrier,
       }
     }
 
@@ -314,7 +372,7 @@ function CheckoutPage() {
   const handleSubmit = async (event) => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    const shippingAddress = buildShippingAddress(form)
+    const baseAddress = requiresShipping ? buildBaseAddress(form) : null
 
     try {
       setIsSubmitting(true)
@@ -324,16 +382,42 @@ function CheckoutPage() {
         throw new Error(checkoutBlockedMessage)
       }
 
-      if (isPickupDelivery && !selectedPoint) {
+      const missingPickupPoint = shippableItems.some((item) => {
+        const state = getItemShippingState(item)
+        return isItemPickup(item, state) && !state.point
+      })
+
+      if (missingPickupPoint) {
         throw new Error(copy.pickupRequired)
       }
 
-      const checkout = await placeOrder({
-        paymentMethod,
-        shippingAddress,
-        billingAddress: shippingAddress,
-        acceptedOfferId: isPrivateOfferCheckout ? acceptedOfferId : null,
-      })
+      let checkout
+
+      if (isPrivateOfferCheckout) {
+        const offerItem = shippableItems[0] ?? null
+        const shippingAddress = offerItem && baseAddress ? buildItemShippingAddress(baseAddress, offerItem) : baseAddress
+
+        checkout = await placeOrder({
+          paymentMethod,
+          shippingAddress,
+          billingAddress: shippingAddress,
+          acceptedOfferId,
+        })
+      } else {
+        const shippingSelections = requiresShipping
+          ? shippableItems.map((item) => ({
+              cart_item_id: item.id,
+              shipping_address: buildItemShippingAddress(baseAddress, item),
+            }))
+          : []
+
+        checkout = await placeOrder({
+          paymentMethod,
+          shippingSelections,
+          billingAddress: baseAddress,
+          acceptedOfferId: null,
+        })
+      }
 
       if (!checkout?.checkout_url) {
         throw new Error(copy.missingUrl)
@@ -364,9 +448,42 @@ function CheckoutPage() {
   const offerShippingAmount = Number(acceptedOffer?.shippingAmount ?? 0)
   const offerCommissionAmount = Number(acceptedOffer?.commissionAmount ?? 0)
   const offerBuyerFeeAmount = roundMoney(offerItemAmount * MARKETPLACE_FEE_RATE)
+  // Each cart item now reacts to its OWN selected carrier (not just a single global choice
+  // applied to the whole cart), and each gets its own low-value-fee check — this replaces
+  // cartSummary.total, which only ever corrected the first item's shipping estimate.
+  const cartItemBreakdown = useMemo(() => {
+    if (isPrivateOfferCheckout) {
+      return []
+    }
+
+    return cartDetailed.map((item) => {
+      const isLotSelectionItem = item.itemMode === 'lot_individual_cards'
+      const subtotal = isLotSelectionItem
+        ? Number(item.unitPrice ?? 0)
+        : Number(item.unitPrice ?? 0) * Number(item.quantity ?? 1)
+
+      if (item.itemType !== 'listing') {
+        return { item, subtotal, shipping: 0, lowValueFee: 0 }
+      }
+
+      const state = getItemShippingState(item)
+      // The lot-selection shipping total already bundles a card-count-based formula that
+      // doesn't vary by carrier for domestic shipments, so it's kept as-is rather than
+      // swapped for the per-carrier domestic rate used for ordinary listings.
+      const shipping = isLotSelectionItem
+        ? Number(item.shippingCost ?? 0)
+        : (state.carrier
+            ? Number(item.product?.shippingCostByCarrier?.[state.carrier] ?? item.shippingCost ?? 0)
+            : Number(item.shippingCost ?? 0)) * Number(item.quantity ?? 1)
+      const lowValueFee = calculateLowValueFee(subtotal, Boolean(item.product?.sellerIsPro))
+
+      return { item, subtotal, shipping, lowValueFee }
+    })
+  }, [isPrivateOfferCheckout, cartDetailed, getItemShippingState])
+  const cartLowValueFeeTotal = roundMoney(cartItemBreakdown.reduce((sum, row) => sum + row.lowValueFee, 0))
   const summaryTotal = isPrivateOfferCheckout
     ? roundMoney(offerItemAmount + offerShippingAmount + offerBuyerFeeAmount)
-    : Number(cartSummary.total ?? 0)
+    : roundMoney(cartItemBreakdown.reduce((sum, row) => sum + row.subtotal + row.shipping + row.lowValueFee, 0))
 
   return (
     <div className="container pb-16">
@@ -394,61 +511,10 @@ function CheckoutPage() {
                   <label className="mb-2 block text-sm text-mist">{copy.phone}</label>
                   <Input name="phone" defaultValue="" required />
                 </div>
-
-	                {carrierSupportsPickup ? (
-	                  <div className="md:col-span-2">
-	                    {availableCarriers.length > 1 ? (
-	                      <div className="mb-4">
-	                        <label className="mb-2 block text-sm text-mist">{copy.carrier}</label>
-	                        <Select value={checkoutCarrier ?? ''} onChange={(event) => setSelectedCarrier(event.target.value)}>
-	                          {availableCarriers.map((carrier) => (
-	                            <option key={carrier} value={carrier}>
-	                              {carrier === 'boxnow' ? 'BoxNow' : 'DHL Express'}
-	                            </option>
-	                          ))}
-	                        </Select>
-	                      </div>
-	                    ) : null}
-	
-	                    <label className="mb-2 block text-sm text-mist">{copy.deliveryMethod}</label>
-	                    <div className={`grid gap-3 ${carrierSupportsHomeDelivery ? 'grid-cols-2' : 'grid-cols-1'}`}>
-	                      {carrierSupportsHomeDelivery ? (
-	                        <button
-	                          type="button"
-	                          onClick={() => setDeliveryType('home')}
-	                          className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-	                            deliveryType === 'home'
-	                              ? 'border-gold-300/40 bg-gold-300/10 text-white'
-	                              : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
-	                          }`}
-	                        >
-	                          <Home className="h-4 w-4" />
-	                          {copy.homeDelivery}
-	                        </button>
-	                      ) : null}
-	                      <button
-	                        type="button"
-	                        onClick={() => setDeliveryType('pickup')}
-	                        className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-	                          isPickupDelivery
-	                            ? 'border-gold-300/40 bg-gold-300/10 text-white'
-	                            : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
-	                        }`}
-	                      >
-	                        <Package className="h-4 w-4" />
-	                        {copy.pickupPoint}
-	                      </button>
-	                    </div>
-	                  </div>
-                ) : null}
-
-                {!isPickupDelivery ? (
-                  <div className="md:col-span-2">
-                    <label className="mb-2 block text-sm text-mist">{copy.address}</label>
-                    <Input name="address" defaultValue="" required />
-                  </div>
-                ) : null}
-
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm text-mist">{copy.address}</label>
+                  <Input name="address" defaultValue="" required />
+                </div>
                 <div>
                   <label className="mb-2 block text-sm text-mist">{copy.city}</label>
                   <Input name="city" defaultValue="" required />
@@ -459,7 +525,11 @@ function CheckoutPage() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm text-mist">{copy.country}</label>
-                  <Select name="country_code" defaultValue="GR">
+                  <Select
+                    name="country_code"
+                    value={countryCode}
+                    onChange={(event) => setCountryCode(event.target.value)}
+                  >
                     {countryOptions.map((country) => (
                       <option key={country.value} value={country.value}>
                         {country.label}
@@ -468,17 +538,80 @@ function CheckoutPage() {
                   </Select>
                 </div>
 
-                {isPickupDelivery ? (
-                  <div className="md:col-span-2">
-                    <PickupPointPicker
-                      key={checkoutCarrier ?? 'pickup-point'}
-                      carrier={checkoutCarrier}
-                      locale={locale}
-                      selectedPoint={selectedPoint}
-                      onSelect={setSelectedPoint}
-                    />
-                  </div>
-                ) : null}
+                {shippableItems.map((item) => {
+                  const state = getItemShippingState(item)
+                  const carriers = availableCarriersFor(item)
+                  const carrierSupportsHomeDeliveryForItem = state.carrier !== 'boxnow'
+                  const itemIsPickup = isItemPickup(item, state)
+
+                  return (
+                    <div key={item.id} className="md:col-span-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-xs uppercase tracking-[0.24em] text-gold-100">{copy.itemShippingTitle}</p>
+                      <p className="mt-1 text-sm font-semibold text-white">
+                        {item.product?.title ?? item.displayTitle}
+                      </p>
+
+                      {carriers.length > 1 ? (
+                        <div className="mt-4">
+                          <label className="mb-2 block text-sm text-mist">{copy.carrier}</label>
+                          <Select
+                            value={state.carrier ?? ''}
+                            onChange={(event) => setItemCarrier(item.id, event.target.value)}
+                          >
+                            {carriers.map((carrier) => (
+                              <option key={carrier} value={carrier}>
+                                {carrier === 'boxnow' ? 'BoxNow' : 'DHL Express'}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                      ) : null}
+
+                      <label className="mb-2 mt-4 block text-sm text-mist">{copy.deliveryMethod}</label>
+                      <div className={`grid gap-3 ${carrierSupportsHomeDeliveryForItem ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        {carrierSupportsHomeDeliveryForItem ? (
+                          <button
+                            type="button"
+                            onClick={() => setItemDeliveryType(item.id, 'home')}
+                            className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                              !itemIsPickup
+                                ? 'border-gold-300/40 bg-gold-300/10 text-white'
+                                : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
+                            }`}
+                          >
+                            <Home className="h-4 w-4" />
+                            {copy.homeDelivery}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => setItemDeliveryType(item.id, 'pickup')}
+                          className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                            itemIsPickup
+                              ? 'border-gold-300/40 bg-gold-300/10 text-white'
+                              : 'border-white/10 bg-white/5 text-mist hover:border-white/20'
+                          }`}
+                        >
+                          <Package className="h-4 w-4" />
+                          {copy.pickupPointFor(state.carrier)}
+                        </button>
+                      </div>
+
+                      {itemIsPickup ? (
+                        <div className="mt-4">
+                          <PickupPointPicker
+                            key={state.carrier ?? 'pickup-point'}
+                            carrier={state.carrier}
+                            locale={locale}
+                            defaultCountryCode={countryCode}
+                            selectedPoint={state.point}
+                            onSelect={(point) => setItemPoint(item.id, point)}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
               </>
             ) : (
               <div className="md:col-span-2 rounded-[22px] border border-white/10 bg-white/5 p-4 text-sm leading-7 text-mist">
@@ -636,6 +769,12 @@ function CheckoutPage() {
 
           <div className="mt-5 rounded-[24px] border border-white/10 bg-white/5 px-5 py-4">
             <p className="text-xs uppercase tracking-[0.28em] text-gold-100">{copy.totalDue}</p>
+            {!isPrivateOfferCheckout && cartLowValueFeeTotal > 0 ? (
+              <div className="mt-3 flex items-end justify-between gap-4 text-sm">
+                <span className="text-mist">{copy.lowValueFeeLabel}</span>
+                <span className="font-semibold text-gold-50">{formatCurrency(cartLowValueFeeTotal)}</span>
+              </div>
+            ) : null}
             <div className="mt-3 flex items-end justify-between gap-4">
               <span className="text-sm text-mist">{copy.total}</span>
               <span className="text-3xl font-semibold text-white">

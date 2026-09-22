@@ -50,7 +50,7 @@ class ListingOfferService
                 'item_amount' => $this->resolveItemAmount($listing, $totalAmount),
                 'shipping_amount' => self::DEFAULT_SHIPPING_AMOUNT,
                 'total_amount' => round($totalAmount, 2),
-                'commission_amount' => $this->calculateCommission($totalAmount),
+                'commission_amount' => $this->calculateCommission($totalAmount, $conversation->seller_id),
                 'last_action_at' => now(),
                 'metadata' => array_filter([
                     'source' => 'buyer_private_offer',
@@ -99,7 +99,7 @@ class ListingOfferService
                 'item_amount' => $this->resolveItemAmount($listing, $totalAmount),
                 'shipping_amount' => self::DEFAULT_SHIPPING_AMOUNT,
                 'total_amount' => round($totalAmount, 2),
-                'commission_amount' => $this->calculateCommission($totalAmount),
+                'commission_amount' => $this->calculateCommission($totalAmount, $offer->seller_id),
                 'last_action_at' => now(),
                 'metadata' => array_filter([
                     'source' => 'counter_offer',
@@ -288,11 +288,13 @@ class ListingOfferService
         return $itemAmount;
     }
 
-    protected function calculateCommission(float $totalAmount): float
+    protected function calculateCommission(float $totalAmount, ?int $sellerId = null): float
     {
         $itemAmount = max(0, round($totalAmount, 2) - self::DEFAULT_SHIPPING_AMOUNT);
+        $proStatus = $sellerId ? User::query()->whereKey($sellerId)->value('pro_status') : null;
+        $isPro = in_array($proStatus, ['trialing', 'active'], true);
 
-        return MarketplaceSellerFeeCalculator::calculate($itemAmount);
+        return MarketplaceSellerFeeCalculator::calculate($itemAmount, $isPro);
     }
 
     protected function nextSequence(Conversation $conversation): int
@@ -412,7 +414,7 @@ class ListingOfferService
                             ['label' => $locale === 'en' ? 'Total' : 'Σύνολο', 'value' => number_format((float) $offer->total_amount, 2, ',', '.').' EUR'],
                         ],
                         'cta' => $locale === 'en' ? 'Open messages' : 'Άνοιγμα μηνυμάτων',
-                        'url' => rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/').'/minymata?conversation='.$offer->conversation_id,
+                        'url' => rtrim((string) config('app.frontend_url'), '/').'/minymata?conversation='.$offer->conversation_id,
                         'footer' => $locale === 'en'
                             ? 'The agreed total already includes the 2.50 shipping amount.'
                             : 'Το συμφωνημένο ποσό περιλαμβάνει ήδη και τα 2,50€ των μεταφορικών.',

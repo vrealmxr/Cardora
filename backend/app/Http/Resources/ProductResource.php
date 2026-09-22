@@ -17,6 +17,21 @@ class ProductResource extends JsonResource
         return [
             'id' => $this->id,
             'category_id' => $this->category_id,
+            'binder_card_id' => $this->binder_card_id,
+            'binder_card' => $this->whenLoaded('binderCard', fn () => $this->binderCard ? [
+                'id' => $this->binderCard->id,
+                'name' => $this->binderCard->name,
+                'number' => $this->binderCard->number,
+                'image_url' => $this->binderCard->image_url,
+                'set' => $this->binderCard->relationLoaded('set') && $this->binderCard->set ? [
+                    'id' => $this->binderCard->set->id,
+                    'name' => $this->binderCard->set->name,
+                ] : null,
+                'game' => $this->binderCard->relationLoaded('game') && $this->binderCard->game ? [
+                    'slug' => $this->binderCard->game->slug,
+                    'name' => $this->binderCard->game->name,
+                ] : null,
+            ] : null),
             'title' => $this->title,
             'slug' => $this->slug,
             'sku' => $this->sku,

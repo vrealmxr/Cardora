@@ -32,18 +32,29 @@ class OrderCheckoutService
     ) {
     }
 
-    public function placeOrder(User $buyer, array $payload): Order
+    /**
+     * @return Collection<int, Order>
+     */
+    public function placeOrder(User $buyer, array $payload): Collection
     {
         return $this->createPendingOrder($buyer, $payload);
     }
 
-    public function createPendingOrder(User $buyer, array $payload): Order
+    /**
+     * Each cart line item becomes its own independent Order — its own escrow, shipment and
+     * seller payout — regardless of whether items share a seller. The buyer still pays once:
+     * every order created here shares one checkout_batch_id, which StripeMarketplaceService
+     * uses to build a single Stripe Checkout Session covering all of them (see
+     * createCheckoutSessionForOrders()).
+     *
+     * @return Collection<int, Order>
+     */
+    public function createPendingOrder(User $buyer, array $payload): Collection
     {
         $this->marketplaceAccess->assertCanBuy($buyer, app()->getLocale());
 
         return DB::transaction(function () use ($buyer, $payload) {
             $lineItems = $this->resolveLineItems($buyer, $payload);
-            $sellerId = (int) $lineItems->first()['seller_id'];
 
             if ($lineItems->contains(fn (array $item) => (int) $item['seller_id'] === (int) $buyer->getKey())) {
                 throw ValidationException::withMessages([
@@ -51,84 +62,109 @@ class OrderCheckoutService
                 ]);
             }
 
-            if ($lineItems->pluck('seller_id')->unique()->count() > 1) {
-                throw ValidationException::withMessages([
-                    'items' => [__('api.orders.invalid_items')],
-                ]);
+            $batchId = (string) Str::uuid();
+
+            return $lineItems
+                ->map(fn (array $item) => $this->createOrderForLineItem($buyer, $item, $payload, $batchId))
+                ->values();
+        });
+    }
+
+    /**
+     * Each cart item can now carry its own carrier/pickup-point choice (different sellers may
+     * support different carriers, or the buyer may just want a different locker per item) via
+     * payload['shipping_selections'] = [{cart_item_id, shipping_address}, ...]. Falls back to a
+     * single shared payload['shipping_address'] for callers that don't send per-item
+     * selections — e.g. the private-offer checkout path, which has no cart_item_id at all.
+     */
+    protected function resolveItemShippingAddress(array $item, array $payload): mixed
+    {
+        $selections = $payload['shipping_selections'] ?? null;
+
+        if (is_array($selections) && $item['cart_item_id'] !== null) {
+            foreach ($selections as $selection) {
+                if ((string) ($selection['cart_item_id'] ?? '') === (string) $item['cart_item_id']) {
+                    return $selection['shipping_address'] ?? null;
+                }
             }
+        }
 
-            $subtotal = round(
-                $lineItems->sum(fn (array $item) => $item['unit_price'] * $item['quantity']),
-                2
-            );
-            $shippingTotal = $this->calculateShippingTotal($lineItems, $payload);
-            $commissionAmount = $this->calculateCommissionAmount($subtotal);
-            $buyerFeeAmount = $this->calculateBuyerFeeAmount($subtotal);
-            $sellerAmount = round($subtotal - $commissionAmount, 2);
-            $total = round($subtotal + $shippingTotal + $buyerFeeAmount, 2);
-            $primaryProductId = $lineItems->pluck('product')->filter()->first()?->getKey();
-            $shippingCarrier = $this->resolveShippingCarrier($lineItems, $payload['shipping_address'] ?? null);
-            $this->assertShipmentReadiness($lineItems, $shippingCarrier, $payload['shipping_address'] ?? null);
-            $shippingService = data_get($payload, 'shipping_address.delivery_type', 'home_delivery');
+        return $payload['shipping_address'] ?? null;
+    }
 
-            $order = Order::create([
-                'buyer_id' => $buyer->getKey(),
-                'seller_id' => $sellerId,
-                'product_id' => $primaryProductId,
-                'order_number' => $payload['order_number'] ?? $this->generateOrderNumber(),
-                'status' => OrderStatus::PendingPayment->value,
-                'escrow_status' => OrderStatus::PendingPayment->value,
-                'subtotal' => $subtotal,
-                'shipping_total' => $shippingTotal,
-                'service_fee' => $buyerFeeAmount,
-                'total' => $total,
-                'total_amount' => $total,
-                'commission_amount' => $commissionAmount,
-                'seller_amount' => $sellerAmount,
-                'currency' => strtoupper((string) ($payload['currency'] ?? 'EUR')),
-                'payment_method' => 'stripe_checkout',
-                'shipping_carrier' => $shippingCarrier,
-                'shipping_service' => $shippingCarrier === 'dhl_express' ? $shippingService : null,
-                'shipment_status' => $shippingCarrier === 'dhl_express' ? 'pending_label' : null,
-                'shipping_address' => $payload['shipping_address'] ?? null,
-                'billing_address' => $payload['billing_address'] ?? null,
-                'notes' => $payload['notes'] ?? null,
-                'placed_at' => $payload['placed_at'] ?? now(),
-                'auto_release_at' => null,
-                'metadata' => $this->mergeMetadata($payload['metadata'] ?? null, [
-                    'source' => $lineItems->contains(fn (array $item) => $item['cart_item_id'] !== null)
-                        ? 'cart_checkout'
-                        : 'direct_checkout',
-                    'payment_integration' => 'stripe_connect_separate_charges_and_transfers',
-                    'cart_item_ids' => $lineItems->pluck('cart_item_id')->filter()->values()->all(),
-                ]),
-            ]);
+    protected function createOrderForLineItem(User $buyer, array $item, array $payload, string $batchId): Order
+    {
+        $itemCollection = collect([$item]);
+        $sellerId = (int) $item['seller_id'];
+        $shippingAddress = $this->resolveItemShippingAddress($item, $payload);
 
-            foreach ($lineItems as $item) {
-                $orderItem = OrderItem::create([
-                    'order_id' => $order->getKey(),
-                    'listing_id' => $item['listing']?->getKey(),
-                    'draw_campaign_id' => $item['draw_campaign']?->getKey(),
-                    'product_id' => $item['product']?->getKey(),
-                    'title_snapshot' => $item['title'],
-                    'unit_price' => $item['unit_price'],
-                    'quantity' => $item['quantity'],
-                    'condition_snapshot' => $item['condition_snapshot'],
-                    'metadata' => array_merge($item['metadata'], [
-                        'cart_item_id' => $item['cart_item_id'],
-                    ]),
-                ]);
+        $subtotal = round($item['unit_price'] * $item['quantity'], 2);
+        $shippingTotal = $this->calculateShippingTotal($itemCollection, ['shipping_address' => $shippingAddress] + $payload);
+        $commissionAmount = $this->calculateCommissionAmount($subtotal, $sellerId);
+        $buyerFeeAmount = $this->calculateBuyerFeeAmount($subtotal);
+        // Below €5, the commission is a flat fee that can exceed the item's own
+        // price. Charging it to the seller there would leave them owing money, so
+        // it's added to what the buyer pays instead and the seller keeps the full
+        // item price.
+        $isFixedFeeTier = MarketplaceSellerFeeCalculator::isFixedFeeTier($subtotal);
+        $sellerAmount = $isFixedFeeTier ? $subtotal : round($subtotal - $commissionAmount, 2);
+        $total = $isFixedFeeTier
+            ? round($subtotal + $shippingTotal + $buyerFeeAmount + $commissionAmount, 2)
+            : round($subtotal + $shippingTotal + $buyerFeeAmount, 2);
+        $shippingCarrier = $this->resolveShippingCarrier($itemCollection, $shippingAddress);
+        $this->assertShipmentReadiness($itemCollection, $shippingCarrier, $shippingAddress);
+        $shippingService = data_get($shippingAddress, 'delivery_type', 'home_delivery');
 
-                if ($item['item_type'] !== 'listing') {
-                    continue;
-                }
+        $order = Order::create([
+            'buyer_id' => $buyer->getKey(),
+            'seller_id' => $sellerId,
+            'product_id' => $item['product']?->getKey(),
+            'order_number' => $this->generateOrderNumber(),
+            'checkout_batch_id' => $batchId,
+            'status' => OrderStatus::PendingPayment->value,
+            'escrow_status' => OrderStatus::PendingPayment->value,
+            'subtotal' => $subtotal,
+            'shipping_total' => $shippingTotal,
+            'service_fee' => $buyerFeeAmount,
+            'total' => $total,
+            'total_amount' => $total,
+            'commission_amount' => $commissionAmount,
+            'seller_amount' => $sellerAmount,
+            'currency' => strtoupper((string) ($payload['currency'] ?? 'EUR')),
+            'payment_method' => 'stripe_checkout',
+            'shipping_carrier' => $shippingCarrier,
+            'shipping_service' => $shippingCarrier === 'dhl_express' ? $shippingService : null,
+            'shipment_status' => $shippingCarrier === 'dhl_express' ? 'pending_label' : null,
+            'shipping_address' => $shippingAddress,
+            'billing_address' => $payload['billing_address'] ?? null,
+            'notes' => $payload['notes'] ?? null,
+            'placed_at' => $payload['placed_at'] ?? now(),
+            'auto_release_at' => null,
+            'metadata' => $this->mergeMetadata($payload['metadata'] ?? null, [
+                'source' => $item['cart_item_id'] !== null ? 'cart_checkout' : 'direct_checkout',
+                'payment_integration' => 'stripe_connect_separate_charges_and_transfers',
+                'cart_item_ids' => array_filter([$item['cart_item_id']]),
+            ]),
+        ]);
 
-                if (($item['metadata']['item_mode'] ?? null) === LotCardSelectionService::ITEM_MODE) {
-                    $this->lotCardSelections->reserveForOrderItem($orderItem);
+        $orderItem = OrderItem::create([
+            'order_id' => $order->getKey(),
+            'listing_id' => $item['listing']?->getKey(),
+            'draw_campaign_id' => $item['draw_campaign']?->getKey(),
+            'product_id' => $item['product']?->getKey(),
+            'title_snapshot' => $item['title'],
+            'unit_price' => $item['unit_price'],
+            'quantity' => $item['quantity'],
+            'condition_snapshot' => $item['condition_snapshot'],
+            'metadata' => array_merge($item['metadata'], [
+                'cart_item_id' => $item['cart_item_id'],
+            ]),
+        ]);
 
-                    continue;
-                }
-
+        if ($item['item_type'] === 'listing') {
+            if (($item['metadata']['item_mode'] ?? null) === LotCardSelectionService::ITEM_MODE) {
+                $this->lotCardSelections->reserveForOrderItem($orderItem);
+            } else {
                 $remainingQuantity = max(
                     0,
                     (int) ($item['listing']->available_quantity ?? $item['listing']->quantity ?? 0) - $item['quantity']
@@ -140,27 +176,27 @@ class OrderCheckoutService
                     'availability' => $remainingQuantity === 0 ? 'sold_out' : $item['listing']->availability,
                 ]);
             }
+        }
 
-            EscrowTransaction::create([
-                'order_id' => $order->getKey(),
-                'buyer_id' => $buyer->getKey(),
-                'seller_id' => $sellerId,
-                'amount' => $total,
-                'currency' => $order->currency,
-                'status' => OrderStatus::PendingPayment->value,
-                'metadata' => [
-                    'payment_integration' => 'stripe_connect_separate_charges_and_transfers',
-                    'product_net_amount' => $subtotal,
-                    'commission_amount' => $commissionAmount,
-                    'platform_wallet_amount' => $commissionAmount,
-                    'buyer_fee_amount' => $buyerFeeAmount,
-                    'held_amount' => $sellerAmount,
-                    'seller_amount' => $sellerAmount,
-                ],
-            ]);
+        EscrowTransaction::create([
+            'order_id' => $order->getKey(),
+            'buyer_id' => $buyer->getKey(),
+            'seller_id' => $sellerId,
+            'amount' => $total,
+            'currency' => $order->currency,
+            'status' => OrderStatus::PendingPayment->value,
+            'metadata' => [
+                'payment_integration' => 'stripe_connect_separate_charges_and_transfers',
+                'product_net_amount' => $subtotal,
+                'commission_amount' => $commissionAmount,
+                'platform_wallet_amount' => $commissionAmount,
+                'buyer_fee_amount' => $buyerFeeAmount,
+                'held_amount' => $sellerAmount,
+                'seller_amount' => $sellerAmount,
+            ],
+        ]);
 
-            return $order->load($this->orderRelations());
-        });
+        return $order->load($this->orderRelations());
     }
 
     public function createPendingOrderForAcceptedOffer(User $buyer, ListingOffer $offer, array $payload): Order
@@ -210,7 +246,11 @@ class OrderCheckoutService
             $agreedTotal = round((float) $lockedOffer->total_amount, 2);
             $buyerFeeAmount = $this->calculateBuyerFeeAmount($subtotal);
             $total = round($agreedTotal + $buyerFeeAmount, 2);
-            $sellerAmount = round($subtotal - $commissionAmount, 2);
+            // Private offers agree on total_amount with the buyer up front, so the
+            // commission can't be inflated onto the buyer here the way the main cart
+            // checkout does below €5 — that would silently charge more than the agreed
+            // price. Just floor the seller's share at 0 so it can never go negative.
+            $sellerAmount = max(0.0, round($subtotal - $commissionAmount, 2));
             $shippingCarrier = $this->resolveShippingCarrier(collect([$lineItem]), $payload['shipping_address'] ?? null);
             $this->assertShipmentReadiness(collect([$lineItem]), $shippingCarrier, $payload['shipping_address'] ?? null);
             $shippingService = data_get($payload, 'shipping_address.delivery_type', 'home_delivery');
@@ -220,6 +260,7 @@ class OrderCheckoutService
                 'seller_id' => $listing->seller_id,
                 'product_id' => $listing->product?->getKey(),
                 'order_number' => $payload['order_number'] ?? $this->generateOrderNumber(),
+                'checkout_batch_id' => (string) Str::uuid(),
                 'status' => OrderStatus::PendingPayment->value,
                 'escrow_status' => OrderStatus::PendingPayment->value,
                 'subtotal' => $subtotal,
@@ -739,8 +780,14 @@ class OrderCheckoutService
         }
 
         $shippingAddress = $payload['shipping_address'] ?? null;
-        $isDomestic = $this->isDomesticGreekAddress($shippingAddress);
         $selectedCarrier = $this->resolveShippingCarrier($listingItems, $shippingAddress);
+        // BoxNow only has domestic-style rates (no international DHL-style calculator), so a
+        // BoxNow shipment to any country its locker network actually covers (GR/CY/BG/HR) must
+        // use the domestic cost path even though isDomesticGreekAddress() would call it
+        // "international" for anywhere outside Greece.
+        $isDomestic = $selectedCarrier === 'boxnow'
+            ? $this->isBoxNowSupportedCountry($shippingAddress)
+            : $this->isDomesticGreekAddress($shippingAddress);
 
         if ($isDomestic) {
             return round(
@@ -768,7 +815,7 @@ class OrderCheckoutService
         );
     }
 
-    protected function resolveDomesticShippingCost(Listing $listing, ?string $carrier = null): float
+    public function resolveDomesticShippingCost(Listing $listing, ?string $carrier = null): float
     {
         $shippingProfile = (string) ($listing->shipping_profile ?? '');
         $normalizedCarrier = Str::lower(trim((string) ($carrier ?? 'dhl_express')));
@@ -931,7 +978,7 @@ class OrderCheckoutService
 
         if ($requestedCarrier !== '' && $availableCarriers->contains($requestedCarrier)) {
             if ($requestedCarrier === 'boxnow') {
-                if (! $isDomestic) {
+                if (! $this->isBoxNowSupportedCountry($shippingAddress)) {
                     throw ValidationException::withMessages([
                         'shipping_address' => [__('api.orders.international_not_supported', [
                             'title' => $listing->title_snapshot ?: $listing->product?->title ?: __('api.orders.untitled_item'),
@@ -953,7 +1000,7 @@ class OrderCheckoutService
             return 'dhl_express';
         }
 
-        if ($availableCarriers->contains('boxnow')) {
+        if ($availableCarriers->contains('boxnow') && $this->isBoxNowSupportedCountry($shippingAddress)) {
             if (! config('services.boxnow.enabled', false)) {
                 throw ValidationException::withMessages([
                     'shipping_address' => [__('api.orders.carrier_unavailable', ['carrier' => 'BoxNow'])],
@@ -964,6 +1011,25 @@ class OrderCheckoutService
         }
 
         return null;
+    }
+
+    /**
+     * BoxNow only operates lockers in Greece, Cyprus, Bulgaria and Croatia — unlike DHL's
+     * "domestic" Greek-only rate tier (isDomesticGreekAddress()), which this must stay
+     * independent from since a listing can legitimately offer BoxNow to buyers in any of
+     * these four countries even when DHL would treat the same address as "international".
+     */
+    protected function isBoxNowSupportedCountry(mixed $shippingAddress): bool
+    {
+        $countryCode = $this->extractCountryCode($shippingAddress);
+
+        if ($countryCode !== '') {
+            return in_array($countryCode, ['GR', 'CY', 'BG', 'HR'], true);
+        }
+
+        // No explicit country code on the address — same "assume Greece" fallback used by
+        // isDomesticGreekAddress() for blank/unrecognized addresses.
+        return $this->isDomesticGreekAddress($shippingAddress);
     }
 
     protected function normalizeShippingMethods(mixed $value): Collection
@@ -1251,9 +1317,12 @@ class OrderCheckoutService
         }
     }
 
-    protected function calculateCommissionAmount(float $subtotal): float
+    protected function calculateCommissionAmount(float $subtotal, ?int $sellerId = null): float
     {
-        return MarketplaceSellerFeeCalculator::calculate($subtotal);
+        $proStatus = $sellerId ? User::query()->whereKey($sellerId)->value('pro_status') : null;
+        $isPro = in_array($proStatus, ['trialing', 'active'], true);
+
+        return MarketplaceSellerFeeCalculator::calculate($subtotal, $isPro);
     }
 
     protected function calculateBuyerFeeAmount(float $subtotal): float
@@ -1271,7 +1340,7 @@ class OrderCheckoutService
     protected function orderMailContent(?string $locale, string $variant, Order $order): array
     {
         $isEnglish = $locale === 'en';
-        $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/');
+        $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
         $buyerName = $order->buyer?->display_name ?: $order->buyer?->name ?: 'Buyer';
         $total = $this->formatOrderAmount($order);
 

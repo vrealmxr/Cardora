@@ -14,6 +14,11 @@ class AdminOverviewStats extends BaseWidget
 {
     protected static ?string $pollingInterval = null;
 
+    public static function canView(): bool
+    {
+        return ! (auth()->user()?->is_seo_editor ?? false);
+    }
+
     protected function getStats(): array
     {
         $metrics = Cache::remember('filament:admin-overview-stats', now()->addSeconds(30), function (): array {

@@ -3,6 +3,10 @@
 use App\Http\Controllers\Api\AuctionBidController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AdminOrderPaymentController;
+use App\Http\Controllers\Api\BinderController;
+use App\Http\Controllers\Api\BoxNowWebhookController;
+use App\Http\Controllers\Api\ScannerUsageController;
+use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\BlogController;
 use App\Http\Controllers\Api\BootstrapController;
 use App\Http\Controllers\Api\CartController;
@@ -29,6 +33,7 @@ use App\Http\Controllers\Api\PublicProfileController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\SellerBalanceController;
 use App\Http\Controllers\Api\SellerStripeAccountController;
+use App\Http\Controllers\Api\SeoController;
 use App\Http\Controllers\Api\ShippingPickupPointController;
 use App\Http\Controllers\Api\StripeCheckoutController;
 use App\Http\Controllers\Api\StripeWebhookController;
@@ -41,9 +46,11 @@ use App\Http\Controllers\Api\VerificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/stripe/webhooks', [StripeWebhookController::class, 'handle']);
+Route::post('/webhooks/boxnow', [BoxNowWebhookController::class, 'handle']);
 
 Route::middleware('set.locale')->group(function (): void {
     Route::get('/bootstrap', BootstrapController::class);
+    Route::get('/seo', SeoController::class);
 
     Route::prefix('auth')->group(function (): void {
         Route::post('/register', [AuthController::class, 'register']);
@@ -101,6 +108,13 @@ Route::middleware('set.locale')->group(function (): void {
     });
 
     Route::get('/shipping/pickup-points', [ShippingPickupPointController::class, 'index']);
+
+    Route::prefix('binder')->group(function (): void {
+        Route::get('/games', [BinderController::class, 'games']);
+        Route::get('/games/{gameSlug}/sets', [BinderController::class, 'sets']);
+        Route::get('/sets/{setId}/cards', [BinderController::class, 'cards']);
+        Route::get('/cards/{cardId}/price-history', [BinderController::class, 'priceHistory']);
+    });
 });
 
 Route::middleware(['auth:sanctum', 'set.locale'])->group(function (): void {
@@ -157,6 +171,7 @@ Route::middleware(['auth:sanctum', 'set.locale'])->group(function (): void {
         Route::get('/account', [SellerStripeAccountController::class, 'show']);
         Route::post('/onboarding/start', [SellerStripeAccountController::class, 'startOnboarding']);
         Route::post('/dashboard-link', [SellerStripeAccountController::class, 'dashboardLink']);
+        Route::post('/account-management-session', [SellerStripeAccountController::class, 'accountManagementSession']);
     });
 
     Route::get('/seller/balance/summary', [SellerBalanceController::class, 'summary']);
@@ -269,5 +284,32 @@ Route::middleware(['auth:sanctum', 'set.locale'])->group(function (): void {
         Route::post('/', [ReviewController::class, 'store']);
         Route::put('/{review}', [ReviewController::class, 'update']);
         Route::delete('/{review}', [ReviewController::class, 'destroy']);
+    });
+
+    Route::prefix('binder')->group(function (): void {
+        Route::get('/my-collection', [BinderController::class, 'myCollection']);
+        Route::get('/portfolio', [BinderController::class, 'portfolio']);
+        Route::post('/cards/{cardId}/toggle', [BinderController::class, 'toggleOwned']);
+        Route::put('/cards/{cardId}/price', [BinderController::class, 'updatePrice']);
+        Route::put('/cards/{cardId}/quantity', [BinderController::class, 'updateQuantity']);
+        Route::get('/alerts', [BinderController::class, 'alertSettings']);
+        Route::put('/alerts', [BinderController::class, 'updateAlertSettings']);
+        Route::post('/alerts/watch', [BinderController::class, 'watchSet']);
+        Route::delete('/alerts/watch/{setId}', [BinderController::class, 'unwatchSet']);
+        Route::get('/export', [BinderController::class, 'export']);
+        Route::get('/duplicates', [BinderController::class, 'duplicates']);
+        Route::post('/bulk-list', [BinderController::class, 'bulkList']);
+    });
+
+    Route::prefix('pro')->group(function (): void {
+        Route::get('/status', [SubscriptionController::class, 'status']);
+        Route::post('/checkout', [SubscriptionController::class, 'checkout']);
+        Route::post('/cancel', [SubscriptionController::class, 'cancel']);
+        Route::post('/resume', [SubscriptionController::class, 'resume']);
+    });
+
+    Route::prefix('scanner')->group(function (): void {
+        Route::get('/usage', [ScannerUsageController::class, 'show']);
+        Route::post('/usage', [ScannerUsageController::class, 'store']);
     });
 });

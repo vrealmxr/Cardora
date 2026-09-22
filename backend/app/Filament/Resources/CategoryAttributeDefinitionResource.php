@@ -13,7 +13,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\RestrictableResource;
 use Filament\Tables;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -22,7 +22,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
-class CategoryAttributeDefinitionResource extends Resource
+class CategoryAttributeDefinitionResource extends RestrictableResource
 {
     protected static ?string $model = CategoryAttributeDefinition::class;
 

@@ -8,6 +8,11 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class MarketplaceFinanceStats extends BaseWidget
 {
+    public static function canView(): bool
+    {
+        return ! (auth()->user()?->is_seo_editor ?? false);
+    }
+
     protected static ?string $pollingInterval = null;
 
     protected function getStats(): array

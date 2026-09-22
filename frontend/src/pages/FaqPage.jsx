@@ -1,13 +1,16 @@
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import PageSeo from '@/components/PageSeo'
 import StripeTransparencyCard from '@/components/trust/StripeTransparencyCard'
 import CardSurface from '@/components/ui/CardSurface'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
 
 function FaqPage() {
   const { locale } = useI18n()
+  const seo = useSeo('faq')
   const { faqGroups } = useMarketplace()
   const [openItems, setOpenItems] = useState([])
 
@@ -40,7 +43,8 @@ function FaqPage() {
 
   return (
     <div className="container pb-16">
-      <SectionHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
+      <PageSeo pageKey="faq" fallbackTitle={copy.title} fallbackDescription={copy.description} />
+      <SectionHeader eyebrow={copy.eyebrow} title={seo?.h1 || copy.title} description={copy.description} />
       <div className="mb-8">
         <StripeTransparencyCard />
       </div>

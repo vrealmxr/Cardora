@@ -12,6 +12,8 @@
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.2.11",
     "@fontsource/manrope": "^5.2.8",
+    "@stripe/connect-js": "^3.4.6",
+    "@stripe/react-connect-js": "^3.4.4",
     "@tailwindcss/forms": "^0.5.11",
     "clsx": "^2.1.1",
     "lucide-react": "^1.7.0",

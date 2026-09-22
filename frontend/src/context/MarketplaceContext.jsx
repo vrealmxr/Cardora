@@ -3,6 +3,7 @@ import { useAuthContext } from '@/context/AuthContext'
 import { useI18nContext } from '@/context/I18nContext'
 import { cardoraService } from '@/services/cardoraService'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
+import { calculateLowValueFee } from '@/utils/fees'
 import { priceInRange, toSlug } from '@/utils/helpers'
 import {
   calculateLotSelectionDomesticShipping,
@@ -1077,6 +1078,10 @@ export function MarketplaceProvider({ children }) {
     0,
   )
   const cartServiceFee = roundMoney(cartSubtotal * MARKETPLACE_BUYER_FEE_RATE)
+  // Checkout only allows a single seller per order, so the first listing item's seller
+  // is the one whose PRO status (0.75€ vs 1€) applies to the whole cart's low-value fee.
+  const cartPrimaryListingItem = cartDetailed.find((item) => item.itemType === CART_ITEM_TYPE_LISTING)
+  const cartLowValueFee = calculateLowValueFee(cartSubtotal, Boolean(cartPrimaryListingItem?.product?.sellerIsPro))
   const cartTotalQuantity = cartDetailed.reduce(
     (sum, item) =>
       sum +
@@ -1089,7 +1094,7 @@ export function MarketplaceProvider({ children }) {
   )
   const cartContainsPhysicalItems = cartDetailed.some((item) => item.itemType === CART_ITEM_TYPE_LISTING)
   const cartContainsDrawEntries = cartDetailed.some((item) => item.itemType === CART_ITEM_TYPE_DRAW)
-  const cartTotal = roundMoney(cartSubtotal + cartShipping + cartServiceFee)
+  const cartTotal = roundMoney(cartSubtotal + cartShipping + cartServiceFee + cartLowValueFee)
 
   const toggleFavorite = async (productId) => {
     if (!currentUser) return { success: false, message: 'Authentication required.' }
@@ -1657,7 +1662,13 @@ export function MarketplaceProvider({ children }) {
     }
   }
 
-  const placeOrder = async ({ paymentMethod, shippingAddress, billingAddress, acceptedOfferId = null }) => {
+  const placeOrder = async ({
+    paymentMethod,
+    shippingAddress,
+    shippingSelections,
+    billingAddress,
+    acceptedOfferId = null,
+  }) => {
     if (!currentUser) return null
 
     if (!acceptedOfferId && state.cartItems.length === 0) return null
@@ -1671,6 +1682,7 @@ export function MarketplaceProvider({ children }) {
         accepted_offer_id: acceptedOfferId ?? null,
         payment_method: paymentMethod,
         shipping_address: shippingAddress ?? null,
+        shipping_selections: shippingSelections ?? null,
         billing_address: billingAddress ?? shippingAddress ?? null,
       })
 
@@ -1720,6 +1732,12 @@ export function MarketplaceProvider({ children }) {
     if (!currentUser) return null
 
     return cardoraService.createSellerDashboardLoginLink()
+  }
+
+  const getSellerAccountManagementSession = async () => {
+    if (!currentUser) return null
+
+    return cardoraService.createSellerAccountManagementSession()
   }
 
   const getSellerBalanceSummary = async () => {
@@ -2047,6 +2065,7 @@ export function MarketplaceProvider({ children }) {
         language: payload.language || null,
         set_name: payload.setName || null,
         item_number: payload.cardNumber || payload.issueNumber || null,
+        binder_card_id: payload.binderCardId ? Number(payload.binderCardId) : null,
         product_type: payload.typeLabel || payload.subcategory || null,
         description: payload.description || '',
         specifications: {
@@ -2839,6 +2858,7 @@ export function MarketplaceProvider({ children }) {
           subtotal: cartSubtotal,
           shipping: cartShipping,
           serviceFee: cartServiceFee,
+          lowValueFee: cartLowValueFee,
           total: cartTotal,
           totalQuantity: cartTotalQuantity,
           containsPhysicalItems: cartContainsPhysicalItems,
@@ -2874,6 +2894,7 @@ export function MarketplaceProvider({ children }) {
         getSellerConnectAccount,
         startSellerOnboarding,
         openSellerStripeDashboard,
+        getSellerAccountManagementSession,
         getSellerBalanceSummary,
         getSellerPayoutHistory,
         createListing,

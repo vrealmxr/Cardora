@@ -26,5 +26,37 @@ routes = [
   { pattern = "cardora.gr/asset.php*", zone_name = "cardora.gr" },
   # Pages doesn't recognize .webmanifest as a static asset type, so this one
   # file falls through too even though its sibling icons (.ico/.png) don't.
-  { pattern = "cardora.gr/icons/site.webmanifest", zone_name = "cardora.gr" }
+  { pattern = "cardora.gr/icons/site.webmanifest", zone_name = "cardora.gr" },
+  # Direct /api/* calls (not the /index.php/api/* the SPA uses) — this is
+  # where server-to-server callers hit us directly, e.g. Stripe webhooks
+  # (https://cardora.gr/api/stripe/webhooks). Found broken (Error 1019, same
+  # Pages-loop cause as above) while verifying the Cardora PRO subscription
+  # webhook flow: Stripe events were generating fine but every delivery
+  # attempt to this URL 503'd, so NO webhook of any kind — order payments,
+  # refunds, payouts, account updates — had been reaching the app since the
+  # Pages loop bug appeared. /api/* has no reason to ever serve the SPA, so
+  # routing all of it straight to the real origin is safe.
+  { pattern = "cardora.gr/api/*", zone_name = "cardora.gr" },
+  # routes/web.php signed-link redirect endpoints — email verification and
+  # the Stripe Connect onboarding return/refresh URLs. Same Pages-loop gap:
+  # these were falling through to the SPA (200 text/html, React's own 404)
+  # instead of reaching Laravel, so sellers landed on "page not found" right
+  # after finishing Stripe onboarding, and the account never got its
+  # post-onboarding sync/redirect. Found while going live with Stripe.
+  { pattern = "cardora.gr/stripe/connect/*", zone_name = "cardora.gr" },
+  { pattern = "cardora.gr/email/verify/*", zone_name = "cardora.gr" },
+  # Filament admin panel (routes/web.php, id 'admin', path 'admin') — same
+  # gap, same fix. Nothing under /admin should ever be the SPA.
+  { pattern = "cardora.gr/admin", zone_name = "cardora.gr" },
+  { pattern = "cardora.gr/admin/*", zone_name = "cardora.gr" },
+  # Found while fixing /admin: Filament's own export/import download links
+  # and Livewire's JS assets (Filament is built on Livewire — without these
+  # loading, the admin panel UI wouldn't actually work even once /admin
+  # itself resolved) live outside /admin/* too.
+  { pattern = "cardora.gr/filament/*", zone_name = "cardora.gr" },
+  { pattern = "cardora.gr/livewire/*", zone_name = "cardora.gr" },
+  # The actual published Filament vendor assets (CSS/JS) live under these —
+  # confirmed the only two folders present on origin's public/css, public/js.
+  { pattern = "cardora.gr/css/filament/*", zone_name = "cardora.gr" },
+  { pattern = "cardora.gr/js/filament/*", zone_name = "cardora.gr" }
 ]

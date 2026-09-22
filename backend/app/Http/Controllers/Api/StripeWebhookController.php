@@ -7,6 +7,7 @@ use App\Enums\StripeWebhookEventStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\StripeWebhookEvent;
+use App\Services\CardoraProSubscriptionService;
 use App\Services\OrderCheckoutService;
 use App\Services\SellerLedgerService;
 use App\Services\StripeConnectService;
@@ -28,7 +29,8 @@ class StripeWebhookController extends Controller
         SellerLedgerService $ledgerService,
         OrderCheckoutService $checkoutService,
         FeaturedListingPaymentService $featuredService,
-        TradeEscrowService $tradeEscrow
+        TradeEscrowService $tradeEscrow,
+        CardoraProSubscriptionService $proSubscriptions
     ) {
         $payload = $request->getContent();
         $signature = (string) $request->header('Stripe-Signature');
@@ -66,13 +68,32 @@ class StripeWebhookController extends Controller
         try {
             switch ($event->type) {
                 case 'checkout.session.completed':
-                    if (($event->data->object->metadata->type ?? null) === 'trade_deposit') {
+                    $sessionType = $event->data->object->metadata->type ?? null;
+                    if ($sessionType === 'trade_deposit') {
                         $tradeEscrow->handleCheckoutSessionCompleted($event->data->object);
-                    } elseif (($event->data->object->metadata->type ?? null) === 'featured_listing') {
+                    } elseif ($sessionType === 'featured_listing') {
                         $featuredService->markPaidFromWebhook($event->data->object);
+                    } elseif ($sessionType === 'cardora_pro_subscription') {
+                        $this->handleProCheckoutCompleted($event->data->object, $proSubscriptions);
                     } else {
                         $marketplaceService->handleCheckoutSessionCompleted($event->data->object);
                     }
+                    break;
+
+                case 'customer.subscription.created':
+                case 'customer.subscription.updated':
+                case 'customer.subscription.deleted':
+                    if (($event->data->object->metadata->type ?? null) === 'cardora_pro_subscription') {
+                        $proSubscriptions->syncFromStripeSubscription($event->data->object);
+                    }
+                    break;
+
+                case 'invoice.paid':
+                    $this->handleInvoicePaid($event->data->object, $proSubscriptions);
+                    break;
+
+                case 'invoice.payment_failed':
+                    $this->handleInvoicePaymentFailed($event->data->object, $proSubscriptions);
                     break;
 
                 case 'checkout.session.expired':
@@ -132,53 +153,55 @@ class StripeWebhookController extends Controller
 
     protected function handlePaymentIntentFailed(object $paymentIntent, StripeMarketplaceService $marketplaceService): void
     {
-        $orderId = isset($paymentIntent->metadata->order_id) ? (int) $paymentIntent->metadata->order_id : null;
-        $order = $orderId ? Order::query()->find($orderId) : null;
+        // A batch checkout shares one payment_intent across every order it produced, so a
+        // failure has to be applied to all of them, not just one.
+        $orders = $marketplaceService->findOrdersByStripeMetadata(
+            (array) ($paymentIntent->metadata ?? []),
+            $paymentIntent->id ?? null
+        );
 
-        if (! $order && ! empty($paymentIntent->id)) {
-            $order = Order::query()->where('stripe_payment_intent_id', $paymentIntent->id)->first();
+        foreach ($orders as $order) {
+            $marketplaceService->markPaymentFailed($order, [
+                'payment_intent_id' => $paymentIntent->id ?? null,
+                'last_payment_error' => $paymentIntent->last_payment_error?->message ?? null,
+            ]);
         }
-
-        if (! $order) {
-            return;
-        }
-
-        $marketplaceService->markPaymentFailed($order, [
-            'payment_intent_id' => $paymentIntent->id ?? null,
-            'last_payment_error' => $paymentIntent->last_payment_error?->message ?? null,
-        ]);
     }
 
     protected function handleCheckoutSessionExpired(object $session, StripeMarketplaceService $marketplaceService): void
     {
-        $orderId = isset($session->metadata->order_id) ? (int) $session->metadata->order_id : null;
-        $order = $orderId ? Order::query()->find($orderId) : null;
+        $orders = $marketplaceService->findOrdersByStripeMetadata(
+            (array) ($session->metadata ?? []),
+            $session->payment_intent ?? null,
+            $session->id ?? null
+        );
 
-        if (! $order && ! empty($session->id)) {
-            $order = Order::query()->where('stripe_checkout_session_id', $session->id)->first();
+        foreach ($orders as $order) {
+            $marketplaceService->markPaymentFailed($order, [
+                'checkout_session_id' => $session->id ?? null,
+                'reason' => 'checkout_session_expired',
+            ]);
         }
-
-        if (! $order) {
-            return;
-        }
-
-        $marketplaceService->markPaymentFailed($order, [
-            'checkout_session_id' => $session->id ?? null,
-            'reason' => 'checkout_session_expired',
-        ]);
     }
 
     protected function handleChargeRefunded(object $charge, OrderCheckoutService $checkoutService, SellerLedgerService $ledgerService): void
     {
-        $order = Order::query()
+        // A batch checkout's orders share one Stripe charge, so a refund against that charge
+        // (even a partial one) can't be reliably attributed to a single order from webhook data
+        // alone — flag every order on the charge for review rather than silently handling just
+        // the one `first()` used to pick before batch checkouts existed.
+        $orders = Order::query()
             ->where('stripe_charge_id', $charge->id ?? '')
             ->orWhere('stripe_payment_intent_id', $charge->payment_intent ?? '')
-            ->first();
+            ->get();
 
-        if (! $order) {
-            return;
+        foreach ($orders as $order) {
+            $this->applyChargeRefundToOrder($order, $charge, $checkoutService, $ledgerService);
         }
+    }
 
+    protected function applyChargeRefundToOrder(Order $order, object $charge, OrderCheckoutService $checkoutService, SellerLedgerService $ledgerService): void
+    {
         if ($order->status === OrderStatus::Refunded->value) {
             return;
         }
@@ -215,6 +238,81 @@ class StripeWebhookController extends Controller
             'amount_refunded' => $charge->amount_refunded ?? null,
             'source' => 'stripe_webhook',
         ]);
+    }
+
+    protected function handleProCheckoutCompleted(object $session, CardoraProSubscriptionService $proSubscriptions): void
+    {
+        $subscriptionId = is_string($session->subscription ?? null)
+            ? $session->subscription
+            : ($session->subscription->id ?? null);
+
+        if (! $subscriptionId) {
+            return;
+        }
+
+        $stripeSubscription = $proSubscriptions->retrieveSubscription($subscriptionId);
+        $subscription = $proSubscriptions->syncFromStripeSubscription($stripeSubscription);
+
+        if ($subscription && $subscription->trial_ends_at !== null) {
+            $proSubscriptions->markTrialConsumed($subscription->user);
+        }
+    }
+
+    protected function handleInvoicePaid(object $invoice, CardoraProSubscriptionService $proSubscriptions): void
+    {
+        $subscriptionId = $this->resolveInvoiceSubscriptionId($invoice);
+        if (! $subscriptionId) {
+            return;
+        }
+
+        $subscription = \App\Models\Subscription::query()
+            ->where('stripe_subscription_id', $subscriptionId)
+            ->first();
+
+        if (! $subscription) {
+            return;
+        }
+
+        $proSubscriptions->syncFromStripeSubscription($proSubscriptions->retrieveSubscription($subscriptionId));
+        $proSubscriptions->grantFeaturedCredit($subscription->user);
+    }
+
+    protected function handleInvoicePaymentFailed(object $invoice, CardoraProSubscriptionService $proSubscriptions): void
+    {
+        $subscriptionId = $this->resolveInvoiceSubscriptionId($invoice);
+        if (! $subscriptionId) {
+            return;
+        }
+
+        $exists = \App\Models\Subscription::query()->where('stripe_subscription_id', $subscriptionId)->exists();
+        if (! $exists) {
+            return;
+        }
+
+        $proSubscriptions->syncFromStripeSubscription($proSubscriptions->retrieveSubscription($subscriptionId));
+    }
+
+    /**
+     * Stripe moved the invoice -> subscription link around across API
+     * versions — try the legacy top-level field first, then the current
+     * parent.subscription_details.subscription location.
+     */
+    protected function resolveInvoiceSubscriptionId(object $invoice): ?string
+    {
+        if (is_string($invoice->subscription ?? null)) {
+            return $invoice->subscription;
+        }
+
+        if (! empty($invoice->subscription->id ?? null)) {
+            return $invoice->subscription->id;
+        }
+
+        $viaParent = $invoice->parent->subscription_details->subscription ?? null;
+        if (is_string($viaParent)) {
+            return $viaParent;
+        }
+
+        return $viaParent->id ?? null;
     }
 
     protected function handleAccountUpdated(object $event, StripeConnectService $connectService): void

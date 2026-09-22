@@ -32,6 +32,14 @@ class UserProfileResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'plan' => $this->resource->isProActive() ? 'pro' : 'free',
+            'isPro' => $this->resource->isProActive(),
+            'pro' => [
+                'status' => $this->pro_status,
+                'currentPeriodEnd' => $this->pro_current_period_end,
+                'cancelAtPeriodEnd' => (bool) $this->pro_cancel_at_period_end,
+                'trialAvailable' => $this->pro_trial_used_at === null,
+            ],
             'name' => $this->name,
             'display_name' => $this->display_name,
             'displayName' => $this->display_name ?: $this->handle ?: $this->name,

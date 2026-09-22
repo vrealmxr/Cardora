@@ -32,7 +32,8 @@ class MarketplaceBootstrapService
         protected CartSanitizerService $cartSanitizer,
         protected MarketplaceAccessService $marketplaceAccessService,
         protected PlatformVolumeCampaignService $platformVolumeCampaigns,
-        protected LotCardSelectionService $lotCardSelections
+        protected LotCardSelectionService $lotCardSelections,
+        protected OrderCheckoutService $orderCheckoutService
     ) {
     }
 
@@ -330,9 +331,17 @@ class MarketplaceBootstrapService
             'shippingProfile' => $listing->shipping_profile,
             'deliveryCarrier' => $this->resolveListingCarrier($listing),
             'deliveryOptions' => $this->resolveListingCarriers($listing),
+            // Per-carrier domestic rate so the frontend can show the correct total the
+            // moment a buyer switches carrier at checkout, instead of a DHL-defaulted figure.
+            'shippingCostByCarrier' => collect($this->resolveListingCarriers($listing))
+                ->mapWithKeys(fn (string $carrier) => [
+                    $carrier => $this->orderCheckoutService->resolveDomesticShippingCost($listing, $carrier),
+                ])
+                ->all(),
             'stock' => (int) ($listing->available_quantity ?? $listing->quantity ?? 0),
             'availability' => $this->localizedAvailability($listing->availability, $locale),
             'sellerId' => (int) $listing->seller_id,
+            'sellerIsPro' => (bool) $listing->seller?->isProActive(),
             'sellerRating' => (float) ($listing->seller?->rating ?? 0),
             'listedAt' => optional($listing->published_at ?: $listing->created_at)->toIso8601String(),
             'year' => $product?->year ? (string) $product->year : Arr::get($attributes, 'year'),
@@ -630,6 +639,7 @@ class MarketplaceBootstrapService
                 return [
                     'id' => $order->order_number,
                     'databaseId' => (int) $order->getKey(),
+                    'checkoutBatchId' => $order->checkout_batch_id,
                     'productId' => $primaryItem?->listing_id,
                     'drawId' => $primaryItem?->draw_campaign_id,
                     'itemType' => $primaryType,

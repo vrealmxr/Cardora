@@ -2,6 +2,7 @@
 import { X } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import ListingPreviewCard from '@/components/listings/ListingPreviewCard'
+import BinderCardMatchField from '@/components/listing/BinderCardMatchField'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
@@ -189,6 +190,8 @@ const createDefaultForm = (templates, commonOptions) => ({
   title: '',
   subtitle: '',
   description: '',
+  binderCardId: null,
+  binderCardSnapshot: null,
   year: '',
   quantity: 1,
   tags: '',
@@ -466,6 +469,8 @@ const buildFormFromExistingListing = ({
     title: product.title ?? listing?.title_snapshot ?? '',
     subtitle: product.subtitle ?? '',
     description: product.description ?? '',
+    binderCardId: product.binder_card_id ?? null,
+    binderCardSnapshot: product.binder_card ?? null,
     year:
       product.year != null
         ? String(product.year)
@@ -1553,7 +1558,7 @@ function CreateListingPage() {
                     type="button"
                     onClick={() => goToStep(itemStep)}
                     className={cn(
-                      'rounded-[18px] border px-3 py-3 text-left transition',
+                      'min-w-0 rounded-[18px] border px-3 py-3 text-left transition',
                       itemStep === step
                         ? 'border-[#bfe9d8] bg-[linear-gradient(155deg,rgba(239,255,249,0.98)_0%,rgba(228,252,243,0.94)_100%)] text-[#214d3f] shadow-[0_10px_24px_rgba(107,175,145,0.14)]'
                         : itemStep < step
@@ -1562,7 +1567,7 @@ function CreateListingPage() {
                     )}
                   >
                     <p className="text-[10px] uppercase tracking-[0.28em]">{String(itemStep).padStart(2, '0')}</p>
-                    <p className="mt-2 text-xs font-semibold leading-5">{label}</p>
+                    <p className="mt-2 break-words text-xs font-semibold leading-5">{label}</p>
                   </button>
                 )
               })}
@@ -1623,6 +1628,18 @@ function CreateListingPage() {
                       placeholder={t('Short context for the buyer', 'Short context for the buyer')}
                     />
                   </div>
+
+                  {form.categoryId === 'cards' ? (
+                    <BinderCardMatchField
+                      cardId={form.binderCardId}
+                      snapshot={form.binderCardSnapshot}
+                      isEnglish={locale === 'en'}
+                      onChange={(cardId, snapshot) => {
+                        updateForm('binderCardId', cardId)
+                        updateForm('binderCardSnapshot', snapshot)
+                      }}
+                    />
+                  ) : null}
 
                   {activeFranchiseGroups.length ? (
                     <>

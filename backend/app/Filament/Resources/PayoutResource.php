@@ -12,13 +12,13 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\RestrictableResource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
-class PayoutResource extends Resource
+class PayoutResource extends RestrictableResource
 {
     protected static ?string $model = Payout::class;
 

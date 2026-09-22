@@ -59,6 +59,13 @@ return [
 
     'asset_url' => env('ASSET_URL'),
 
+    // The deployed SPA's origin, used to build links in transactional
+    // emails/notifications (order, message, support, Binder alert URLs...).
+    // Must be read via config() rather than env() at call sites — env()
+    // calls outside config/*.php return null once config is cached, which
+    // is exactly what config:cache does on every production deploy.
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
@@ -169,7 +176,7 @@ return [
         App\Providers\AuthServiceProvider::class,
         // App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
-        PHP_SAPI !== 'cli' ? App\Providers\Filament\AdminPanelProvider::class : null,
+        App\Providers\Filament\AdminPanelProvider::class,
         App\Providers\RouteServiceProvider::class,
     ])))->toArray(),
 

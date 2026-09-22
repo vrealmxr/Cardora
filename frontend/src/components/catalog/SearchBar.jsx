@@ -17,6 +17,7 @@ function SearchBar({
   defaultCategory = ALL_CATEGORY_VALUE,
   placeholder,
   initialValues,
+  showSort = true,
 }) {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
@@ -303,7 +304,10 @@ function SearchBar({
     <CardSurface className={cn('relative z-10 overflow-visible p-3.5 sm:p-4', className)}>
       <form
         onSubmit={handleSubmit}
-        className="relative z-10 grid gap-2.5 lg:grid-cols-[1.7fr,1fr,1fr,1fr,1fr,auto]"
+        className={cn(
+          'relative z-10 grid gap-2.5',
+          showSort ? 'lg:grid-cols-[1.7fr,1fr,1fr,1fr,1fr,auto]' : 'lg:grid-cols-[1.7fr,1fr,1fr,auto]',
+        )}
       >
         {renderSearchInput()}
 
@@ -332,12 +336,14 @@ function SearchBar({
           ))}
         </Select>
 
-        <Select value={sort} onChange={(event) => setSort(event.target.value)}>
-          <option value="newest">{copy.sortNewest}</option>
-          <option value="price-asc">{copy.sortPriceAsc}</option>
-          <option value="price-desc">{copy.sortPriceDesc}</option>
-          <option value="rating">{copy.sortRating}</option>
-        </Select>
+        {showSort ? (
+          <Select value={sort} onChange={(event) => setSort(event.target.value)}>
+            <option value="newest">{copy.sortNewest}</option>
+            <option value="price-asc">{copy.sortPriceAsc}</option>
+            <option value="price-desc">{copy.sortPriceDesc}</option>
+            <option value="rating">{copy.sortRating}</option>
+          </Select>
+        ) : null}
 
         <Button type="submit">{t('common.search')}</Button>
       </form>

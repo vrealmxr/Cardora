@@ -15,6 +15,27 @@ class FeaturedListingPaymentService
 {
     protected ?StripeClient $client = null;
 
+    /**
+     * Cardora PRO users get one free featured-listing credit per billing
+     * period (refreshed on every successful invoice). Spend it here
+     * instead of charging, if one is available and the caller opted in.
+     */
+    public function useProCreditIfAvailable(User $user, Listing $listing): bool
+    {
+        if (! $user->isProActive() || ! $user->pro_featured_credit_available) {
+            return false;
+        }
+
+        $user->forceFill(['pro_featured_credit_available' => false])->save();
+
+        $listing->forceFill([
+            'is_featured' => true,
+            'featured_until' => now()->addDays((int) config('services.stripe.featured_listing_duration_days', 5)),
+        ])->save();
+
+        return true;
+    }
+
     public function createCheckout(User $user, ?Listing $listing = null, string $client = 'web'): FeaturedListingPayment
     {
         $amount = (float) config('services.stripe.featured_listing_price', 2);

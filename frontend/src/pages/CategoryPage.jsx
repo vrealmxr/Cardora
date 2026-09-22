@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Breadcrumbs from '@/components/catalog/Breadcrumbs'
 import FilterSidebar from '@/components/catalog/FilterSidebar'
+import PageSeo from '@/components/PageSeo'
 import ProductCard from '@/components/catalog/ProductCard'
 import SearchBar from '@/components/catalog/SearchBar'
 import Button from '@/components/ui/Button'
@@ -11,8 +12,16 @@ import Drawer from '@/components/ui/Drawer'
 import EmptyState from '@/components/ui/EmptyState'
 import Pagination from '@/components/ui/Pagination'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
+
+const CATEGORY_SLUG_TO_SEO_KEY = {
+  kartes: 'category.cards',
+  figoures: 'category.figures',
+  'komik-vivlia': 'category.comics',
+  diafora: 'category.misc',
+}
 
 function CategoryPage({ categorySlug }) {
   const { locale } = useI18n()
@@ -21,6 +30,7 @@ function CategoryPage({ categorySlug }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const category = categories.find((item) => item.slug === categorySlug)
+  const seo = useSeo(CATEGORY_SLUG_TO_SEO_KEY[categorySlug])
   const previousCategorySlugRef = useRef(categorySlug)
 
   const [page, setPage] = useState(1)
@@ -47,7 +57,7 @@ function CategoryPage({ categorySlug }) {
           collectorCategory: 'Collector category',
           listings: 'Listings',
           sales: 'Sales',
-          verified: 'Verified sellers',
+          verified: 'Verified sellers here',
           resultsEyebrow: 'Search Results',
           resultsDescription: (count) =>
             `${count} results with dynamic filtering and cleaner matching based on your current criteria.`,
@@ -66,7 +76,7 @@ function CategoryPage({ categorySlug }) {
           collectorCategory: '\u039a\u03b1\u03c4\u03b7\u03b3\u03bf\u03c1\u03af\u03b1 \u03c3\u03c5\u03bb\u03bb\u03b5\u03ba\u03c4\u03ce\u03bd',
           listings: 'Listings',
           sales: '\u03a0\u03c9\u03bb\u03ae\u03c3\u03b5\u03b9\u03c2',
-          verified: 'Verified sellers',
+          verified: '\u0395\u03c0\u03b1\u03bb\u03b7\u03b8\u03b5\u03c5\u03bc\u03ad\u03bd\u03bf\u03b9 \u03c0\u03c9\u03bb\u03b7\u03c4\u03ad\u03c2 \u03b5\u03b4\u03ce',
           resultsEyebrow: '\u0391\u03c0\u03bf\u03c4\u03b5\u03bb\u03ad\u03c3\u03bc\u03b1\u03c4\u03b1 \u03b1\u03bd\u03b1\u03b6\u03ae\u03c4\u03b7\u03c3\u03b7\u03c2',
           resultsDescription: (count) =>
             `${count} \u03b1\u03c0\u03bf\u03c4\u03b5\u03bb\u03ad\u03c3\u03bc\u03b1\u03c4\u03b1 \u03bc\u03b5 \u03ad\u03be\u03c5\u03c0\u03bd\u03b1 \u03b4\u03c5\u03bd\u03b1\u03bc\u03b9\u03ba\u03ac \u03c6\u03af\u03bb\u03c4\u03c1\u03b1 \u03ba\u03b1\u03b9 \u03c0\u03b9\u03bf \u03c3\u03c9\u03c3\u03c4\u03cc matching.`,
@@ -176,6 +186,11 @@ function CategoryPage({ categorySlug }) {
 
   return (
     <div className="container pb-14">
+      <PageSeo
+        pageKey={CATEGORY_SLUG_TO_SEO_KEY[categorySlug]}
+        fallbackTitle={category.name}
+        fallbackDescription={category.description}
+      />
       <CardSurface className="overflow-hidden p-6 sm:p-7">
         <Breadcrumbs items={[{ label: copy.home, href: '/' }, { label: category.name }]} />
         <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
@@ -183,7 +198,9 @@ function CategoryPage({ categorySlug }) {
             <p className="text-xs uppercase tracking-[0.35em] text-gold-100">
               {category.id === 'cards' ? copy.heroCategory : copy.collectorCategory}
             </p>
-            <h1 className="mt-3.5 font-display text-4xl text-white md:text-5xl">{category.name}</h1>
+            <h1 className="mt-3.5 font-display text-4xl text-white md:text-5xl">
+              {seo?.h1 || category.name}
+            </h1>
             <p className="mt-3.5 max-w-3xl text-base leading-7 text-mist">{category.description}</p>
             <div className="mt-5 flex flex-wrap gap-2">
               {(category.spotlightFilters ?? []).map((item) => (
@@ -217,6 +234,7 @@ function CategoryPage({ categorySlug }) {
       <div className="mt-8">
         <SearchBar
           defaultCategory={category.id}
+          showSort={false}
           initialValues={{
             query: filters.search,
             categoryId: category.id,

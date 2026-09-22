@@ -49,11 +49,18 @@ class User extends Authenticatable implements FilamentUser, HasName, MustVerifyE
         'purchase_count',
         'is_verified_seller',
         'is_admin',
+        'is_seo_editor',
         'admin_role',
         'admin_notes',
         'admin_last_seen_at',
         'last_seen_at',
         'password',
+        'stripe_customer_id',
+        'pro_status',
+        'pro_current_period_end',
+        'pro_cancel_at_period_end',
+        'pro_trial_used_at',
+        'pro_featured_credit_available',
     ];
 
     /**
@@ -80,14 +87,29 @@ class User extends Authenticatable implements FilamentUser, HasName, MustVerifyE
         'rating' => 'decimal:2',
         'is_verified_seller' => 'boolean',
         'is_admin' => 'boolean',
+        'is_seo_editor' => 'boolean',
         'admin_last_seen_at' => 'datetime',
         'last_seen_at' => 'datetime',
         'password' => 'hashed',
+        'pro_current_period_end' => 'datetime',
+        'pro_cancel_at_period_end' => 'boolean',
+        'pro_trial_used_at' => 'datetime',
+        'pro_featured_credit_available' => 'boolean',
     ];
+
+    /**
+     * Whether the user currently has an active (or trialing) Cardora PRO
+     * subscription. This is the single check every PRO-gated feature
+     * (fees, scanner quota, alert caps, analytics...) should use.
+     */
+    public function isProActive(): bool
+    {
+        return in_array($this->pro_status, ['trialing', 'active'], true);
+    }
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return $panel->getId() === 'admin' && $this->is_admin;
+        return $panel->getId() === 'admin' && ($this->is_admin || $this->is_seo_editor);
     }
 
     public function getFilamentName(): string
@@ -253,6 +275,11 @@ class User extends Authenticatable implements FilamentUser, HasName, MustVerifyE
     public function tradeDealsAsProposer(): HasMany
     {
         return $this->hasMany(TradeDeal::class, 'proposer_user_id');
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
     }
 
     public function sendEmailVerificationNotification(): void

@@ -7,6 +7,11 @@ use Filament\Widgets\Widget;
 
 class AdminAttentionCenter extends Widget
 {
+    public static function canView(): bool
+    {
+        return ! (auth()->user()?->is_seo_editor ?? false);
+    }
+
     protected static string $view = 'filament.widgets.admin-attention-center';
 
     protected int | string | array $columnSpan = 'full';

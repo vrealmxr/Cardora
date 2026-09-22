@@ -10,6 +10,10 @@ class Dashboard extends \Filament\Pages\Dashboard
 {
     public function mount(): void
     {
+        if (auth()->user()?->is_seo_editor) {
+            return;
+        }
+
         foreach (app(AdminAttentionCenterService::class)->getDashboardNotifications() as $alert) {
             $notification = Notification::make()
                 ->title($alert['title'])

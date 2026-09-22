@@ -48,21 +48,39 @@ class ShippingPickupPointController extends Controller
         return $this->respondForDhl($validated);
     }
 
+    /**
+     * BoxNow's /destinations lookup only filters by lat/lng + radius (or an exact locker name) —
+     * it has no postal-code/city filter. So when the buyer only gave us an address (postal code,
+     * city, street), we first resolve it to coordinates via the v2 "checkAddressDelivery" call
+     * (which returns the single closest locker + its lat/lng), then use those coordinates to
+     * pull a short list of nearby lockers from /destinations for the buyer to choose from.
+     */
     protected function respondForBoxNow(array $validated): JsonResponse
     {
         if (! $this->boxNow->isConfigured()) {
             return $this->unavailable('boxnow');
         }
 
+        $latitude = $validated['latitude'] ?? null;
+        $longitude = $validated['longitude'] ?? null;
+
+        if (blank($latitude) || blank($longitude)) {
+            $resolved = $this->resolveCoordinatesFromAddress($validated);
+            $latitude = $resolved['lat'] ?? null;
+            $longitude = $resolved['lng'] ?? null;
+        }
+
         try {
-            $raw = $this->boxNow->findLockers(array_filter([
-                'countryCode' => $validated['country_code'] ?? null,
-                'postalCode' => $validated['postal_code'] ?? null,
-                'city' => $validated['city'] ?? null,
-                'q' => $validated['query'] ?? null,
-                'lat' => $validated['latitude'] ?? null,
-                'lng' => $validated['longitude'] ?? null,
-            ], fn ($value) => $value !== null && $value !== ''));
+            $query = ['locationType' => ['apm']];
+
+            if (filled($latitude) && filled($longitude)) {
+                $query['latlng'] = sprintf('%s,%s', $latitude, $longitude);
+                $query['radius'] = 15000;
+            } elseif (filled($validated['query'] ?? null)) {
+                $query['name'] = $validated['query'];
+            }
+
+            $raw = $this->boxNow->findLockers($query);
         } catch (Throwable $exception) {
             Log::warning('BoxNow locker lookup failed.', ['error' => $exception->getMessage()]);
 
@@ -74,6 +92,39 @@ class ShippingPickupPointController extends Controller
             'available' => true,
             'points' => $this->normalizePoints($this->pluckList($raw)),
         ]);
+    }
+
+    /**
+     * @return array{lat: ?float, lng: ?float}
+     */
+    protected function resolveCoordinatesFromAddress(array $validated): array
+    {
+        if (blank($validated['postal_code'] ?? null) && blank($validated['city'] ?? null)) {
+            return ['lat' => null, 'lng' => null];
+        }
+
+        try {
+            $countryCode = strtoupper((string) ($validated['country_code'] ?? 'GR'));
+
+            $response = $this->boxNow->checkAddressDelivery(array_filter([
+                'city' => $validated['city'] ?? null,
+                'street' => $validated['query'] ?? null,
+                'postalCode' => $validated['postal_code'] ?? null,
+                'region' => $countryCode === 'GR' ? 'el-GR' : null,
+                'compartmentSize' => 1,
+            ], fn ($value) => $value !== null && $value !== ''));
+
+            return [
+                'lat' => data_get($response, 'lat'),
+                'lng' => data_get($response, 'lng'),
+            ];
+        } catch (Throwable $exception) {
+            Log::info('BoxNow address-to-locker resolution failed, falling back to unfiltered lookup.', [
+                'error' => $exception->getMessage(),
+            ]);
+
+            return ['lat' => null, 'lng' => null];
+        }
     }
 
     protected function respondForDhl(array $validated): JsonResponse
@@ -183,7 +234,8 @@ class ShippingPickupPointController extends Controller
                         ?? data_get($point, 'zip')
                         ?? data_get($point, 'address.postalCode')
                         ?? data_get($point, 'place.address.postalCode'),
-                    'country_code' => data_get($point, 'countryCode')
+                    'country_code' => data_get($point, 'country')
+                        ?? data_get($point, 'countryCode')
                         ?? data_get($point, 'address.country')
                         ?? data_get($point, 'address.countryCode')
                         ?? data_get($point, 'place.address.countryCode'),

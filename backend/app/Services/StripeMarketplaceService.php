@@ -9,7 +9,9 @@ use App\Mail\MarketplaceEventMail;
 use App\Models\Order;
 use App\Models\SellerPayoutAccount;
 use App\Models\User;
+use App\Support\MarketplaceSellerFeeCalculator;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -28,65 +30,80 @@ class StripeMarketplaceService
         protected SellerLedgerService $ledgerService,
         protected StripePlatformBalanceService $platformBalanceService,
         protected PlatformVolumeCampaignService $platformVolumeCampaigns,
-        protected MarketplaceNotificationService $notifications
+        protected MarketplaceNotificationService $notifications,
+        protected BinderPriceHistoryService $binderPriceHistory
     ) {
     }
 
-    public function createCheckoutSessionForOrder(Order $order): array
+    /**
+     * Builds ONE Stripe Checkout Session covering every order in the batch (a cart checkout
+     * can now produce several orders — one per cart item — that the buyer still pays for in a
+     * single Stripe payment). All orders share the same checkout_batch_id and, once the
+     * session exists, the same stripe_checkout_session_id — that's what the webhook handler
+     * uses to resolve and confirm every order in the batch together.
+     *
+     * @param Collection<int, Order> $orders
+     */
+    public function createCheckoutSessionForOrders(Collection $orders): array
     {
-        $order->loadMissing(['buyer', 'seller', 'items.listing.product', 'items.drawCampaign']);
+        $orders->each(fn (Order $order) => $order->loadMissing(['buyer', 'seller', 'items.listing.product', 'items.drawCampaign']));
 
-        if ($order->stripe_checkout_session_id) {
+        $primaryOrder = $orders->first();
+        $batchId = (string) $primaryOrder->checkout_batch_id;
+        $existingSessionId = $primaryOrder->stripe_checkout_session_id;
+
+        if ($existingSessionId) {
             try {
-                $existing = $this->stripe()->checkout->sessions->retrieve($order->stripe_checkout_session_id, []);
+                $existing = $this->stripe()->checkout->sessions->retrieve($existingSessionId, []);
 
                 if (($existing->status ?? null) === 'open' && ! empty($existing->url)) {
                     return [
                         'checkout_session_id' => $existing->id,
                         'checkout_url' => $existing->url,
                         'expires_at' => $existing->expires_at,
-                        'order_id' => $order->getKey(),
-                        'order_number' => $order->order_number,
+                        'checkout_batch_id' => $batchId,
                     ];
                 }
             } catch (ApiErrorException $exception) {
-                Log::warning('Unable to reuse Stripe Checkout session for order.', [
-                    'order_id' => $order->getKey(),
-                    'stripe_checkout_session_id' => $order->stripe_checkout_session_id,
+                Log::warning('Unable to reuse Stripe Checkout session for order batch.', [
+                    'checkout_batch_id' => $batchId,
+                    'stripe_checkout_session_id' => $existingSessionId,
                     'error' => $exception->getMessage(),
                 ]);
             }
         }
 
+        $lineItems = $orders->flatMap(fn (Order $order) => $this->buildCheckoutLineItems($order))->values()->all();
+        $batchMetadata = $this->stripeMetadataForBatch($orders, $batchId);
+
         $session = $this->stripe()->checkout->sessions->create(
             [
                 'mode' => 'payment',
-                'success_url' => $this->checkoutSuccessUrl($order),
-                'cancel_url' => $this->checkoutCancelUrl($order),
-                'customer_email' => $order->buyer?->email,
-                'client_reference_id' => (string) $order->getKey(),
-                'line_items' => $this->buildCheckoutLineItems($order),
-                'metadata' => $this->stripeMetadataForOrder($order),
+                'success_url' => $this->checkoutSuccessUrl($primaryOrder, $batchId),
+                'cancel_url' => $this->checkoutCancelUrl($primaryOrder, $batchId),
+                'customer_email' => $primaryOrder->buyer?->email,
+                'client_reference_id' => $batchId,
+                'line_items' => $lineItems,
+                'metadata' => $batchMetadata,
                 'payment_intent_data' => [
-                    'metadata' => $this->stripeMetadataForOrder($order),
-                    'transfer_group' => $this->transferGroup($order),
+                    'metadata' => $batchMetadata,
+                    'transfer_group' => sprintf('checkout_batch_%s', $batchId),
                 ],
             ],
             [
-                'idempotency_key' => sprintf('checkout_session_order_%s', $order->getKey()),
+                'idempotency_key' => sprintf('checkout_session_batch_%s', $batchId),
             ]
         );
 
-        $order->forceFill([
-            'stripe_checkout_session_id' => $session->id,
-        ])->save();
+        Order::query()
+            ->where('checkout_batch_id', $batchId)
+            ->update(['stripe_checkout_session_id' => $session->id]);
 
         return [
             'checkout_session_id' => $session->id,
             'checkout_url' => $session->url,
             'expires_at' => $session->expires_at,
-            'order_id' => $order->getKey(),
-            'order_number' => $order->order_number,
+            'checkout_batch_id' => $batchId,
         ];
     }
 
@@ -136,7 +153,10 @@ class StripeMarketplaceService
         return $paidOrder->fresh(['items', 'buyer', 'seller', 'escrowTransaction']);
     }
 
-    public function confirmSession(string $sessionId, ?User $buyer = null, ?int $orderId = null): ?Order
+    /**
+     * @return Collection<int, Order>
+     */
+    public function confirmSession(string $sessionId, ?User $buyer = null, ?int $orderId = null): Collection
     {
         try {
             $session = $this->stripe()->checkout->sessions->retrieve($sessionId, []);
@@ -148,35 +168,36 @@ class StripeMarketplaceService
                 'error' => $exception->getMessage(),
             ]);
 
-            return null;
+            return collect();
         }
 
         if (($session->payment_status ?? null) !== 'paid') {
-            return null;
+            return collect();
         }
 
-        $order = $this->findOrderByStripeMetadata(
+        $orders = $this->findOrdersByStripeMetadata(
             (array) ($session->metadata ?? []),
             $session->payment_intent ?? null,
             $session->id ?? null
         );
 
-        if (! $order && $orderId) {
-            $order = Order::query()->find($orderId);
+        if ($orders->isEmpty() && $orderId) {
+            $fallbackOrder = Order::query()->find($orderId);
+            $orders = $fallbackOrder ? collect([$fallbackOrder]) : collect();
         }
 
-        if (! $order) {
-            Log::warning('Paid Stripe Checkout session could not be matched to an order.', [
+        if ($orders->isEmpty()) {
+            Log::warning('Paid Stripe Checkout session could not be matched to any order.', [
                 'session_id' => $sessionId,
                 'order_id' => $orderId,
                 'buyer_id' => $buyer?->getKey(),
                 'metadata' => $session->metadata ?? [],
             ]);
 
-            return null;
+            return collect();
         }
 
-        if ($buyer && (int) $order->buyer_id !== (int) $buyer->getKey()) {
+        if ($buyer && $orders->contains(fn (Order $order) => (int) $order->buyer_id !== (int) $buyer->getKey())) {
             throw ValidationException::withMessages([
                 'session_id' => [__('api.errors.forbidden')],
             ]);
@@ -206,7 +227,7 @@ class StripeMarketplaceService
             && ! $order->delivered_at
         ) {
             throw ValidationException::withMessages([
-                'order' => ['Funds can be released only after DHL confirms delivery.'],
+                'order' => ['Funds can be released only after the carrier confirms delivery.'],
             ]);
         }
 
@@ -254,6 +275,16 @@ class StripeMarketplaceService
         ]);
 
         $this->ledgerService->recordFundsRelease($order->fresh(['seller.sellerPayoutAccount']), $transfer->id);
+
+        try {
+            $this->binderPriceHistory->recordOrderSalePricePoints($order->fresh());
+        } catch (\Throwable $exception) {
+            Log::error('Failed to record Binder price history for a released order.', [
+                'order_id' => $order->getKey(),
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
         $this->platformBalanceService->syncHeldFundsReserve();
         $this->platformVolumeCampaigns->syncAll();
         $releasedOrder = $order->fresh(['buyer', 'seller', 'seller.sellerPayoutAccount', 'escrowTransaction']);
@@ -502,52 +533,58 @@ class StripeMarketplaceService
         ]);
     }
 
-    public function handleCheckoutSessionCompleted(object $session): ?Order
+    /**
+     * @return Collection<int, Order>
+     */
+    public function handleCheckoutSessionCompleted(object $session): Collection
     {
         if (($session->payment_status ?? null) !== 'paid') {
-            return null;
+            return collect();
         }
 
-        $order = $this->findOrderByStripeMetadata((array) ($session->metadata ?? []), $session->payment_intent ?? null, $session->id ?? null);
+        $orders = $this->findOrdersByStripeMetadata((array) ($session->metadata ?? []), $session->payment_intent ?? null, $session->id ?? null);
 
-        if (! $order) {
+        if ($orders->isEmpty()) {
             Log::warning('Stripe checkout.session.completed received without a matching order.', [
                 'session_id' => $session->id ?? null,
                 'payment_intent' => $session->payment_intent ?? null,
                 'metadata' => $session->metadata ?? [],
             ]);
 
-            return null;
+            return collect();
         }
 
-        return $this->confirmSuccessfulPayment($order, [
+        return $orders->map(fn (Order $order) => $this->confirmSuccessfulPayment($order, [
             'stripe_checkout_session_id' => $session->id ?? null,
             'stripe_payment_intent_id' => $session->payment_intent ?? null,
             'payment_status' => $session->payment_status ?? null,
-        ]);
+        ]))->values();
     }
 
-    public function handlePaymentIntentSucceeded(object $paymentIntent): ?Order
+    /**
+     * @return Collection<int, Order>
+     */
+    public function handlePaymentIntentSucceeded(object $paymentIntent): Collection
     {
-        $order = $this->findOrderByStripeMetadata((array) ($paymentIntent->metadata ?? []), $paymentIntent->id ?? null);
+        $orders = $this->findOrdersByStripeMetadata((array) ($paymentIntent->metadata ?? []), $paymentIntent->id ?? null);
 
-        if (! $order) {
+        if ($orders->isEmpty()) {
             Log::warning('Stripe payment_intent.succeeded received without a matching order.', [
                 'payment_intent_id' => $paymentIntent->id ?? null,
                 'metadata' => $paymentIntent->metadata ?? [],
             ]);
 
-            return null;
+            return collect();
         }
 
         $charge = $paymentIntent->charges->data[0] ?? null;
         $chargeId = $charge->id ?? ($paymentIntent->latest_charge ?? null);
 
-        return $this->confirmSuccessfulPayment($order, [
+        return $orders->map(fn (Order $order) => $this->confirmSuccessfulPayment($order, [
             'stripe_payment_intent_id' => $paymentIntent->id ?? null,
             'stripe_charge_id' => is_string($chargeId) ? $chargeId : null,
             'payment_status' => $paymentIntent->status ?? null,
-        ]);
+        ]))->values();
     }
 
     protected function buildCheckoutLineItems(Order $order): array
@@ -607,7 +644,40 @@ class StripeMarketplaceService
             ];
         }
 
+        // Below €5, the seller's commission is charged to the buyer as its own line
+        // item instead of being deducted from the seller's payout (see
+        // OrderCheckoutService::createPendingOrder) — the seller keeps the full item
+        // price, and this is what Cardora actually collects as its fee on the sale.
+        if (MarketplaceSellerFeeCalculator::isFixedFeeTier((float) $order->subtotal) && (float) $order->commission_amount > 0) {
+            $lineItems[] = [
+                'price_data' => [
+                    'currency' => strtolower($order->currency),
+                    'product_data' => [
+                        'name' => 'Cardora service fee',
+                        'description' => 'Flat Cardora fee applied to low-value items.',
+                    ],
+                    'unit_amount' => $this->toStripeAmount((float) $order->commission_amount),
+                ],
+                'quantity' => 1,
+            ];
+        }
+
         return $lineItems;
+    }
+
+    /**
+     * @param Collection<int, Order> $orders
+     */
+    protected function stripeMetadataForBatch(Collection $orders, string $batchId): array
+    {
+        $primaryOrder = $orders->first();
+
+        return [
+            'checkout_batch_id' => $batchId,
+            'order_ids' => $orders->pluck('id')->implode(','),
+            'order_numbers' => $orders->pluck('order_number')->implode(','),
+            'buyer_id' => (string) $primaryOrder->buyer_id,
+        ];
     }
 
     protected function stripeMetadataForOrder(Order $order): array
@@ -624,16 +694,26 @@ class StripeMarketplaceService
         ];
     }
 
-    protected function findOrderByStripeMetadata(array $metadata, ?string $paymentIntentId = null, ?string $sessionId = null): ?Order
+    /**
+     * Public so webhook handlers for payment-failure/expiry events (which need to mark every
+     * order in a batch as failed, not just one) can reuse the same batch-aware lookup.
+     *
+     * @return Collection<int, Order>
+     */
+    public function findOrdersByStripeMetadata(array $metadata, ?string $paymentIntentId = null, ?string $sessionId = null): Collection
     {
-        $orderId = isset($metadata['order_id']) ? (int) $metadata['order_id'] : null;
+        $batchId = $metadata['checkout_batch_id'] ?? null;
 
-        if ($orderId) {
-            return Order::query()->find($orderId);
+        if ($batchId) {
+            $orders = Order::query()->where('checkout_batch_id', $batchId)->get();
+
+            if ($orders->isNotEmpty()) {
+                return $orders;
+            }
         }
 
         if (! $paymentIntentId && ! $sessionId) {
-            return null;
+            return collect();
         }
 
         return Order::query()
@@ -647,7 +727,7 @@ class StripeMarketplaceService
                     $query->{$method}('stripe_checkout_session_id', $sessionId);
                 }
             })
-            ->first();
+            ->get();
     }
 
     protected function transferGroup(Order $order): string
@@ -741,27 +821,34 @@ class StripeMarketplaceService
         );
     }
 
-    protected function checkoutSuccessUrl(Order $order): string
+    /**
+     * $order here is just the batch's first/primary order, used for the singular
+     * order/order_id params today's CheckoutSuccessPage.jsx still reads. batch_id is included
+     * so a future multi-order success page can resolve every order from the same checkout.
+     */
+    protected function checkoutSuccessUrl(Order $order, string $batchId): string
     {
         $base = rtrim((string) config('services.stripe.checkout_success_url'), '/');
 
         return sprintf(
-            '%s?order=%s&order_id=%s&session_id={CHECKOUT_SESSION_ID}',
+            '%s?order=%s&order_id=%s&batch_id=%s&session_id={CHECKOUT_SESSION_ID}',
             $base,
             urlencode((string) $order->order_number),
             urlencode((string) $order->getKey()),
+            urlencode($batchId),
         );
     }
 
-    protected function checkoutCancelUrl(Order $order): string
+    protected function checkoutCancelUrl(Order $order, string $batchId): string
     {
         $base = rtrim((string) config('services.stripe.checkout_cancel_url'), '/');
 
         return sprintf(
-            '%s?order=%s&order_id=%s&cancelled=1',
+            '%s?order=%s&order_id=%s&batch_id=%s&cancelled=1',
             $base,
             urlencode((string) $order->order_number),
             urlencode((string) $order->getKey()),
+            urlencode($batchId),
         );
     }
 
@@ -793,7 +880,7 @@ class StripeMarketplaceService
     protected function releaseMailContent(?string $locale, string $audience, Order $order): array
     {
         $isEnglish = $locale === 'en';
-        $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/');
+        $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
         $sellerAmount = number_format((float) $order->seller_amount, 2, ',', '.').' '.strtoupper((string) $order->currency);
 
         if ($isEnglish) {

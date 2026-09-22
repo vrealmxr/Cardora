@@ -2,6 +2,7 @@ export const defaultNotificationPreferences = {
   messages: { in_app: true, email: true },
   orders: { in_app: true, email: true },
   follows: { in_app: true, email: true },
+  binder_alerts: { in_app: true, email: true },
   support: { in_app: true, email: true },
   security: { in_app: true, email: true, locked: true },
 }

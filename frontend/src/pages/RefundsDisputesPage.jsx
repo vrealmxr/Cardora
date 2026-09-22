@@ -140,7 +140,7 @@ const DOCUMENT = {
 }
 
 function RefundsDisputesPage() {
-  return <LegalDocumentPage document={DOCUMENT} />
+  return <LegalDocumentPage document={DOCUMENT} pageKey="refunds-disputes" />
 }
 
 export default RefundsDisputesPage

@@ -319,7 +319,7 @@ class MessageController extends Controller
     protected function messageMailContent(?string $locale, string $senderName, string $listingTitle): array
     {
         $isEnglish = $locale === 'en';
-        $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/');
+        $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
 
         if ($isEnglish) {
             return [

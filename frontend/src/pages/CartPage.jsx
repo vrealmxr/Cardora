@@ -51,10 +51,12 @@ function CartPage() {
           moveToFavorites: 'Move to favorites',
           remove: 'Remove',
           summary: 'Order summary',
-          total: 'Total',
-          totalDue: 'Final amount',
+          total: 'Items subtotal',
+          totalDue: 'Subtotal',
           noticePhysical:
-            'The final amount already includes shipping and Cardora transaction protection, so both buyer and seller stay covered through to safe delivery and completion.',
+            'Shipping cost depends on the delivery method — you’ll see the final amount, including shipping and Cardora transaction protection, after choosing a shipping method at checkout.',
+          lowValueFeeNotice: (fee) =>
+            `Items worth €5 or less include a flat €${fee.toFixed(2)} Cardora fee, added on top at checkout. The seller still gets the full item price.`,
           noticeDraw:
             'The final amount covers your entries and secure Cardora checkout, with your participation recorded safely in the system.',
           checkout: 'Continue to checkout',
@@ -79,10 +81,12 @@ function CartPage() {
           moveToFavorites: 'Μεταφορά στα αγαπημένα',
           remove: 'Αφαίρεση',
           summary: 'Σύνοψη παραγγελίας',
-          total: 'Σύνολο',
-          totalDue: 'Τελικό πληρωτέο ποσό',
+          total: 'Υποσύνολο προϊόντων',
+          totalDue: 'Υποσύνολο',
           noticePhysical:
-            'Στο τελικό ποσό περιλαμβάνονται ήδη τα μεταφορικά και η προστασία συναλλαγής από την Cardora, ώστε να καλύπτονται τόσο ο αγοραστής όσο και ο πωλητής μέχρι την ασφαλή παραλαβή και ολοκλήρωση.',
+            'Το κόστος μεταφορικών εξαρτάται από τον τρόπο αποστολής — θα δεις το τελικό ποσό, με τα μεταφορικά και την προστασία συναλλαγής από την Cardora, αφού επιλέξεις τρόπο αποστολής στο checkout.',
+          lowValueFeeNotice: (fee) =>
+            `Για αντικείμενα αξίας έως 5€ προστίθεται σταθερή χρέωση ${fee.toFixed(2)}€ από την Cardora στο checkout. Ο πωλητής παίρνει κανονικά ολόκληρη την αξία του αντικειμένου.`,
           noticeDraw:
             'Το τελικό ποσό καλύπτει τις συμμετοχές σου και το ασφαλές checkout της Cardora, με την καταγραφή τους απευθείας στο σύστημα.',
           checkout: 'Συνέχεια στο checkout',
@@ -297,7 +301,7 @@ function CartPage() {
             <div className="mt-3 flex items-end justify-between gap-4">
               <span className="text-sm text-mist">{copy.total}</span>
               <span className="text-3xl font-semibold text-white">
-                {formatCurrency(cartSummary.total)}
+                {formatCurrency(cartSummary.subtotal)}
               </span>
             </div>
           </div>
@@ -305,6 +309,12 @@ function CartPage() {
           <div className="mt-5 rounded-[22px] border border-gold-300/20 bg-gold-300/10 p-4 text-sm leading-7 text-gold-50">
             {cartSummary.containsPhysicalItems ? copy.noticePhysical : copy.noticeDraw}
           </div>
+
+          {cartSummary.lowValueFee > 0 ? (
+            <div className="mt-3 rounded-[22px] border border-white/10 bg-white/5 p-4 text-sm leading-7 text-mist">
+              {copy.lowValueFeeNotice(cartSummary.lowValueFee)}
+            </div>
+          ) : null}
 
           <div className="mt-5 flex flex-col gap-3">
             <Button as={Link} to="/checkout" className="w-full" disabled={checkoutBlocked}>

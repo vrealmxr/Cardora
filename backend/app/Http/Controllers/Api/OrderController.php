@@ -43,11 +43,11 @@ class OrderController extends Controller
 
     public function store(StoreOrderRequest $request, OrderCheckoutService $checkoutService)
     {
-        $order = $checkoutService->placeOrder($request->user(), $request->validated());
+        $orders = $checkoutService->placeOrder($request->user(), $request->validated());
 
         return response()->json([
             'message' => __('api.orders.created'),
-            'data' => new OrderResource($order),
+            'data' => OrderResource::collection($orders),
         ], 201);
     }
 
@@ -71,7 +71,7 @@ class OrderController extends Controller
 
         if (array_key_exists('tracking_number', $validated) || array_key_exists('shipment_tracking_number', $validated)) {
             throw ValidationException::withMessages([
-                'tracking_number' => ['Shipment tracking is synced automatically from DHL and cannot be edited manually.'],
+                'tracking_number' => ['Shipment tracking is synced automatically from the carrier and cannot be edited manually.'],
             ]);
         }
 
@@ -183,7 +183,7 @@ class OrderController extends Controller
     protected function orderUpdateMailContent(?string $locale, string $orderNumber, string $status): array
     {
         $isEnglish = $locale === 'en';
-        $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/');
+        $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
 
         if ($isEnglish) {
             return [

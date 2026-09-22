@@ -1,9 +1,11 @@
 import { ShieldCheck, Sparkles, WalletCards } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import PageSeo from '@/components/PageSeo'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
@@ -89,14 +91,16 @@ function AboutPage() {
   const { howItWorksSteps, platformStats, trustHighlights } = useMarketplace()
 
   const copy = locale === 'en' ? COPY_EN : COPY_EL
+  const seo = useSeo('about')
 
   return (
     <div className="container pb-16">
+      <PageSeo pageKey="about" fallbackTitle={copy.title} fallbackDescription={copy.intro} />
       <CardSurface className="overflow-hidden p-8 sm:p-10">
         <div className="grid gap-8 xl:grid-cols-[1fr,0.9fr] xl:items-center">
           <div>
             <Badge tone="gold">{copy.badge}</Badge>
-            <h1 className="mt-6 font-display text-6xl text-ink">{copy.title}</h1>
+            <h1 className="mt-6 font-display text-6xl text-ink">{seo?.h1 || copy.title}</h1>
             <p className="mt-5 max-w-3xl text-lg leading-8 text-mist">{copy.intro}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button as={Link} to="/eggrafi" size="lg">

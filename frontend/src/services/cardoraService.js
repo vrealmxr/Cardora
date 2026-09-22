@@ -5,6 +5,8 @@ const unwrapData = (payload) => payload?.data ?? payload ?? null
 export const cardoraService = {
   getBootstrap: async () => unwrapData(await apiClient.get('/bootstrap')),
 
+  getSeoSettings: async () => unwrapData(await apiClient.get('/seo')),
+
   register: async (payload) => {
     const response = await apiClient.post('/auth/register', payload)
     return {
@@ -87,6 +89,8 @@ export const cardoraService = {
     unwrapData(await apiClient.post('/seller/connect/onboarding/start', {})),
   createSellerDashboardLoginLink: async () =>
     unwrapData(await apiClient.post('/seller/connect/dashboard-link', {})),
+  createSellerAccountManagementSession: async () =>
+    unwrapData(await apiClient.post('/seller/connect/account-management-session', {})),
   getSellerBalanceSummary: async () =>
     unwrapData(await apiClient.get('/seller/balance/summary')),
   getSellerPayoutHistory: async () =>
@@ -214,4 +218,24 @@ export const cardoraService = {
     unwrapData(await apiClient.post('/profile/verification', payload)),
   updateVerification: async (submissionId, payload) =>
     unwrapData(await apiClient.put(`/profile/verification/${submissionId}`, payload)),
+
+  // Cardora PRO
+  getProStatus: async () => unwrapData(await apiClient.get('/pro/status')),
+  startProCheckout: async () => unwrapData(await apiClient.post('/pro/checkout', {})),
+  cancelProSubscription: async () => unwrapData(await apiClient.post('/pro/cancel', {})),
+  resumeProSubscription: async () => unwrapData(await apiClient.post('/pro/resume', {})),
+
+  // AI Scanner usage (the recognition itself lives elsewhere — this just meters it)
+  getScannerUsage: async () => unwrapData(await apiClient.get('/scanner/usage')),
+  recordScannerUsage: async () => unwrapData(await apiClient.post('/scanner/usage', {})),
+
+  // Binder PRO extras
+  fetchBinderCardPriceHistory: async (cardId) =>
+    unwrapData(await apiClient.get(`/binder/cards/${cardId}/price-history`)),
+  exportBinderCollection: async () => unwrapData(await apiClient.get('/binder/export')),
+  fetchBinderDuplicates: async () => unwrapData(await apiClient.get('/binder/duplicates')),
+  bulkListBinderDuplicates: async (items) =>
+    unwrapData(await apiClient.post('/binder/bulk-list', { items })),
+  updateBinderCardQuantity: async (cardId, quantity) =>
+    unwrapData(await apiClient.put(`/binder/cards/${cardId}/quantity`, { quantity })),
 }

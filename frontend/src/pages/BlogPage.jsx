@@ -1,11 +1,13 @@
 ﻿import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import BlogCard from '@/components/blog/BlogCard'
+import PageSeo from '@/components/PageSeo'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import { Input } from '@/components/ui/Input'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
 
@@ -13,6 +15,7 @@ const ALL_CATEGORY = '__all__'
 
 function BlogPage() {
   const { locale } = useI18n()
+  const seo = useSeo('blog')
   const { blogCategories, featuredBlogPosts, latestBlogPosts } = useMarketplace()
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY)
   const [query, setQuery] = useState('')
@@ -91,6 +94,7 @@ function BlogPage() {
 
   return (
     <div className="container pb-16">
+      <PageSeo pageKey="blog" fallbackTitle={copy.title} fallbackDescription={copy.description} />
       <CardSurface className="overflow-hidden p-6 sm:p-7">
         <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr] xl:items-center">
           <div>
@@ -98,7 +102,7 @@ function BlogPage() {
               <Badge tone="gold">{copy.badge}</Badge>
               <Badge tone="info">{copy.badgeSecondary}</Badge>
             </div>
-            <h1 className="mt-5 font-display text-5xl text-white sm:text-6xl">{copy.title}</h1>
+            <h1 className="mt-5 font-display text-5xl text-white sm:text-6xl">{seo?.h1 || copy.title}</h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-mist">{copy.description}</p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Button as={Link} to="/dimiourgia-aggelias">

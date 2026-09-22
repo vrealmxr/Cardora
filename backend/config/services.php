@@ -51,6 +51,10 @@ return [
         'trade_fee_rate' => (float) env('STRIPE_TRADE_FEE_RATE', 0.05),
         'trade_success_url' => env('STRIPE_TRADE_SUCCESS_URL', env('FRONTEND_URL', 'http://localhost:5173').'/dashboard-politi/kliroseis'),
         'trade_cancel_url' => env('STRIPE_TRADE_CANCEL_URL', env('FRONTEND_URL', 'http://localhost:5173').'/dashboard-politi/kliroseis'),
+        'pro_price_id' => env('STRIPE_PRO_PRICE_ID'),
+        'pro_monthly_price' => (float) env('STRIPE_PRO_MONTHLY_PRICE', 6.99),
+        'pro_currency' => env('STRIPE_PRO_CURRENCY', 'EUR'),
+        'pro_trial_days' => (int) env('STRIPE_PRO_TRIAL_DAYS', 7),
     ],
 
     'dhl' => [
@@ -81,13 +85,28 @@ return [
         'use_test_environment' => (bool) env('BOXNOW_API_USE_TEST_ENVIRONMENT', true),
         'base_url' => env('BOXNOW_API_BASE_URL', 'https://api-production.boxnow.gr'),
         'test_base_url' => env('BOXNOW_API_TEST_BASE_URL', 'https://api-stage.boxnow.gr'),
+        // BoxNow issues entirely separate credentials per environment (different client_id,
+        // client_secret AND partner_id for stage vs production) — not just a different host.
         'client_id' => env('BOXNOW_API_CLIENT_ID'),
         'client_secret' => env('BOXNOW_API_CLIENT_SECRET'),
+        'partner_id' => env('BOXNOW_API_PARTNER_ID'),
+        'test_client_id' => env('BOXNOW_API_TEST_CLIENT_ID'),
+        'test_client_secret' => env('BOXNOW_API_TEST_CLIENT_SECRET'),
+        'test_partner_id' => env('BOXNOW_API_TEST_PARTNER_ID'),
+        'webhook_secret' => env('BOXNOW_API_WEBHOOK_SECRET'),
+        'test_webhook_secret' => env('BOXNOW_API_TEST_WEBHOOK_SECRET'),
         'warehouse_id' => env('BOXNOW_API_WAREHOUSE_ID'),
         // Endpoint paths are overridable so they can be aligned with the official API docs.
         'auth_path' => env('BOXNOW_API_AUTH_PATH', '/api/v1/auth-sessions'),
         'shipments_path' => env('BOXNOW_API_SHIPMENTS_PATH', '/api/v1/delivery-requests'),
-        'lockers_path' => env('BOXNOW_API_LOCKERS_PATH', '/api/v1/destinations/points'),
+        'parcels_path' => env('BOXNOW_API_PARCELS_PATH', '/api/v1/parcels'),
+        // Locker/warehouse lookups (/origins, /destinations) live on a *separate* subdomain per
+        // the official Partner API manual (v1.65) — locationapi-{stage,production}.boxnow.gr —
+        // not on the main api-{stage,production}.boxnow.gr host used for everything else.
+        'location_base_url' => env('BOXNOW_API_LOCATION_BASE_URL', 'https://locationapi-production.boxnow.gr'),
+        'location_test_base_url' => env('BOXNOW_API_LOCATION_TEST_BASE_URL', 'https://locationapi-stage.boxnow.gr'),
+        'origins_path' => env('BOXNOW_API_ORIGINS_PATH', '/api/v1/origins'),
+        'destinations_path' => env('BOXNOW_API_DESTINATIONS_PATH', '/api/v1/destinations'),
         'default_package_weight_kg' => (float) env('BOXNOW_API_DEFAULT_PACKAGE_WEIGHT_KG', 0.5),
         'auto_release_days_after_delivery' => (int) env('BOXNOW_AUTO_RELEASE_DAYS_AFTER_DELIVERY', 2),
     ],

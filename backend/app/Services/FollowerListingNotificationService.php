@@ -124,7 +124,7 @@ class FollowerListingNotificationService
 
     protected function listingUrl(Listing $listing): string
     {
-        $baseUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/');
+        $baseUrl = rtrim((string) config('app.frontend_url'), '/');
         $slug = $listing->product?->slug;
 
         return $slug

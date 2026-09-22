@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import FilterSidebar from '@/components/catalog/FilterSidebar'
+import PageSeo from '@/components/PageSeo'
 import ProductCard from '@/components/catalog/ProductCard'
 import TradeSwapStudio from '@/components/draws/TradeSwapStudio'
 import Badge from '@/components/ui/Badge'
@@ -9,6 +10,7 @@ import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import Drawer from '@/components/ui/Drawer'
 import { Input } from '@/components/ui/Input'
+import { useSeo } from '@/context/SeoContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
@@ -736,7 +738,8 @@ function DrawsPage({ studioMode = false }) {
     )
   }
 
-  const pageTitle = studioMode ? (locale === 'en' ? 'Trades Studio' : 'Trade Studio') : copy.title
+  const seo = useSeo(studioMode ? null : 'draws')
+  const pageTitle = studioMode ? (locale === 'en' ? 'Trades Studio' : 'Trade Studio') : seo?.h1 || copy.title
   const pageDescription = studioMode
     ? locale === 'en'
       ? 'Manage your swap requests, deposit payments, releases and issue reports.'
@@ -745,6 +748,9 @@ function DrawsPage({ studioMode = false }) {
 
   return (
     <div className="container pb-16">
+      {!studioMode ? (
+        <PageSeo pageKey="draws" fallbackTitle={copy.title} fallbackDescription={copy.description} />
+      ) : null}
       <CardSurface className="p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="gold">{copy.badge}</Badge>

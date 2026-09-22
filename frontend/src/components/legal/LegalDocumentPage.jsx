@@ -15,10 +15,12 @@ import {
   WalletCards,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import PageSeo from '@/components/PageSeo'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 
 const ICONS = {
@@ -38,15 +40,19 @@ const ICONS = {
   reporting: FileSearch2,
 }
 
-function LegalDocumentPage({ document }) {
+function LegalDocumentPage({ document, pageKey }) {
   const { locale } = useI18n()
   const copy = document[locale] ?? document.el
+  const seo = useSeo(pageKey)
 
   return (
     <div className="container pb-16">
+      {pageKey ? (
+        <PageSeo pageKey={pageKey} fallbackTitle={copy.title} fallbackDescription={copy.description} />
+      ) : null}
       <SectionHeader
         eyebrow={copy.eyebrow}
-        title={copy.title}
+        title={seo?.h1 || copy.title}
         description={copy.description}
       />
 

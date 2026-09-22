@@ -52,9 +52,15 @@ class StripeConnectService
             $message = $exception->getMessage();
 
             if (str_contains($message, "signed up for Connect")) {
+                $mode = str_starts_with((string) config('services.stripe.secret'), 'sk_live_') ? 'live' : 'test';
+
                 throw ValidationException::withMessages([
                     'stripe' => [
-                        'Το Stripe account της πλατφόρμας δεν έχει ακόμη ενεργοποιημένο Connect στο dashboard. Άνοιξε το Stripe Dashboard στο test mode, πήγαινε στο Connect και ολοκλήρωσε το setup του platform account. Μετά ξαναπάτησε «Δημιουργία Stripe Connected Account».',
+                        sprintf(
+                            'Το Stripe account της πλατφόρμας δεν έχει ακόμη ενεργοποιημένο Connect στο %s mode. Άνοιξε το Stripe Dashboard σε %s mode, πήγαινε στο https://dashboard.stripe.com/connect και ολοκλήρωσε το setup του platform account. Μετά ξαναπάτησε «Δημιουργία Stripe Connected Account».',
+                            $mode,
+                            $mode
+                        ),
                     ],
                 ]);
             }
@@ -126,6 +132,34 @@ class StripeConnectService
     public function retrieveAccount(string $stripeAccountId): object
     {
         return $this->stripe()->accounts->retrieve($stripeAccountId, []);
+    }
+
+    /**
+     * Client secret for Stripe's embedded Account Management component —
+     * sellers manage payout/bank/identity settings inline on Cardora
+     * instead of being redirected to the Stripe-hosted Express Dashboard.
+     */
+    public function createAccountManagementSession(string $stripeAccountId): array
+    {
+        $session = $this->stripe()->accountSessions->create([
+            'account' => $stripeAccountId,
+            'components' => [
+                'account_management' => [
+                    'enabled' => true,
+                    'features' => [
+                        'external_account_collection' => true,
+                    ],
+                ],
+                'notification_banner' => [
+                    'enabled' => true,
+                ],
+            ],
+        ]);
+
+        return [
+            'client_secret' => $session->client_secret,
+            'publishable_key' => (string) config('services.stripe.publishable_key'),
+        ];
     }
 
     public function createDashboardLoginLink(string $stripeAccountId): string

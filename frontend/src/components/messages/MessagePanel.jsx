@@ -43,6 +43,11 @@ function MessagePanel({ conversation, currentUser }) {
   const [offerNote, setOfferNote] = useState('')
   const [offerNotice, setOfferNotice] = useState(null)
   const [isOfferSubmitting, setIsOfferSubmitting] = useState(false)
+  const offerParsedAmount = Number.parseFloat(String(offerAmount).replace(',', '.'))
+  const offerItemAmountIsLowValue =
+    Number.isFinite(offerParsedAmount) &&
+    offerParsedAmount > MINIMUM_PRIVATE_OFFER_TOTAL &&
+    offerParsedAmount - MINIMUM_PRIVATE_OFFER_TOTAL <= 5
 
   const copy = useMemo(
     () =>
@@ -80,6 +85,8 @@ function MessagePanel({ conversation, currentUser }) {
               offerCounterSubmit: 'Send counteroffer',
               offerCancel: 'Cancel',
               offerMinimumHint: 'The amount must stay above the included €2.50 shipping.',
+              offerLowValueFeeNotice:
+                'Item value is €5 or less, so Cardora adds a flat €1 fee on top for the buyer (€0.75 if the seller has PRO). The seller still receives the full item value.',
               offerAccepted: 'Accepted',
               offerPending: 'Awaiting reply',
               offerRejected: 'Declined',
@@ -132,6 +139,8 @@ function MessagePanel({ conversation, currentUser }) {
               offerCounterSubmit: 'Στείλε αντιπρόταση',
               offerCancel: 'Ακύρωση',
               offerMinimumHint: 'Το ποσό πρέπει να μένει πάνω από τα 2,50€ που περιλαμβάνονται για μεταφορικά.',
+              offerLowValueFeeNotice:
+                'Η αξία του αντικειμένου είναι 5€ ή λιγότερο, οπότε η Cardora προσθέτει σταθερή χρέωση 1€ επιπλέον για τον αγοραστή (0,75€ αν ο πωλητής έχει PRO). Ο πωλητής παίρνει κανονικά ολόκληρη την αξία του αντικειμένου.',
               offerAccepted: 'Έγινε αποδεκτή',
               offerPending: 'Περιμένει απάντηση',
               offerRejected: 'Απορρίφθηκε',
@@ -381,6 +390,9 @@ function MessagePanel({ conversation, currentUser }) {
                 placeholder="0.00"
               />
               <p className="mt-2 text-xs leading-6 text-mist">{copy.offerMinimumHint}</p>
+              {offerItemAmountIsLowValue ? (
+                <p className="mt-2 text-xs leading-6 text-gold-100">{copy.offerLowValueFeeNotice}</p>
+              ) : null}
             </div>
             <div>
               <label className="mb-2 block text-sm text-mist">{copy.offerNoteInput}</label>

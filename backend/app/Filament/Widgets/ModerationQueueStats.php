@@ -12,6 +12,11 @@ use Illuminate\Support\Facades\Cache;
 
 class ModerationQueueStats extends BaseWidget
 {
+    public static function canView(): bool
+    {
+        return ! (auth()->user()?->is_seo_editor ?? false);
+    }
+
     protected static ?string $pollingInterval = null;
 
     protected function getStats(): array

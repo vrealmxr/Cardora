@@ -1,11 +1,14 @@
-import { Camera, ImagePlus, Loader2, Search, X } from 'lucide-react'
+import { Camera, Crown, ImagePlus, Loader2, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import BinderShell from '@/components/binder/BinderShell'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import { Input } from '@/components/ui/Input'
+import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
-import { cn } from '@/utils/helpers'
+import { cardoraService } from '@/services/cardoraService'
+import { cn, localizePath } from '@/utils/helpers'
 
 const MOCK_SOURCES = ['Cardora Market', 'eBay', 'TCGplayer', 'Cardmarket']
 
@@ -21,7 +24,10 @@ function fakeSearch(term) {
 
 function CardoraScannerPage() {
   const { locale } = useI18n()
+  const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
   const isEnglish = locale === 'en'
+  const localized = (path) => localizePath(path, locale)
   const fileInputRef = useRef(null)
 
   const [mode, setMode] = useState('search')
@@ -31,10 +37,20 @@ function CardoraScannerPage() {
   const [isSearching, setIsSearching] = useState(false)
   const [results, setResults] = useState(null)
   const [searchedTerm, setSearchedTerm] = useState('')
+  const [usage, setUsage] = useState(null)
+  const [usageError, setUsageError] = useState(null)
 
   useEffect(() => {
     document.title = 'Cardora Scanner'
   }, [])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    cardoraService
+      .getScannerUsage()
+      .then((data) => setUsage(data))
+      .catch(() => setUsage(null))
+  }, [isAuthenticated])
 
   useEffect(
     () => () => {
@@ -62,6 +78,10 @@ function CardoraScannerPage() {
         suggested: 'Suggested average',
         listings: 'active listings',
         disclaimer: 'Mock estimate for preview — live scraping connects once the backend is wired up.',
+        scansLeft: 'scans left this month',
+        unlimitedScans: 'Unlimited scans (PRO)',
+        limitReached: "You've used all your free scans this month. Upgrade to Cardora PRO for unlimited AI Scanner.",
+        upgradeCta: 'Upgrade to PRO',
       }
     : {
         eyebrow: 'Άμεσος έλεγχος τιμής',
@@ -81,10 +101,33 @@ function CardoraScannerPage() {
         suggested: 'Προτεινόμενος μέσος όρος',
         listings: 'ενεργές καταχωρήσεις',
         disclaimer: 'Mock εκτίμηση για preview — το πραγματικό scraping θα συνδεθεί με το backend.',
+        scansLeft: 'scans διαθέσιμα αυτόν τον μήνα',
+        unlimitedScans: 'Απεριόριστα scans (PRO)',
+        limitReached: 'Έχεις χρησιμοποιήσει όλα τα δωρεάν scans σου αυτόν τον μήνα. Αναβάθμισε σε Cardora PRO για απεριόριστο AI Scanner.',
+        upgradeCta: 'Αναβάθμιση σε PRO',
       }
 
-  const runSearch = (term) => {
+  const runSearch = async (term) => {
     if (!term.trim()) return
+
+    if (!isAuthenticated) {
+      navigate(localized('/eisodos'))
+      return
+    }
+
+    setUsageError(null)
+
+    try {
+      const result = await cardoraService.recordScannerUsage()
+      setUsage(result)
+    } catch (err) {
+      if (err?.status === 402) {
+        setUsageError(copy.limitReached)
+        return
+      }
+      // Non-quota failure (network etc.) — still let the preview search run.
+    }
+
     setIsSearching(true)
     setResults(null)
     setSearchedTerm(term.trim())
@@ -93,6 +136,8 @@ function CardoraScannerPage() {
       setIsSearching(false)
     }, 900)
   }
+
+  const scanBlocked = Boolean(usage && !usage.unlimited && usage.remaining === 0)
 
   const handleFile = (file) => {
     if (!file) return
@@ -106,11 +151,36 @@ function CardoraScannerPage() {
 
   return (
     <BinderShell>
-      <div className="mb-8 max-w-2xl">
-        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">{copy.eyebrow}</p>
-        <h2 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">{copy.title}</h2>
-        <p className="mt-2 text-sm leading-6 text-mist">{copy.description}</p>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-2xl">
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">{copy.eyebrow}</p>
+          <h2 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">{copy.title}</h2>
+          <p className="mt-2 text-sm leading-6 text-mist">{copy.description}</p>
+        </div>
+        {isAuthenticated && usage ? (
+          <div className="rounded-xl border border-[#eee2c4] bg-white px-4 py-2.5 text-xs font-medium text-slate-500">
+            {usage.unlimited ? (
+              <span className="flex items-center gap-1.5 text-[#9d6a17]">
+                <Crown className="h-3.5 w-3.5" /> {copy.unlimitedScans}
+              </span>
+            ) : (
+              <span>
+                {usage.remaining}/{usage.limit} {copy.scansLeft}
+              </span>
+            )}
+          </div>
+        ) : null}
       </div>
+
+      {usageError ? (
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-[#eadab7] bg-[#fff8ec] px-4 py-3 text-sm text-[#6b4718]">
+          <Crown className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{usageError}</span>
+          <Link to={localized('/cardora-pro')} className="shrink-0 font-semibold underline">
+            {copy.upgradeCta}
+          </Link>
+        </div>
+      ) : null}
 
       <div className="mb-5 inline-flex rounded-2xl border border-[#eadab7] bg-white p-1.5 shadow-glass">
         <button
@@ -160,7 +230,7 @@ function CardoraScannerPage() {
                 className="py-3 pl-10"
               />
             </div>
-            <Button type="submit" disabled={isSearching || !query.trim()}>
+            <Button type="submit" disabled={isSearching || !query.trim() || scanBlocked}>
               {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               {copy.searchCta}
             </Button>
@@ -200,7 +270,7 @@ function CardoraScannerPage() {
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                     <Button
                       onClick={() => runSearch(imageName.replace(/\.[a-z0-9]+$/i, '') || 'card')}
-                      disabled={isSearching}
+                      disabled={isSearching || scanBlocked}
                     >
                       {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                       {copy.analyzeCta}

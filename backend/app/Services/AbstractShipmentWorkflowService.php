@@ -157,26 +157,64 @@ abstract class AbstractShipmentWorkflowService
         $latestEvent = $this->latestTrackingEvent($events);
         $shipmentStatus = $this->resolveShipmentStatus($response, $latestEvent);
         $latestEventAt = $this->parseEventTimestamp($latestEvent['timestamp'] ?? null);
+
+        return $this->applyResolvedStatus(
+            $order,
+            $shipmentStatus,
+            $latestEventAt,
+            Arr::get($latestEvent, 'code'),
+            Arr::get($latestEvent, 'description'),
+            $trackingNumber,
+            ['tracking_response' => $response]
+        );
+    }
+
+    /**
+     * Persist a resolved ShipmentStatus onto an order — shared by the polling path
+     * (syncTrackingForOrder, which resolves the status from a fetched API response) and any
+     * carrier that also pushes status via webhook (which already knows the resolved status
+     * without needing an extra API call). Owns the delivered_at / ready_for_collection_at /
+     * shipped_at / auto_release_at bookkeeping so both paths behave identically.
+     */
+    protected function applyResolvedStatus(
+        Order $order,
+        string $shipmentStatus,
+        ?Carbon $eventAt,
+        ?string $eventCode,
+        ?string $eventDescription,
+        ?string $trackingNumber,
+        array $metadataPatch
+    ): Order {
         $deliveredAt = $shipmentStatus === ShipmentStatus::Delivered->value
-            ? ($latestEventAt ?: now())
+            ? ($eventAt ?: now())
             : $order->delivered_at;
+        // Locker/service-point carriers (BoxNow) go through a distinct "arrived, waiting for
+        // pickup" event before the buyer actually collects it — keep the first time we saw that,
+        // separate from delivered_at (which only fires once the buyer collects it), so we have a
+        // durable record of both moments instead of the earlier one being overwritten.
+        $readyForCollectionAt = $shipmentStatus === ShipmentStatus::ReadyForCollection->value
+            ? ($order->ready_for_collection_at ?: ($eventAt ?: now()))
+            : $order->ready_for_collection_at;
         $shippedAt = in_array($shipmentStatus, [
             ShipmentStatus::InTransit->value,
             ShipmentStatus::ReadyForCollection->value,
             ShipmentStatus::Delivered->value,
         ], true)
-            ? ($order->shipped_at ?: ($latestEventAt ?: now()))
+            ? ($order->shipped_at ?: ($eventAt ?: now()))
             : $order->shipped_at;
+        $resolvedTrackingNumber = $trackingNumber ?: $order->shipment_tracking_number ?: $order->tracking_number;
 
         return DB::transaction(function () use (
             $order,
-            $response,
-            $trackingNumber,
-            $latestEvent,
-            $latestEventAt,
+            $metadataPatch,
+            $resolvedTrackingNumber,
+            $eventCode,
+            $eventDescription,
+            $eventAt,
             $shipmentStatus,
             $shippedAt,
-            $deliveredAt
+            $deliveredAt,
+            $readyForCollectionAt
         ) {
             $lockedOrder = Order::query()->lockForUpdate()->findOrFail($order->getKey());
             $shipmentMetadata = $lockedOrder->shipment_metadata ?? [];
@@ -193,17 +231,17 @@ abstract class AbstractShipmentWorkflowService
 
             $lockedOrder->forceFill([
                 'shipment_status' => $shipmentStatus,
-                'tracking_number' => $trackingNumber,
-                'shipment_tracking_number' => $trackingNumber,
+                'tracking_number' => $resolvedTrackingNumber,
+                'shipment_tracking_number' => $resolvedTrackingNumber,
                 'shipped_at' => $shippedAt,
+                'ready_for_collection_at' => $readyForCollectionAt,
                 'delivered_at' => $deliveredAt,
                 'auto_release_at' => $autoReleaseAt,
-                'shipment_last_event_code' => Arr::get($latestEvent, 'code'),
-                'shipment_last_event_description' => Arr::get($latestEvent, 'description'),
-                'shipment_last_event_at' => $latestEventAt,
+                'shipment_last_event_code' => $eventCode,
+                'shipment_last_event_description' => $eventDescription,
+                'shipment_last_event_at' => $eventAt,
                 'shipment_synced_at' => now(),
-                'shipment_metadata' => array_merge($shipmentMetadata, [
-                    'tracking_response' => $response,
+                'shipment_metadata' => array_merge($shipmentMetadata, $metadataPatch, [
                     'shipment_blocker' => null,
                 ]),
             ])->save();
@@ -241,6 +279,41 @@ abstract class AbstractShipmentWorkflowService
         return collect($value ?? [])
             ->map(fn ($method) => Str::lower(trim((string) $method)))
             ->filter();
+    }
+
+    /**
+     * Override in a carrier that pushes status via webhook (e.g. BoxNow) to map its own event
+     * vocabulary onto our ShipmentStatus values. Returning null means "not a status change we
+     * recognize" — the webhook is acknowledged but ignored. Carriers without webhook support
+     * (DHL) simply never call applyWebhookEvent(), so the default here is never exercised.
+     */
+    protected function resolveWebhookEventStatus(string $event): ?string
+    {
+        return null;
+    }
+
+    /**
+     * Apply a status pushed by a carrier webhook, without an extra API round-trip — the webhook
+     * payload already tells us the resolved event. Returns null (and does nothing) when the
+     * carrier's resolveWebhookEventStatus() doesn't recognize the event.
+     */
+    public function applyWebhookEvent(Order $order, string $rawEvent, ?Carbon $eventAt, array $rawPayload): ?Order
+    {
+        $shipmentStatus = $this->resolveWebhookEventStatus($rawEvent);
+
+        if ($shipmentStatus === null) {
+            return null;
+        }
+
+        return $this->applyResolvedStatus(
+            $order,
+            $shipmentStatus,
+            $eventAt,
+            $rawEvent,
+            null,
+            null,
+            ['webhook_response' => $rawPayload]
+        );
     }
 
     protected function markShipmentPending(Order $order, string $reason, array $context = []): Order

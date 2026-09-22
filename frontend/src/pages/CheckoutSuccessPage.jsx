@@ -23,6 +23,7 @@ function CheckoutSuccessPage() {
   const [searchParams] = useSearchParams()
   const orderNumber = searchParams.get('order')
   const orderId = searchParams.get('order_id')
+  const batchId = searchParams.get('batch_id')
   const sessionId = searchParams.get('session_id')
   const syncedKeysRef = useRef(new Set())
 
@@ -34,6 +35,7 @@ function CheckoutSuccessPage() {
           description:
             'Your order has been paid successfully. Cardora will keep the funds protected until buyer confirmation or the auto-release window.',
           order: 'Order',
+          multipleOrders: (count) => `This checkout created ${count} separate orders — one per item, each with its own seller and shipment.`,
           orders: 'Open buyer dashboard',
           sellerDashboard: 'Open seller dashboard',
           continueShopping: 'Continue shopping',
@@ -51,6 +53,7 @@ function CheckoutSuccessPage() {
           description:
             'Η παραγγελία πληρώθηκε επιτυχώς. Η Cardora κρατά την προστασία της συναλλαγής μέχρι την επιβεβαίωση παραλαβής ή την αυτόματη αποδέσμευση.',
           order: 'Παραγγελία',
+          multipleOrders: (count) => `Αυτό το checkout δημιούργησε ${count} ξεχωριστές παραγγελίες — μία ανά αντικείμενο, η καθεμία με τον δικό της πωλητή και αποστολή.`,
           orders: 'Άνοιγμα buyer dashboard',
           sellerDashboard: 'Άνοιγμα seller dashboard',
           continueShopping: 'Συνέχεια αγορών',
@@ -70,7 +73,7 @@ function CheckoutSuccessPage() {
       return undefined
     }
 
-    const syncKey = `${orderNumber ?? 'latest'}:${orderId ?? 'no-order-id'}:${sessionId ?? 'no-session'}`
+    const syncKey = `${orderNumber ?? 'latest'}:${orderId ?? 'no-order-id'}:${batchId ?? 'no-batch'}:${sessionId ?? 'no-session'}`
 
     if (syncedKeysRef.current.has(syncKey)) {
       setIsRefreshing(false)
@@ -102,15 +105,23 @@ function CheckoutSuccessPage() {
     return () => {
       mounted = false
     }
-  }, [currentUser, isAuthReady, orderId, orderNumber, refreshBootstrap, sessionId, withPageLoader])
+  }, [currentUser, isAuthReady, orderId, orderNumber, batchId, refreshBootstrap, sessionId, withPageLoader])
 
-  const latestOrder = useMemo(() => {
-    if (!orders.length) return null
+  // A single checkout can now produce several orders (one per cart item, possibly across
+  // different sellers) — batch_id resolves every order from that one payment, falling back to
+  // the older single-order lookups for links that predate batching.
+  const batchOrders = useMemo(() => {
+    if (!orders.length) return []
+
+    if (batchId) {
+      const matched = orders.filter((order) => order.checkoutBatchId === batchId)
+      if (matched.length) return matched
+    }
 
     if (orderId) {
       const matchedByDatabaseId =
         orders.find((order) => Number(order.databaseId ?? order.id) === Number(orderId)) ?? null
-      if (matchedByDatabaseId) return matchedByDatabaseId
+      if (matchedByDatabaseId) return [matchedByDatabaseId]
     }
 
     if (orderNumber) {
@@ -120,17 +131,16 @@ function CheckoutSuccessPage() {
             String(order.id ?? '') === String(orderNumber) ||
             String(order.orderNumber ?? order.order_number ?? '') === String(orderNumber),
         ) ?? null
-      if (matchedOrder) return matchedOrder
+      if (matchedOrder) return [matchedOrder]
     }
 
-    return [...orders]
-      .filter((order) => getOrderRole(order, currentUser?.id) === 'buyer')
-      .sort((a, b) => new Date(b.orderedAt ?? 0) - new Date(a.orderedAt ?? 0))[0] ?? null
-  }, [currentUser?.id, orderId, orderNumber, orders])
+    const latest =
+      [...orders]
+        .filter((order) => getOrderRole(order, currentUser?.id) === 'buyer')
+        .sort((a, b) => new Date(b.orderedAt ?? 0) - new Date(a.orderedAt ?? 0))[0] ?? null
 
-  const latestOrderStage = latestOrder
-    ? getOrderStage(latestOrder, getOrderRole(latestOrder, currentUser?.id), locale)
-    : null
+    return latest ? [latest] : []
+  }, [batchId, currentUser?.id, orderId, orderNumber, orders])
 
   return (
     <div className="container pb-16">
@@ -152,38 +162,56 @@ function CheckoutSuccessPage() {
           </div>
         </div>
 
-        {latestOrder ? (
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-              <div className="flex items-center gap-2 text-gold-100">
-                <ShieldCheck className="h-4 w-4" />
-                <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.stage}</p>
-              </div>
-              <p className="mt-3 text-lg font-semibold text-white">{latestOrderStage?.label ?? '—'}</p>
-            </div>
-            <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-              <div className="flex items-center gap-2 text-gold-100">
-                <CreditCard className="h-4 w-4" />
-                <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.held}</p>
-              </div>
-              <p className="mt-3 text-lg font-semibold text-white">{formatCurrency(latestOrder.sellerAmount ?? 0)}</p>
-            </div>
-            <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-              <div className="flex items-center gap-2 text-gold-100">
-                <PackageCheck className="h-4 w-4" />
-                <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.autoRelease}</p>
-              </div>
-              <p className="mt-3 text-lg font-semibold text-white">
-                {latestOrder.autoReleaseAt ? formatDate(latestOrder.autoReleaseAt) : '—'}
-              </p>
-            </div>
-          </div>
+        {batchOrders.length > 1 ? (
+          <p className="mt-6 text-xs uppercase tracking-[0.24em] text-gold-100">
+            {copy.multipleOrders(batchOrders.length)}
+          </p>
         ) : null}
+
+        {batchOrders.map((order) => {
+          const stage = getOrderStage(order, getOrderRole(order, currentUser?.id), locale)
+
+          return (
+            <div key={order.databaseId ?? order.id} className="mt-4 rounded-[22px] border border-white/8 p-4">
+              <p className="text-sm text-mist">
+                {copy.order}: <span className="font-semibold text-white">{order.id}</span>
+                {order.title ? <span className="text-mist"> — {order.title}</span> : null}
+              </p>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                  <div className="flex items-center gap-2 text-gold-100">
+                    <ShieldCheck className="h-4 w-4" />
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.stage}</p>
+                  </div>
+                  <p className="mt-3 text-lg font-semibold text-white">{stage?.label ?? '—'}</p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                  <div className="flex items-center gap-2 text-gold-100">
+                    <CreditCard className="h-4 w-4" />
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.held}</p>
+                  </div>
+                  <p className="mt-3 text-lg font-semibold text-white">{formatCurrency(order.sellerAmount ?? 0)}</p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                  <div className="flex items-center gap-2 text-gold-100">
+                    <PackageCheck className="h-4 w-4" />
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">{copy.autoRelease}</p>
+                  </div>
+                  <p className="mt-3 text-lg font-semibold text-white">
+                    {order.autoReleaseAt ? formatDate(order.autoReleaseAt) : '—'}
+                  </p>
+                </div>
+              </div>
+
+              {stage?.summary ? <p className="mt-3 text-sm leading-7 text-mist">{stage.summary}</p> : null}
+            </div>
+          )
+        })}
 
         <div className="mt-6 rounded-[22px] border border-gold-300/20 bg-gold-300/10 p-4 text-sm leading-7 text-gold-50">
           <p className="text-[11px] uppercase tracking-[0.24em] text-gold-100">{copy.nextStep}</p>
           <p className="mt-2">{copy.nextStepText}</p>
-          {latestOrderStage?.summary ? <p className="mt-2 text-white/85">{latestOrderStage.summary}</p> : null}
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">

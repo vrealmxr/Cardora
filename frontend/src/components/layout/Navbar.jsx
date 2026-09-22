@@ -382,7 +382,7 @@ function Navbar() {
                           title="Cardora Binder"
                           className={cn(binderMenuItemClassName, 'mb-2')}
                         >
-                          <BinderMenuItemContent badgeLabel={locale === 'en' ? 'New' : 'Νέο'} />
+                          <BinderMenuItemContent badgeLabel={locale === 'en' ? 'Soon' : 'Σύντομα'} />
                         </Link>
                         <Link
                           to={localized('/profil')}
@@ -569,7 +569,7 @@ function Navbar() {
                   title="Cardora Binder"
                   className={binderMenuItemClassName}
                 >
-                  <BinderMenuItemContent badgeLabel={locale === 'en' ? 'New' : 'Νέο'} />
+                  <BinderMenuItemContent badgeLabel={locale === 'en' ? 'Soon' : 'Σύντομα'} />
                 </Link>
                 <Link
                   to={localized('/dimiourgia-aggelias')}

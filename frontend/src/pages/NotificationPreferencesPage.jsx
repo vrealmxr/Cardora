@@ -1,4 +1,4 @@
-﻿import { BellRing, Mail, ShieldCheck, Sparkles } from 'lucide-react'
+﻿import { BellRing, Layers, Mail, ShieldCheck, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import CardSurface from '@/components/ui/CardSurface'
@@ -47,6 +47,19 @@ const CATEGORY_META = {
       title: 'Follows & new listings',
       description:
         'Updates when collectors or sellers you follow publish a new live listing on the marketplace.',
+    },
+  },
+  binder_alerts: {
+    icon: Layers,
+    el: {
+      title: 'Ειδοποιήσεις Cardora Binder',
+      description:
+        'Ενημέρωση όταν καταχωρείται στην αγορά κάρτα από ένα σετ που έχεις ή παρακολουθείς στο Cardora Binder.',
+    },
+    en: {
+      title: 'Cardora Binder alerts',
+      description:
+        'Get notified when a card from a set you own or watch in Cardora Binder gets listed on the marketplace.',
     },
   },
   support: {

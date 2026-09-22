@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import Badge from '@/components/ui/Badge'
+import ProBadge from '@/components/ui/ProBadge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import EmptyState from '@/components/ui/EmptyState'
@@ -95,6 +96,7 @@ const mapPublicProfileToMarketplaceProfile = (payload, fallbackProfile) => {
     salesCount: Number(payload.sales_count ?? fallbackProfile?.user?.salesCount ?? 0),
     purchaseCount: Number(payload.purchase_count ?? fallbackProfile?.user?.purchaseCount ?? 0),
     verified: Boolean(payload.is_verified_seller ?? fallbackProfile?.user?.verified),
+    isPro: Boolean(payload.isPro ?? payload.is_pro ?? fallbackProfile?.user?.isPro),
   }
 
   return {
@@ -478,6 +480,7 @@ function CollectorProfilePage() {
                       {getUserDisplayName(profile.user)}
                     </h1>
                     {profile.user.verified ? <Badge tone="success">Verified</Badge> : null}
+                    {profile.user.isPro ? <ProBadge /> : null}
                   </div>
                   <p className="mt-1 text-sm text-mist">@{profile.handle}</p>
                   <p className="mt-3 max-w-2xl text-sm leading-7 text-white/78">{profile.intro}</p>

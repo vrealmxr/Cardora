@@ -16,7 +16,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\RestrictableResource;
 use Filament\Tables;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
@@ -28,7 +28,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-class CardoraCampaignResource extends Resource
+class CardoraCampaignResource extends RestrictableResource
 {
     protected static ?string $model = DrawCampaign::class;
 

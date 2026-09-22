@@ -1,11 +1,13 @@
 ﻿import { Search } from 'lucide-react'
 import { useState } from 'react'
+import PageSeo from '@/components/PageSeo'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import StripeTransparencyCard from '@/components/trust/StripeTransparencyCard'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
 
@@ -30,6 +32,7 @@ const SUPPORT_CATEGORIES = {
 
 function SupportCenterPage() {
   const { locale } = useI18n()
+  const seo = useSeo('support-center')
   const { createSupportTicket, supportArticles, supportTickets } = useMarketplace()
   const [query, setQuery] = useState('')
   const [createdTicket, setCreatedTicket] = useState(null)
@@ -107,7 +110,8 @@ function SupportCenterPage() {
 
   return (
     <div className="container pb-16">
-      <SectionHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
+      <PageSeo pageKey="support-center" fallbackTitle={copy.title} fallbackDescription={copy.description} />
+      <SectionHeader eyebrow={copy.eyebrow} title={seo?.h1 || copy.title} description={copy.description} />
 
       <div className="mb-8">
         <StripeTransparencyCard />

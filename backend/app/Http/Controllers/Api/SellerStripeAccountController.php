@@ -58,6 +58,20 @@ class SellerStripeAccountController extends Controller
         ]);
     }
 
+    public function accountManagementSession(Request $request, StripeConnectService $connectService)
+    {
+        $seller = $request->user()->load('sellerPayoutAccount');
+        $account = $seller->sellerPayoutAccount;
+
+        if (! $account?->stripe_account_id) {
+            abort(422, 'Stripe connected account not found for this seller.');
+        }
+
+        return response()->json([
+            'data' => $connectService->createAccountManagementSession($account->stripe_account_id),
+        ]);
+    }
+
     public function dashboardLink(Request $request, StripeConnectService $connectService)
     {
         $seller = $request->user()->load('sellerPayoutAccount');

@@ -30,6 +30,8 @@ class PublicProfileResource extends JsonResource
             'sales_count' => $this->sales_count,
             'purchase_count' => $this->purchase_count,
             'is_verified_seller' => $this->is_verified_seller,
+            'is_pro' => $this->resource->isProActive(),
+            'isPro' => $this->resource->isProActive(),
             'profile_likes_count' => $this->profile_likes_count ?? $this->whenCounted('profileLikesReceived'),
             'followers_count' => $this->followers_count ?? $this->whenCounted('profileFollowersReceived'),
             'following_count' => $this->following_count ?? $this->whenCounted('profileFollowsGiven'),

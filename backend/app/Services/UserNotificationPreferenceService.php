@@ -24,6 +24,16 @@ class UserNotificationPreferenceService
                 'email' => true,
                 'push' => true,
             ],
+            'binder_alerts' => [
+                'in_app' => true,
+                'email' => true,
+                'push' => true,
+            ],
+            'price_alerts' => [
+                'in_app' => true,
+                'email' => true,
+                'push' => true,
+            ],
             'support' => [
                 'in_app' => true,
                 'email' => true,

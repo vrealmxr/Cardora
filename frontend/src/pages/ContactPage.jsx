@@ -1,14 +1,17 @@
 import { Mail, MapPinned, MessageCircleMore } from 'lucide-react'
 import { useState } from 'react'
+import PageSeo from '@/components/PageSeo'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 
 function ContactPage() {
   const { locale } = useI18n()
+  const seo = useSeo('contact')
   const [submitted, setSubmitted] = useState(false)
 
   const copy =
@@ -93,9 +96,10 @@ function ContactPage() {
 
   return (
     <div className="container pb-16">
+      <PageSeo pageKey="contact" fallbackTitle={copy.title} fallbackDescription={copy.description} />
       <SectionHeader
         eyebrow={copy.eyebrow}
-        title={copy.title}
+        title={seo?.h1 || copy.title}
         description={copy.description}
       />
       <div className="grid gap-8 xl:grid-cols-[1fr,0.9fr]">

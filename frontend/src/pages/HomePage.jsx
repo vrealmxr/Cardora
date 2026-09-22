@@ -1,7 +1,8 @@
-﻿import { ArrowRight, ShieldCheck, Sparkles, Ticket, Trophy, WalletCards } from 'lucide-react'
+﻿import { ArrowRight, Check, ShieldCheck, Sparkles, Ticket, Trophy, WalletCards } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import CategoryCard from '@/components/catalog/CategoryCard'
 import DrawCard from '@/components/draws/DrawCard'
+import PageSeo from '@/components/PageSeo'
 import ProductCard from '@/components/catalog/ProductCard'
 import SearchBar from '@/components/catalog/SearchBar'
 import SellerCard from '@/components/people/SellerCard'
@@ -10,11 +11,13 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 function HomePage() {
   const { locale } = useI18n()
+  const seoH1 = useSeo('home')?.h1
   const {
     categories,
     myDrawParticipations,
@@ -140,6 +143,28 @@ function HomePage() {
             'Whether you are selling a slab, a sealed box, a rare figure or a key issue, Cardora helps you present it clearly and sell it with more confidence.',
           finalCta: 'Create listing',
           finalSecondary: 'How it works',
+          pricingEyebrow: 'Cardora Binder',
+          pricingTitle: 'Cardora FREE or Cardora PRO',
+          pricingDescription:
+            'Track your collection for free, or go PRO for unlimited AI Scanner, advanced Binder tools and up to 25% lower seller fees.',
+          pricingFreeTitle: 'Cardora FREE',
+          pricingFreePrice: '€0',
+          pricingFreeFeatures: [
+            'Unlimited sets & cards',
+            'AI Scanner — limited scans/month',
+            'Up to 10 missing-card alerts',
+            'Standard marketplace fees',
+          ],
+          pricingProTitle: 'Cardora PRO',
+          pricingProPrice: '€6.99',
+          pricingProSub: '/month · 7-day free trial',
+          pricingProFeatures: [
+            'Unlimited AI Scanner',
+            'Unlimited missing-card alerts',
+            'Price history & price alerts',
+            'Up to 25% lower seller fees',
+          ],
+          pricingCta: 'Compare FREE vs PRO',
         }
       : {
           heroBadge: 'Ασφαλής αγορά συλλεκτικών',
@@ -225,6 +250,28 @@ function HomePage() {
             'Είτε πουλάς slab, sealed box, σπάνια φιγούρα ή key issue, η Cardora σε βοηθά να το παρουσιάσεις καθαρά και να το διαθέσεις με περισσότερη σιγουριά.',
           finalCta: 'Δημιούργησε αγγελία',
           finalSecondary: 'Δες πώς λειτουργεί',
+          pricingEyebrow: 'Cardora Binder',
+          pricingTitle: 'Cardora FREE ή Cardora PRO',
+          pricingDescription:
+            'Παρακολούθησε τη συλλογή σου δωρεάν, ή πήγαινε σε PRO για unlimited AI Scanner, προηγμένα εργαλεία Binder και έως 25% χαμηλότερες προμήθειες.',
+          pricingFreeTitle: 'Cardora FREE',
+          pricingFreePrice: '€0',
+          pricingFreeFeatures: [
+            'Απεριόριστα sets & κάρτες',
+            'AI Scanner — περιορισμένα scans/μήνα',
+            'Έως 10 missing-card alerts',
+            'Κανονικές προμήθειες marketplace',
+          ],
+          pricingProTitle: 'Cardora PRO',
+          pricingProPrice: '€6,99',
+          pricingProSub: '/μήνα · δωρεάν δοκιμή 7 ημερών',
+          pricingProFeatures: [
+            'Unlimited AI Scanner',
+            'Unlimited missing-card alerts',
+            'Price history & price alerts',
+            'Έως 25% χαμηλότερες προμήθειες',
+          ],
+          pricingCta: 'Σύγκρινε FREE vs PRO',
         }
 
   const quickBrowseCopy =
@@ -285,13 +332,14 @@ function HomePage() {
 
   return (
     <div className="pb-10 sm:pb-14">
+      <PageSeo pageKey="home" fallbackTitle={copy.heroTitle} fallbackDescription={copy.heroDescription} />
       <section className="container">
         <div className="grid gap-4 lg:gap-6 xl:grid-cols-[1.2fr,0.8fr]">
           <CardSurface className="relative overflow-hidden p-4 sm:p-6 md:p-7">
             <div className="relative z-10 max-w-2xl">
               <Badge tone="gold">{copy.heroBadge}</Badge>
               <h1 className="mt-4 max-w-3xl font-display text-3xl leading-[1.06] text-ink sm:text-4xl md:text-5xl xl:text-6xl">
-                {copy.heroTitle}
+                {seoH1 || copy.heroTitle}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-mist sm:mt-5 sm:text-base sm:leading-7">
                 {copy.heroDescription}
@@ -351,6 +399,49 @@ function HomePage() {
                 </div>
               ))}
             </div>
+          </CardSurface>
+        </div>
+      </section>
+
+      <section className="container mt-12 sm:mt-16">
+        <SectionHeader eyebrow={copy.pricingEyebrow} title={copy.pricingTitle} description={copy.pricingDescription} />
+        <div className="grid gap-5 md:grid-cols-2">
+          <CardSurface>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">{copy.pricingFreeTitle}</p>
+            <p className="mt-3 font-display text-3xl text-ink">{copy.pricingFreePrice}</p>
+            <ul className="mt-5 space-y-2.5">
+              {copy.pricingFreeFeatures.map((label) => (
+                <li key={label} className="flex items-start gap-2.5 text-sm leading-6 text-mist">
+                  <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  </span>
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </CardSurface>
+
+          <CardSurface className="featured-glow relative">
+            <span className="absolute -top-3 left-5 inline-flex items-center rounded-full border border-[#d8b06a] bg-[linear-gradient(145deg,#f7ebd1_0%,#ecd3a2_48%,#c79d62_100%)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5a3a13] shadow-[0_8px_18px_rgba(199,157,98,0.35)]">
+              PRO
+            </span>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#9d6a17]">{copy.pricingProTitle}</p>
+            <p className="mt-3 font-display text-3xl text-ink">
+              {copy.pricingProPrice} <span className="text-xs font-sans font-normal text-mist">{copy.pricingProSub}</span>
+            </p>
+            <ul className="mt-5 space-y-2.5">
+              {copy.pricingProFeatures.map((label) => (
+                <li key={label} className="flex items-start gap-2.5 text-sm leading-6 text-ink">
+                  <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-[#fff2d6] text-[#9d6a17]">
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  </span>
+                  {label}
+                </li>
+              ))}
+            </ul>
+            <Button as={Link} to="/cardora-pro" className="mt-6 w-full justify-center">
+              {copy.pricingCta}
+            </Button>
           </CardSurface>
         </div>
       </section>

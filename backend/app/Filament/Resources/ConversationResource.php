@@ -11,13 +11,13 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
+use App\Filament\Resources\RestrictableResource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
-class ConversationResource extends Resource
+class ConversationResource extends RestrictableResource
 {
     protected static ?string $model = Conversation::class;
 

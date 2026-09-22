@@ -5,8 +5,17 @@ export const getOrderRole = (order, currentUserId) => {
   return 'viewer'
 }
 
+const CARRIER_LABELS = {
+  dhl_express: 'DHL',
+  boxnow: 'BoxNow',
+}
+
+const carrierLabel = (order, isEnglish) =>
+  CARRIER_LABELS[order?.shippingCarrier] || (isEnglish ? 'the carrier' : 'τον μεταφορέα')
+
 export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
   const isEnglish = locale === 'en'
+  const carrier = carrierLabel(order, isEnglish)
   const hasShipped = Boolean(order?.shippedAt || order?.deliveredAt || order?.releasedAt)
   const hasDelivered = Boolean(order?.deliveredAt || order?.releasedAt)
 
@@ -76,8 +85,8 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
           label: isEnglish ? 'Needs shipping' : 'Πρέπει να σταλεί',
           tone: 'warning',
           summary: isEnglish
-            ? 'The DHL label is created automatically after payment. Hand over the parcel so DHL can scan it.'
-            : 'Το DHL label δημιουργείται αυτόματα μετά την πληρωμή. Παράδωσε το δέμα ώστε να γίνει το πρώτο scan από τη DHL.',
+            ? `The shipping label is created automatically after payment via ${carrier}. Hand over the parcel so it can be scanned.`
+            : `Η φορτωτική δημιουργείται αυτόματα μετά την πληρωμή μέσω ${carrier}. Παράδωσε το δέμα ώστε να γίνει το πρώτο scan.`,
           actionRequired: true,
         }
       }
@@ -87,8 +96,8 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
         label: isEnglish ? 'Waiting for shipment' : 'Αναμένει αποστολή',
         tone: 'info',
         summary: isEnglish
-          ? 'Payment is protected while the seller prepares the DHL handoff.'
-          : 'Η πληρωμή παραμένει προστατευμένη όσο ο πωλητής ετοιμάζει την παράδοση στη DHL.',
+          ? `Payment is protected while the seller prepares the handoff to ${carrier}.`
+          : `Η πληρωμή παραμένει προστατευμένη όσο ο πωλητής ετοιμάζει την παράδοση μέσω ${carrier}.`,
         actionRequired: false,
       }
     }
@@ -99,8 +108,8 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
         label: isEnglish ? 'In transit' : 'Σε μεταφορά',
         tone: 'info',
         summary: isEnglish
-          ? 'Shipment updates come directly from DHL. Funds stay on hold until delivery is confirmed.'
-          : 'Οι ενημερώσεις έρχονται απευθείας από τη DHL. Τα χρήματα μένουν σε hold μέχρι να επιβεβαιωθεί η παράδοση.',
+          ? `Shipment updates come directly from ${carrier}. Funds stay on hold until delivery is confirmed.`
+          : `Οι ενημερώσεις παράδοσης έρχονται απευθείας μέσω ${carrier}. Τα χρήματα μένουν σε hold μέχρι να επιβεβαιωθεί η παράδοση.`,
         actionRequired: false,
       }
     }
@@ -111,8 +120,8 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
         label: isEnglish ? 'Confirm delivery' : 'Επιβεβαίωσε την παράδοση',
         tone: 'warning',
         summary: isEnglish
-          ? 'DHL marked the order as delivered. Confirm everything is OK to release funds now, otherwise auto-release runs in 2 days.'
-          : 'Η DHL έδειξε ότι η παραγγελία παραδόθηκε. Επιβεβαίωσε ότι όλα είναι ΟΚ για άμεσο release, αλλιώς το auto-release τρέχει σε 2 ημέρες.',
+          ? `${carrier} marked the order as delivered. Confirm everything is OK to release funds now, otherwise auto-release runs in 2 days.`
+          : `Η παραγγελία σημειώθηκε ως παραδομένη μέσω ${carrier}. Επιβεβαίωσε ότι όλα είναι ΟΚ για άμεσο release, αλλιώς το auto-release τρέχει σε 2 ημέρες.`,
         actionRequired: true,
       }
     }
@@ -122,8 +131,8 @@ export const getOrderStage = (order, role = 'viewer', locale = 'el') => {
       label: isEnglish ? 'Waiting for buyer confirmation' : 'Αναμένει επιβεβαίωση αγοραστή',
       tone: 'info',
       summary: isEnglish
-        ? 'DHL marked the order as delivered. Funds will release after buyer confirmation or after the 2-day protection window.'
-        : 'Η DHL έδειξε ότι η παραγγελία παραδόθηκε. Τα χρήματα θα αποδεσμευτούν μετά την επιβεβαίωση του αγοραστή ή μετά το 2ήμερο παράθυρο προστασίας.',
+        ? `${carrier} marked the order as delivered. Funds will release after buyer confirmation or after the 2-day protection window.`
+        : `Η παραγγελία σημειώθηκε ως παραδομένη μέσω ${carrier}. Τα χρήματα θα αποδεσμευτούν μετά την επιβεβαίωση του αγοραστή ή μετά το 2ήμερο παράθυρο προστασίας.`,
       actionRequired: false,
     }
   }

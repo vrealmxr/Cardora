@@ -73,6 +73,14 @@ const hydrateAuthUser = (user) => {
         details_submitted: false,
       },
     marketplaceAccess: user.marketplaceAccess ?? user.marketplace_access ?? null,
+    isPro: Boolean(user.isPro ?? user.is_pro ?? (user.plan === 'pro')),
+    plan: user.plan ?? (user.isPro || user.is_pro ? 'pro' : 'free'),
+    pro: user.pro ?? {
+      status: null,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      trialAvailable: true,
+    },
   }
 }
 

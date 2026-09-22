@@ -161,7 +161,7 @@ const DOCUMENT = {
 }
 
 function CookiePolicyPage() {
-  return <LegalDocumentPage document={DOCUMENT} />
+  return <LegalDocumentPage document={DOCUMENT} pageKey="cookies" />
 }
 
 export default CookiePolicyPage

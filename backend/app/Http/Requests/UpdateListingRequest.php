@@ -34,6 +34,7 @@ class UpdateListingRequest extends FormRequest
             'product.language' => ['nullable', 'string', 'max:100'],
             'product.set_name' => ['nullable', 'string', 'max:255'],
             'product.item_number' => ['nullable', 'string', 'max:255'],
+            'product.binder_card_id' => ['nullable', 'integer', 'exists:binder_cards,id'],
             'product.product_type' => ['nullable', 'string', 'max:255'],
             'product.description' => ['nullable', 'string'],
             'product.specifications' => ['nullable', 'array'],

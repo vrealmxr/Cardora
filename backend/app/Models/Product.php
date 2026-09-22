@@ -13,6 +13,7 @@ class Product extends Model
 
     protected $fillable = [
         'category_id',
+        'binder_card_id',
         'title',
         'slug',
         'sku',
@@ -50,6 +51,11 @@ class Product extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function binderCard(): BelongsTo
+    {
+        return $this->belongsTo(BinderCard::class, 'binder_card_id');
     }
 
     public function listings(): HasMany

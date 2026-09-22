@@ -1,6 +1,7 @@
 import {
   CheckCircle2,
   CreditCard,
+  ExternalLink,
   MessageCircle,
   Shield,
   Star,
@@ -34,10 +35,25 @@ const stageToneMap = {
   processing: 'muted',
 }
 
+const CARRIER_DISPLAY_NAMES = {
+  dhl_express: 'DHL Express',
+  boxnow: 'BoxNow',
+}
+
+const CARRIER_TRACKING_URL_BUILDERS = {
+  boxnow: (trackingNumber) =>
+    `https://boxnow.gr/en?track=${encodeURIComponent(trackingNumber)}`,
+  dhl_express: (trackingNumber) =>
+    `https://www.dhl.com/gr-en/home/tracking.html?submit=1&tracking-id=${encodeURIComponent(trackingNumber)}`,
+}
+
 function OrderCard({ order }) {
   const { currentUser } = useAuth()
   const { locale } = useI18n()
   const navigate = useNavigate()
+  const trackingUrl = order.trackingNumber && CARRIER_TRACKING_URL_BUILDERS[order.shippingCarrier]
+    ? CARRIER_TRACKING_URL_BUILDERS[order.shippingCarrier](order.trackingNumber, locale)
+    : null
   const {
     users,
     conversations,
@@ -88,12 +104,13 @@ function OrderCard({ order }) {
               seller: 'Seller',
               carrier: 'Carrier',
               tracking: 'Tracking',
+              trackOnCarrierSite: 'Track on carrier site',
               shipmentStatus: 'Shipment status',
               deliveredAt: 'Delivered',
               confirmReceived: 'Confirm received',
               confirming: 'Releasing funds...',
               releaseNote:
-                'Cardora keeps the protected amount on hold until DHL delivery is confirmed and the buyer approves the order, or until the 2-day protection window ends.',
+                'Cardora keeps the protected amount on hold until the carrier confirms delivery and the buyer approves the order, or until the 2-day protection window ends.',
               releasedNote:
                 'The protected amount has already been released to the seller Stripe account.',
               shippedAt: 'Shipped',
@@ -126,12 +143,13 @@ function OrderCard({ order }) {
               seller: 'Πωλητής',
               carrier: 'Courier',
               tracking: 'Tracking',
+              trackOnCarrierSite: 'Παρακολούθηση στον μεταφορέα',
               shipmentStatus: 'Κατάσταση αποστολής',
               deliveredAt: 'Παραδόθηκε',
               confirmReceived: 'Επιβεβαίωση παραλαβής',
               confirming: 'Γίνεται αποδέσμευση...',
               releaseNote:
-                'Η Cardora κρατά το προστατευμένο ποσό σε hold μέχρι να επιβεβαιωθεί η παράδοση από τη DHL και να εγκρίνει ο αγοραστής, ή μέχρι να λήξει το 2ήμερο παράθυρο προστασίας.',
+                'Η Cardora κρατά το προστατευμένο ποσό σε hold μέχρι να επιβεβαιωθεί η παράδοση από τον μεταφορέα και να εγκρίνει ο αγοραστής, ή μέχρι να λήξει το 2ήμερο παράθυρο προστασίας.',
               releasedNote:
                 'Το προστατευμένο ποσό έχει ήδη αποδεσμευτεί προς το Stripe account του πωλητή.',
               shippedAt: 'Στάλθηκε',
@@ -318,15 +336,30 @@ function OrderCard({ order }) {
         </div>
 
         <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white">
-            <Truck className="h-4 w-4 text-gold-100" />
-            {copy.tracking}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Truck className="h-4 w-4 text-gold-100" />
+              {copy.tracking}
+            </div>
+            {trackingUrl ? (
+              <Button
+                as="a"
+                href={trackingUrl}
+                target="_blank"
+                rel="noreferrer"
+                variant="secondary"
+                size="sm"
+              >
+                <ExternalLink className="h-4 w-4" />
+                {copy.trackOnCarrierSite}
+              </Button>
+            ) : null}
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
               <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{copy.carrier}</p>
               <p className="mt-2 text-sm font-semibold text-white">
-                {order.shippingCarrier || 'DHL Express'}
+                {CARRIER_DISPLAY_NAMES[order.shippingCarrier] || order.shippingCarrier || copy.emptyValue}
               </p>
             </div>
             <div>
