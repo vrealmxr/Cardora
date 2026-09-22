@@ -78,6 +78,8 @@ class ImportTcgdexPokemon extends Command
         $externalIdRows = [];
         $sourceCardCount = 0;
         $setCardCountChecks = [];
+        $firstEditionFindings = [];
+        $variantHasSourceImage = []; // variant_key => bool, kept out of variantRows so the CSV columns stay exact
 
         foreach ($setsToFetch as $i => $setBrief) {
             $setId = $setBrief['id'];
@@ -173,9 +175,10 @@ class ImportTcgdexPokemon extends Command
                 $baseImage = $card['image'] ?? null;
                 foreach ($trueFlags as $flag) {
                     [$variantName, $variantType, $sortOrder] = self::VARIANT_LABELS[$flag] ?? [ucfirst($flag), $flag, 9];
+                    $variantKey = "{$cardKey}-{$variantType}";
                     $variantRows[] = [
                         'card_key' => $cardKey,
-                        'variant_key' => "{$cardKey}-{$variantType}",
+                        'variant_key' => $variantKey,
                         'variant_name' => $variantName,
                         'variant_type' => $variantType,
                         'rarity' => $card['rarity'] ?? '',
@@ -184,13 +187,40 @@ class ImportTcgdexPokemon extends Command
                         'image_large' => $baseImage ? "{$baseImage}/high.webp" : '',
                         'sort_order' => $sortOrder,
                     ];
+                    $variantHasSourceImage[$variantKey] = $baseImage !== null;
+                }
+
+                // Diagnostic only — does NOT change how variant rows above are
+                // built. 'firstEdition' is an edition, not a finish, so a
+                // card that is both firstEdition=true and true on >1 finish
+                // flag (or whose variants_detailed 1st-edition stamps span
+                // >1 finish type) can't be resolved to "which finish is the
+                // 1st edition" from the flags alone — see ImportTcgdexPokemon
+                // finding on Base Set Charizard #4 (holo + firstEdition).
+                if (($flags['firstEdition'] ?? false) === true) {
+                    $finishFlagsTrue = array_values(array_intersect(array_keys(array_filter($flags)), ['normal', 'reverse', 'holo']));
+                    $stampedTypes = [];
+                    foreach ($card['variants_detailed'] ?? [] as $vd) {
+                        if (in_array('1st-edition', $vd['stamp'] ?? [], true)) {
+                            $stampedTypes[] = $vd['type'] ?? null;
+                        }
+                    }
+                    $stampedTypes = array_values(array_unique(array_filter($stampedTypes)));
+
+                    $ambiguous = count($finishFlagsTrue) > 1 || count($stampedTypes) !== 1;
+                    $firstEditionFindings[] = [
+                        'card_key' => $cardKey,
+                        'finish_flags_true' => $finishFlagsTrue,
+                        'stamped_finish_types' => $stampedTypes,
+                        'ambiguous' => $ambiguous,
+                    ];
                 }
             }
         }
 
         $this->writeCsvs($outDir, $setRows, $cardRows, $variantRows, $externalIdRows);
 
-        $report = $this->buildReport($setsToFetch, $sourceCardCount, $setRows, $cardRows, $variantRows, $externalIdRows, $setCardCountChecks);
+        $report = $this->buildReport($setsToFetch, $sourceCardCount, $setRows, $cardRows, $variantRows, $externalIdRows, $setCardCountChecks, $variantHasSourceImage, $firstEditionFindings);
         $this->printReport($report);
         file_put_contents("{$outDir}/validation_report.json", json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
@@ -198,18 +228,18 @@ class ImportTcgdexPokemon extends Command
         $this->info("CSVs + validation_report.json written to: {$outDir}");
 
         if (! $this->option('apply')) {
-            $this->comment('Dry-run only — nothing was written to the database. Pass --apply to import (only runs on a PASS).');
+            $this->comment('Dry-run only — nothing was written to the database. Pass --apply to import (runs on PASS or PASS_WITH_WARNINGS, refused on FAIL).');
 
             return self::SUCCESS;
         }
 
-        if ($report['status'] !== 'PASS') {
+        if ($report['status'] === 'FAIL') {
             $this->error('Validation FAILed — refusing to --apply. Fix the issues above (or re-run without --apply to just inspect the CSVs) first.');
 
             return self::FAILURE;
         }
 
-        $this->info('Validation PASSed — running cardora:binder-import-v2...');
+        $this->info("Validation {$report['status']} — running cardora:binder-import-v2...");
         $exit = $this->call('cardora:binder-import-v2', ['--path' => $outDir]);
 
         return $exit === 0 ? self::SUCCESS : self::FAILURE;
@@ -275,6 +305,8 @@ class ImportTcgdexPokemon extends Command
      * @param array<int,array<string,mixed>> $variantRows
      * @param array<int,array<string,mixed>> $externalIdRows
      * @param array<int,array<string,mixed>> $setCardCountChecks
+     * @param array<string,bool> $variantHasSourceImage
+     * @param array<int,array<string,mixed>> $firstEditionFindings
      */
     private function buildReport(
         array $setsInScope,
@@ -284,6 +316,8 @@ class ImportTcgdexPokemon extends Command
         array $variantRows,
         array $externalIdRows,
         array $setCardCountChecks,
+        array $variantHasSourceImage,
+        array $firstEditionFindings,
     ): array {
         $setKeys = array_column($setRows, 'set_key');
         $cardKeys = array_column($cardRows, 'card_key');
@@ -309,7 +343,21 @@ class ImportTcgdexPokemon extends Command
         $cardKeySet = array_flip($cardKeys);
         $orphanVariants = array_values(array_filter($variantRows, fn ($v) => ! isset($cardKeySet[$v['card_key']])));
 
-        $missingImages = array_values(array_filter($variantRows, fn ($v) => ($v['image_large'] ?? '') === ''));
+        // Split by whose fault it is: TCGdex simply not having the image yet
+        // (upstream, doesn't block — TCGdex's own docs say a missing `image`
+        // means "not added to their DB yet") vs. TCGdex giving us an image
+        // but our own CSV row ending up empty/malformed (our bug, blocks).
+        $upstreamMissingImages = [];
+        $importerMissingImages = [];
+        foreach ($variantRows as $v) {
+            $hadSource = $variantHasSourceImage[$v['variant_key']] ?? false;
+            $urlLooksValid = str_starts_with((string) $v['image_large'], 'http');
+            if (! $hadSource && ! $urlLooksValid) {
+                $upstreamMissingImages[] = $v['variant_key'];
+            } elseif ($hadSource && ! $urlLooksValid) {
+                $importerMissingImages[] = $v['variant_key'];
+            }
+        }
 
         $totalsInverted = array_values(array_filter($setRows, function ($s) {
             return $s['base_total'] !== '' && $s['numbered_total'] !== '' && (int) $s['base_total'] > (int) $s['numbered_total'];
@@ -319,6 +367,8 @@ class ImportTcgdexPokemon extends Command
             $setCardCountChecks,
             fn ($c) => $c['api_card_count_total'] !== $c['cards_array_length'],
         ));
+
+        $ambiguousFirstEdition = array_values(array_filter($firstEditionFindings, fn ($f) => $f['ambiguous']));
 
         $setsMissing = count($setsInScope) - count($setRows);
         $cardsMissing = $sourceCardCount - count($cardRows);
@@ -334,9 +384,19 @@ class ImportTcgdexPokemon extends Command
             'orphan_variants' => count($orphanVariants),
             'totals_inverted' => count($totalsInverted),
             'card_count_mismatches' => count($cardCountMismatches),
+            'importer_missing_images' => count($importerMissingImages),
             'fetch_failures' => count($this->failures),
         ];
-        $status = array_sum($failCounts) === 0 ? 'PASS' : 'FAIL';
+        $warningCounts = [
+            'upstream_missing_images' => count($upstreamMissingImages),
+            'ambiguous_first_edition_mappings' => count($ambiguousFirstEdition),
+        ];
+
+        $status = match (true) {
+            array_sum($failCounts) > 0 => 'FAIL',
+            array_sum($warningCounts) > 0 => 'PASS_WITH_WARNINGS',
+            default => 'PASS',
+        };
 
         return [
             'status' => $status,
@@ -349,9 +409,14 @@ class ImportTcgdexPokemon extends Command
             'duplicate_source_card_ids' => $duplicateSourceCardIds,
             'orphan_cards' => array_column($orphanCards, 'card_key'),
             'orphan_variants' => array_column($orphanVariants, 'variant_key'),
-            'missing_images' => array_column($missingImages, 'variant_key'),
+            'upstream_missing_images' => $upstreamMissingImages,
+            'importer_missing_images' => $importerMissingImages,
             'totals_inverted' => array_column($totalsInverted, 'set_key'),
             'card_count_mismatches' => $cardCountMismatches,
+            'cards_with_first_edition' => count($firstEditionFindings),
+            'cards_with_first_edition_and_multiple_finishes' => count(array_filter($firstEditionFindings, fn ($f) => count($f['finish_flags_true']) > 1)),
+            'ambiguous_first_edition_mappings' => array_map(fn ($f) => $f['card_key'], $ambiguousFirstEdition),
+            'ambiguous_first_edition_details' => $ambiguousFirstEdition,
             'fetch_failures' => $this->failures,
         ];
     }
@@ -381,17 +446,36 @@ class ImportTcgdexPokemon extends Command
             ['Duplicate source_card_id (tcgdex)', count($r['duplicate_source_card_ids'])],
             ['Orphan cards', count($r['orphan_cards'])],
             ['Orphan variants', count($r['orphan_variants'])],
-            ['Missing images', count($r['missing_images'])],
+            ['Upstream missing images (WARNING)', count($r['upstream_missing_images'])],
+            ['Importer missing images (FAIL)', count($r['importer_missing_images'])],
             ['base_total > numbered_total', count($r['totals_inverted'])],
             ['Set card-count mismatches (API total vs fetched)', count($r['card_count_mismatches'])],
+            ['Cards with first edition', $r['cards_with_first_edition']],
+            ['  ...with >1 finish flag true', $r['cards_with_first_edition_and_multiple_finishes']],
+            ['  ...ambiguous mapping (WARNING)', count($r['ambiguous_first_edition_mappings'])],
             ['Fetch failures', count($r['fetch_failures'])],
             ['Status', $r['status']],
         ]);
 
-        foreach (['duplicate_card_keys', 'duplicate_set_keys', 'duplicate_variant_keys', 'duplicate_source_card_ids', 'orphan_cards', 'orphan_variants', 'totals_inverted'] as $key) {
+        $listKeys = [
+            'duplicate_card_keys', 'duplicate_set_keys', 'duplicate_variant_keys', 'duplicate_source_card_ids',
+            'orphan_cards', 'orphan_variants', 'totals_inverted', 'importer_missing_images',
+        ];
+        foreach ($listKeys as $key) {
             if ($r[$key] !== []) {
                 $this->warn(ucfirst(str_replace('_', ' ', $key)) . ': ' . implode(', ', array_slice($r[$key], 0, 20)));
             }
+        }
+        if ($r['upstream_missing_images'] !== []) {
+            $this->comment('Upstream missing images (TCGdex has no image field yet, not our fault): ' . count($r['upstream_missing_images']) . ' variants, e.g. ' . implode(', ', array_slice($r['upstream_missing_images'], 0, 5)));
+        }
+        foreach ($r['ambiguous_first_edition_details'] as $f) {
+            $this->warn(sprintf(
+                '  ambiguous first-edition: %s (finish flags true: [%s], 1st-edition stamp seen on: [%s])',
+                $f['card_key'],
+                implode(',', $f['finish_flags_true']),
+                implode(',', $f['stamped_finish_types']),
+            ));
         }
         foreach ($r['card_count_mismatches'] as $m) {
             $this->warn("  set {$m['set_key']}: API cardCount.total={$m['api_card_count_total']} but fetched {$m['cards_array_length']} cards");
