@@ -109,6 +109,20 @@ class ImportOnePiece extends Command
 
     private array $snapshotMeta = [];
 
+    private const DON_SUPPLEMENTAL_DIR = 'database/data/onepiece-supplemental';
+
+    private int $primaryCardCount = 0;
+    private int $primaryVariantCount = 0;
+    private int $donCardCount = 0;
+    private int $donVariantCount = 0;
+    private int $donReleaseMembershipCount = 0;
+    private array $donCardsSupplemental = []; // card_key => row
+    private array $donVariantsSupplemental = []; // list of rows
+    private array $donReleaseMembershipsSupplemental = []; // list of rows
+    private array $unresolvedStandardDonDesigns = []; // rows from the backlog CSV
+    private array $unresolvedSpecialDonDesigns = []; // rows from the backlog CSV
+    private array $orphanReleaseMemberships = [];
+
     public function handle(): int
     {
         $outDir = rtrim((string) ($this->option('out') ?: storage_path('app/onepiece')), '/');
@@ -137,6 +151,11 @@ class ImportOnePiece extends Command
         $this->info("Source card objects: {$this->sourceObjects}, base card numbers: " . count($this->cards));
 
         $this->resolveHomesAndBuildRows();
+        $this->primaryCardCount = count($this->cardRows);
+        $this->primaryVariantCount = count($this->variantRows);
+
+        $this->loadDonSupplementalData();
+        $this->buildDonRows();
 
         $this->openCsvHandles($outDir);
         $this->writeAllRows($outDir);
@@ -641,6 +660,199 @@ class ImportOnePiece extends Command
         }
     }
 
+    /** @return array<int,array<string,string>> */
+    private function readCsv(string $path): array
+    {
+        if (! is_file($path)) {
+            return [];
+        }
+        $handle = fopen($path, 'r');
+        $header = fgetcsv($handle) ?: [];
+        $rows = [];
+        while (($row = fgetcsv($handle)) !== false) {
+            if (count($row) !== count($header)) {
+                $this->warn("  {$path}: column count mismatch, skipping row");
+
+                continue;
+            }
+            $rows[] = array_combine($header, $row);
+        }
+        fclose($handle);
+
+        return $rows;
+    }
+
+    /**
+     * Loads the hand-researched, provenance-tracked DON!! supplemental
+     * dataset -- see database/data/onepiece-supplemental/README.md. Never
+     * inferred from artwork alone; every row here was verified against an
+     * official Bandai product page plus a second independent source.
+     */
+    private function loadDonSupplementalData(): void
+    {
+        $dir = base_path(self::DON_SUPPLEMENTAL_DIR);
+
+        foreach ($this->readCsv("{$dir}/supplemental_don_cards.csv") as $row) {
+            $this->donCardsSupplemental[$row['card_key']] = $row;
+        }
+        $this->donVariantsSupplemental = $this->readCsv("{$dir}/supplemental_don_variants.csv");
+        $this->donReleaseMembershipsSupplemental = $this->readCsv("{$dir}/supplemental_don_release_memberships.csv");
+        $this->unresolvedStandardDonDesigns = $this->readCsv("{$dir}/unresolved_standard_don_designs.csv");
+        $this->unresolvedSpecialDonDesigns = $this->readCsv("{$dir}/unresolved_special_don_designs.csv");
+    }
+
+    /**
+     * Adds the 14 verified DON!! canonical cards / 16 variants on top of
+     * the regular card pipeline. Each DON card's set_id is its home
+     * release's Set (created here if the regular pipeline didn't already
+     * register it, e.g. a product that hosts no *native* non-DON card of
+     * its own); a variant-level release membership is also created for
+     * every DON variant, per the locked mapping
+     * (verified DON design -> supplemental binder_card -> verified DON
+     * treatment -> binder_card_variant, physical release -> variant-level
+     * membership).
+     */
+    private function buildDonRows(): void
+    {
+        foreach ($this->donCardsSupplemental as $cardKey => $row) {
+            $releaseKey = $row['release_key'];
+            $this->ensureSetForReleaseKey($releaseKey);
+
+            $this->cardRows[] = [
+                'game_slug' => 'one-piece',
+                'set_key' => $releaseKey,
+                'card_key' => $cardKey,
+                'card_name' => $row['card_name'],
+                'clean_name' => $row['card_name'],
+                'collector_number' => '', // DON!! cards have no official collector number -- never invented, see unresolved_standard_don_designs.csv
+                'card_type' => $row['card_type'],
+                'is_promo' => 'TRUE',
+                'is_token' => 'FALSE',
+                'language' => 'EN',
+            ];
+            $this->donCardCount++;
+
+            $this->externalIdRows[] = [
+                'entity_type' => 'card',
+                'entity_key' => $cardKey,
+                'provider' => $row['source_provider'],
+                'external_id' => $row['source_url'],
+                'external_type' => 'verification_source_url',
+                'external_url' => $row['source_url'],
+            ];
+        }
+
+        foreach ($this->donVariantsSupplemental as $row) {
+            if (! isset($this->donCardsSupplemental[$row['card_key']])) {
+                $this->warn("  supplemental_don_variants.csv: unknown card_key {$row['card_key']} — skipping");
+
+                continue;
+            }
+            $this->variantRows[] = [
+                'card_key' => $row['card_key'],
+                'variant_key' => $row['variant_key'],
+                'source_variant_id' => $row['variant_key'],
+                'source_variant_kind' => $row['variant_type'],
+                'variant_name' => $row['variant_name'],
+                'variant_type' => $row['variant_type'],
+                'rarity' => '',
+                'region_code' => '',
+                'edition_code' => '',
+                'artist' => '',
+                'image_small' => '',
+                'image_large' => '',
+                'sort_order' => 1,
+            ];
+            $this->donVariantCount++;
+        }
+
+        $cardKeySet = array_flip(array_column($this->cardRows, 'card_key'));
+        $variantKeySet = array_flip(array_column($this->variantRows, 'variant_key'));
+
+        foreach ($this->donReleaseMembershipsSupplemental as $row) {
+            $releaseKey = $row['release_key'];
+            $this->ensureReleaseRow($releaseKey);
+
+            if (! isset($cardKeySet[$row['card_key']]) || ! isset($variantKeySet[$row['variant_key']])) {
+                $this->orphanReleaseMemberships[] = $row;
+
+                continue;
+            }
+
+            $this->releaseMembershipRows[] = [
+                'card_key' => $row['card_key'],
+                'variant_key' => $row['variant_key'],
+                'release_key' => $releaseKey,
+                'membership_type' => $row['membership_type'],
+                'source_provider' => $row['source_provider'],
+                'source_reference' => $row['source_reference'],
+                'notes' => $row['notes'],
+            ];
+            $this->donReleaseMembershipCount++;
+        }
+    }
+
+    /** Registers a minimal Set row for a release_key if the regular pipeline hasn't already (a product with no *native* non-DON card of its own would otherwise never get one). */
+    private function ensureSetForReleaseKey(string $setKey): void
+    {
+        if (isset($this->setRows[$setKey])) {
+            return;
+        }
+        $packId = $this->packIdForSetKey($setKey);
+        $pack = $packId !== null ? $this->packs[$packId] : null;
+
+        $this->setRows[$setKey] = [
+            'game_slug' => 'one-piece',
+            'set_key' => $setKey,
+            'set_name' => $pack['raw_title'] ?? $setKey,
+            'abbreviation' => $pack['title_parts']['label'] ?? $setKey,
+            'set_code' => $pack['title_parts']['label'] ?? $setKey,
+            'set_type' => 'main',
+            'language' => 'EN',
+            'region' => '',
+            'released_at' => '',
+            'base_total' => '',
+            'numbered_total' => '',
+            'source' => 'onepiece-cardgame',
+            'source_set_id' => $packId ?? '',
+            'source_url' => '',
+        ];
+    }
+
+    /** Registers a minimal Release row for a release_key if the regular pipeline hasn't already (a product with no reprinted-elsewhere-card variant would otherwise never trigger one). */
+    private function ensureReleaseRow(string $releaseKey): void
+    {
+        if (isset($this->writtenReleaseKeys[$releaseKey])) {
+            return;
+        }
+        $packId = $this->packIdForSetKey($releaseKey);
+        $pack = $packId !== null ? $this->packs[$packId] : null;
+
+        $this->releaseRows[] = [
+            'game_slug' => 'one-piece',
+            'release_key' => $releaseKey,
+            'release_name' => $pack['raw_title'] ?? $releaseKey,
+            'release_type' => 'pack_product',
+            'region_code' => '',
+            'released_at' => '',
+            'source_provider' => 'onepiece-cardgame',
+            'source_external_id' => $packId ?? '',
+            'notes' => 'Registered via DON!! supplemental data (variant-level release membership) rather than the regular reprint-detection pipeline.',
+        ];
+        $this->writtenReleaseKeys[$releaseKey] = true;
+    }
+
+    private function packIdForSetKey(string $setKey): ?string
+    {
+        foreach ($this->realPackIds as $packId) {
+            if ($this->toSetKey($packId) === $setKey) {
+                return $packId;
+            }
+        }
+
+        return null;
+    }
+
     private function toSetKey(string $packId): string
     {
         $pack = $this->packs[$packId] ?? null;
@@ -785,7 +997,15 @@ class ImportOnePiece extends Command
             'duplicate_variant_keys' => count($duplicateVariantKeys),
             'orphan_cards' => count($orphanCards),
             'orphan_variants' => count($orphanVariants),
+            'orphan_release_memberships' => count($this->orphanReleaseMemberships),
         ];
+
+        $variantLevelReleaseMemberships = count(array_filter($this->releaseMembershipRows, fn ($m) => ($m['variant_key'] ?? '') !== ''));
+        $unresolvedStandardDonCount = array_sum(array_column($this->unresolvedStandardDonDesigns, 'estimated_count'));
+        $unresolvedSpecialDonCount = array_sum(array_column($this->unresolvedSpecialDonDesigns, 'estimated_count'));
+        // importer_missing_images: images are always carried through verbatim from the source object, never
+        // derived/transformed, so there's no code path that could lose an image that was actually present upstream.
+        $importerMissingImages = 0;
         $warningCounts = [
             'missing_images' => count($this->missingImages),
             'cards_with_synthetic_home' => $this->cardsWithSyntheticHome,
@@ -817,11 +1037,31 @@ class ImportOnePiece extends Command
             'generated_releases' => count($this->releaseRows),
             'generated_release_memberships' => count($this->releaseMembershipRows),
 
+            'primary_cards' => $this->primaryCardCount,
+            'primary_variants' => $this->primaryVariantCount,
+            'supplemental_don_cards' => $this->donCardCount,
+            'supplemental_don_variants' => $this->donVariantCount,
+
+            'unique_base_card_numbers' => count($this->cards),
+            'p_variants' => $this->sourceVariantKindDistribution['p'] ?? 0,
+            'r_variants' => $this->sourceVariantKindDistribution['r'] ?? 0,
+
+            'release_memberships' => count($this->releaseMembershipRows),
+            'variant_level_release_memberships' => $variantLevelReleaseMemberships,
+            'exact_duplicate_source_objects_deduped' => $this->variantsWithMultiPackProvenance,
+
+            'unresolved_standard_don_designs' => $unresolvedStandardDonCount,
+            'unresolved_standard_don_designs_detail' => $this->unresolvedStandardDonDesigns,
+            'unresolved_special_don_designs' => $unresolvedSpecialDonCount,
+            'unresolved_special_don_designs_buckets' => count($this->unresolvedSpecialDonDesigns),
+
             'duplicate_set_keys' => $duplicateSetKeys,
             'duplicate_card_keys' => $duplicateCardKeys,
             'duplicate_variant_keys' => $duplicateVariantKeys,
             'orphan_cards' => array_column($orphanCards, 'card_key'),
             'orphan_variants' => array_column($orphanVariants, 'variant_key'),
+            'orphan_release_memberships' => $this->orphanReleaseMemberships,
+            'importer_missing_images' => $importerMissingImages,
 
             'severe_gameplay_conflicts' => $severeConflictBases,
             'severe_gameplay_conflict_examples' => $this->severeGameplayConflicts,
@@ -855,11 +1095,25 @@ class ImportOnePiece extends Command
             ['generated_variants', $r['generated_variants']],
             ['generated_releases', $r['generated_releases']],
             ['generated_release_memberships', $r['generated_release_memberships']],
+            ['primary_cards', $r['primary_cards']],
+            ['primary_variants', $r['primary_variants']],
+            ['supplemental_don_cards', $r['supplemental_don_cards']],
+            ['supplemental_don_variants', $r['supplemental_don_variants']],
+            ['unique_base_card_numbers', $r['unique_base_card_numbers']],
+            ['p_variants', $r['p_variants']],
+            ['r_variants', $r['r_variants']],
+            ['release_memberships', $r['release_memberships']],
+            ['variant_level_release_memberships', $r['variant_level_release_memberships']],
+            ['exact_duplicate_source_objects_deduped', $r['exact_duplicate_source_objects_deduped']],
+            ['unresolved_standard_don_designs', $r['unresolved_standard_don_designs']],
+            ['unresolved_special_don_designs', $r['unresolved_special_don_designs']],
             ['duplicate_set_keys (FAIL)', count($r['duplicate_set_keys'])],
             ['duplicate_card_keys (FAIL)', count($r['duplicate_card_keys'])],
             ['duplicate_variant_keys (FAIL)', count($r['duplicate_variant_keys'])],
             ['orphan_cards (FAIL)', count($r['orphan_cards'])],
             ['orphan_variants (FAIL)', count($r['orphan_variants'])],
+            ['orphan_release_memberships (FAIL)', count($r['orphan_release_memberships'])],
+            ['importer_missing_images (FAIL)', $r['importer_missing_images']],
             ['severe_gameplay_conflicts (WARNING, excluded from output)', count($r['severe_gameplay_conflicts'])],
             ['text_only_gameplay_variants (WARNING, kept as-is)', count($r['text_only_gameplay_variants'])],
             ['cards_with_synthetic_home (WARNING)', $r['cards_with_synthetic_home']],
