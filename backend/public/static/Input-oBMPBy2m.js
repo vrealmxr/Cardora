@@ -1,0 +1,11 @@
+import{c as f,r as l,j as e,d as o}from"./index-DvxRkc9u.js";/**
+ * @license lucide-react v1.7.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const i=[["path",{d:"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49",key:"ct8e1f"}],["path",{d:"M14.084 14.158a3 3 0 0 1-4.242-4.242",key:"151rxh"}],["path",{d:"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143",key:"13bj9a"}],["path",{d:"m2 2 20 20",key:"1ooewy"}]],p=f("eye-off",i);/**
+ * @license lucide-react v1.7.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const b=[["path",{d:"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0",key:"1nclc0"}],["circle",{cx:"12",cy:"12",r:"3",key:"1v7zrd"}]],h=f("eye",b),d="w-full rounded-xl border border-[#e8d6ae] bg-white px-3.5 py-2.5 text-[13px] text-slate-800 placeholder:text-slate-400 focus:border-gold-300 focus:bg-[#fffdf8] focus:outline-none focus:ring-0",m=l.forwardRef(function({className:t,type:a,...n},c){const[r,u]=l.useState(!1);return a==="password"?e.jsxs("div",{className:"relative",children:[e.jsx("input",{ref:c,type:r?"text":"password",className:o(d,"pr-10",t),...n}),e.jsx("button",{type:"button",onClick:()=>u(x=>!x),className:"absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 transition hover:text-slate-600","aria-label":r?"Απόκρυψη κωδικού":"Εμφάνιση κωδικού",tabIndex:-1,children:r?e.jsx(p,{className:"h-4 w-4"}):e.jsx(h,{className:"h-4 w-4"})})]}):e.jsx("input",{ref:c,type:a,className:o(d,t),...n})});function g({className:s,children:t,...a}){return e.jsx("select",{className:o("w-full rounded-xl border border-[#e8d6ae] bg-white px-3.5 py-2.5 text-[13px] text-slate-800 focus:border-gold-300 focus:bg-[#fffdf8] focus:outline-none focus:ring-0",s),...a,children:t})}function w({className:s,...t}){return e.jsx("textarea",{className:o("min-h-[130px] w-full rounded-xl border border-[#e8d6ae] bg-white px-3.5 py-2.5 text-[13px] text-slate-800 placeholder:text-slate-400 focus:border-gold-300 focus:bg-[#fffdf8] focus:outline-none focus:ring-0",s),...t})}export{h as E,m as I,g as S,w as T};

@@ -109,7 +109,7 @@ function ResetPasswordPage() {
       <div className="container pb-16">
         <SectionHeader eyebrow={copy.eyebrow} title={copy.invalidTitle} description={copy.invalidText} />
         <CardSurface className="mx-auto max-w-3xl p-6 text-center sm:p-8">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-rose-400/20 bg-rose-500/10 text-rose-100">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-rose-400/20 bg-rose-500/10 text-rose-800">
             <ShieldCheck className="h-7 w-7" />
           </div>
           <p className="mt-5 text-sm leading-7 text-mist">{copy.invalidText}</p>
@@ -164,13 +164,13 @@ function ResetPasswordPage() {
             </div>
 
             {mismatch ? (
-              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-800">
                 {copy.mismatch}
               </div>
             ) : null}
 
             {error ? (
-              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-800">
                 {error}
               </div>
             ) : null}

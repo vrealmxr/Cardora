@@ -121,7 +121,7 @@ function PickupPointPicker({
       </div>
 
       {error ? (
-        <p className="mt-3 rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
+        <p className="mt-3 rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-800">
           {error}
         </p>
       ) : null}

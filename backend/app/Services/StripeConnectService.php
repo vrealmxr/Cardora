@@ -153,6 +153,16 @@ class StripeConnectService
                 'notification_banner' => [
                     'enabled' => true,
                 ],
+                // Balance + payout history + a manual "Pay out now" button —
+                // without this component enabled here, Connect.js has no
+                // account-session grant to show it on the frontend at all.
+                'payouts' => [
+                    'enabled' => true,
+                    'features' => [
+                        'instant_payouts' => true,
+                        'standard_payouts' => true,
+                    ],
+                ],
             ],
         ]);
 

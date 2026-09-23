@@ -49,12 +49,12 @@ function VerificationField({ field, value, onChange, locale }) {
 
   if (field.type === 'checkbox') {
     return (
-      <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white/80">
+      <label className="flex items-start gap-3 rounded-xl border border-[#ead7ae] bg-[#faf6ea] px-3.5 py-3 text-sm text-ink">
         <input
           type="checkbox"
           checked={Boolean(value)}
           onChange={(event) => onChange(field.name, event.target.checked)}
-          className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-gold-300 focus:ring-gold-300/30"
+          className="mt-1 h-4 w-4 rounded border-[#d8b06a] bg-white text-gold-500 focus:ring-gold-300/30"
         />
         <span>{field.label}</span>
       </label>
@@ -74,10 +74,10 @@ function VerificationField({ field, value, onChange, locale }) {
             const nextValue = Array.from(event.target.files ?? [])
             onChange(field.name, field.multiple ? nextValue : nextValue[0] ?? null)
           }}
-          className="block w-full text-[13px] text-mist file:mr-3 file:rounded-lg file:border-0 file:bg-gold-300/15 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-gold-100 hover:file:bg-gold-300/20"
+          className="block w-full text-[13px] text-mist file:mr-3 file:rounded-lg file:border-0 file:bg-gold-300 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-ink hover:file:bg-gold-400"
         />
         {files.length ? (
-          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/75">
+          <div className="rounded-full border border-[#ead7ae] bg-[#faf6ea] px-3 py-1 text-[11px] text-ink">
             {locale === 'en'
               ? `${files.length} file${files.length === 1 ? '' : 's'} selected`
               : `${files.length} αρχείο${files.length === 1 ? '' : 'α'} επιλεγμένο`}
@@ -125,46 +125,46 @@ function VerificationSectionCard({ section, draft, error, onChange, onSubmit }) 
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={statusTone[section.status] ?? 'gold'}>{section.status}</Badge>
-            <span className="text-[11px] uppercase tracking-[0.28em] text-white/40">
+            <span className="text-[11px] uppercase tracking-[0.28em] text-mist">
               {section.shortTitle}
             </span>
           </div>
-          <h3 className="mt-3 font-display text-[2rem] text-white">{section.title}</h3>
+          <h3 className="mt-3 font-display text-[2rem] text-ink">{section.title}</h3>
           <p className="mt-2 text-sm leading-7 text-mist">{section.description}</p>
-          <p className="mt-3 text-sm leading-7 text-white/75">{section.helperText}</p>
+          <p className="mt-3 text-sm leading-7 text-mist">{section.helperText}</p>
         </div>
       </div>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[0.9fr,1.1fr]">
         <div className="space-y-4">
-          <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gold-100">
+          <div className="rounded-[20px] border border-[#ead7ae] bg-[#faf6ea] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gold-700">
               {copy.acceptedDocs}
             </p>
             <div className="mt-3 space-y-2">
               {section.acceptedDocuments.map((item) => (
-                <div key={item} className="rounded-xl border border-white/8 bg-black/10 px-3 py-2.5 text-sm text-white/80">
+                <div key={item} className="rounded-xl border border-[#ead7ae] bg-white px-3 py-2.5 text-sm text-ink">
                   {item}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gold-100">
+          <div className="rounded-[20px] border border-[#ead7ae] bg-[#faf6ea] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gold-700">
               {copy.checklist}
             </p>
             <div className="mt-3 space-y-2">
               {section.checklist.map((item) => (
-                <div key={item} className="rounded-xl border border-white/8 bg-black/10 px-3 py-2.5 text-sm text-white/75">
+                <div key={item} className="rounded-xl border border-[#ead7ae] bg-white px-3 py-2.5 text-sm text-mist">
                   {item}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-[20px] border border-white/8 bg-white/5 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gold-100">
+          <div className="rounded-[20px] border border-[#ead7ae] bg-[#faf6ea] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gold-700">
               {copy.currentFiles}
             </p>
             {section.uploads.length ? (
@@ -172,10 +172,10 @@ function VerificationSectionCard({ section, draft, error, onChange, onSubmit }) 
                 {section.uploads.map((upload, index) => (
                   <div
                     key={`${section.id}-${upload.fileName}-${index}`}
-                    className="rounded-xl border border-white/8 bg-black/10 px-3 py-2.5"
+                    className="rounded-xl border border-[#ead7ae] bg-white px-3 py-2.5"
                   >
-                    <p className="text-sm font-medium text-white">{upload.label}</p>
-                    {upload.fileName ? <p className="mt-1 text-xs text-white/50">{upload.fileName}</p> : null}
+                    <p className="text-sm font-medium text-ink">{upload.label}</p>
+                    {upload.fileName ? <p className="mt-1 text-xs text-mist">{upload.fileName}</p> : null}
                   </div>
                 ))}
               </div>
@@ -185,7 +185,7 @@ function VerificationSectionCard({ section, draft, error, onChange, onSubmit }) 
           </div>
         </div>
 
-        <div className="rounded-[22px] border border-white/8 bg-black/10 p-4">
+        <div className="rounded-[22px] border border-[#ead7ae] bg-[#fdfbf5] p-4">
           <div className="grid gap-4 md:grid-cols-2">
             {section.fields.map((field) => (
               <div
@@ -199,11 +199,11 @@ function VerificationSectionCard({ section, draft, error, onChange, onSubmit }) 
                 {field.type !== 'checkbox' ? (
                   <label className="mb-2 block text-sm text-mist">
                     {field.label}
-                    {field.required ? <span className="ml-1 text-gold-100">*</span> : null}
+                    {field.required ? <span className="ml-1 text-rose-600">*</span> : null}
                   </label>
                 ) : null}
                 <VerificationField field={field} value={draft[field.name]} onChange={onChange} locale={locale} />
-                {field.helperText ? <p className="mt-2 text-xs leading-6 text-white/45">{field.helperText}</p> : null}
+                {field.helperText ? <p className="mt-2 text-xs leading-6 text-mist">{field.helperText}</p> : null}
               </div>
             ))}
           </div>
@@ -214,11 +214,11 @@ function VerificationSectionCard({ section, draft, error, onChange, onSubmit }) 
             </div>
           ) : null}
 
-          <div className="mt-5 rounded-xl border border-white/8 bg-white/5 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gold-100">
+          <div className="mt-5 rounded-xl border border-[#ead7ae] bg-[#faf6ea] px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gold-700">
               {copy.reviewNote}
             </p>
-            <p className="mt-2 text-sm leading-7 text-white/75">{section.reviewNotes}</p>
+            <p className="mt-2 text-sm leading-7 text-mist">{section.reviewNotes}</p>
           </div>
         </div>
       </div>

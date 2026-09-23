@@ -105,7 +105,7 @@ function ForgotPasswordPage() {
             ) : null}
 
             {error ? (
-              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-800">
                 {error}
               </div>
             ) : null}

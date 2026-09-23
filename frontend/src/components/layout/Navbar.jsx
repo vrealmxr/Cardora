@@ -641,7 +641,7 @@ function Navbar() {
                     await logout()
                     navigate(localized('/'), { replace: true })
                   }}
-                  className="block w-full rounded-xl px-3 py-2.5 text-left text-rose-100 transition hover:bg-rose-500/10"
+                  className="block w-full rounded-xl px-3 py-2.5 text-left text-rose-700 transition hover:bg-rose-50 hover:text-rose-800"
                 >
                   {t('common.logout')}
                 </button>

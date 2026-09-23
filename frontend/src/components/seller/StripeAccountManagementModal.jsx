@@ -2,7 +2,7 @@ import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { loadConnectAndInitialize } from '@stripe/connect-js'
-import { ConnectAccountManagement, ConnectComponentsProvider, ConnectNotificationBanner } from '@stripe/react-connect-js'
+import { ConnectAccountManagement, ConnectComponentsProvider, ConnectNotificationBanner, ConnectPayouts } from '@stripe/react-connect-js'
 import { useMarketplace } from '@/hooks/useMarketplace'
 
 // Embedded Stripe Connect account management — sellers manage payout/bank
@@ -79,8 +79,18 @@ function StripeAccountManagementModal({ open, onClose, isEnglish }) {
   if (typeof document === 'undefined' || !open) return null
 
   const copy = isEnglish
-    ? { title: 'Manage your Stripe account', loading: 'Loading…' }
-    : { title: 'Διαχείριση Stripe account', loading: 'Φόρτωση…' }
+    ? {
+        title: 'Manage your Stripe account',
+        loading: 'Loading…',
+        payoutsHeading: 'Balance & payouts',
+        accountHeading: 'Account details',
+      }
+    : {
+        title: 'Διαχείριση Stripe account',
+        loading: 'Φόρτωση…',
+        payoutsHeading: 'Υπόλοιπο & αναλήψεις',
+        accountHeading: 'Στοιχεία λογαριασμού',
+      }
 
   return createPortal(
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
@@ -105,6 +115,11 @@ function StripeAccountManagementModal({ open, onClose, isEnglish }) {
             <ConnectComponentsProvider connectInstance={connectInstance}>
               <ConnectNotificationBanner />
               <div className="mt-4">
+                <h3 className="mb-2 text-sm font-semibold text-ink">{copy.payoutsHeading}</h3>
+                <ConnectPayouts />
+              </div>
+              <div className="mt-6">
+                <h3 className="mb-2 text-sm font-semibold text-ink">{copy.accountHeading}</h3>
                 <ConnectAccountManagement />
               </div>
             </ConnectComponentsProvider>

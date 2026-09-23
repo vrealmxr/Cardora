@@ -507,7 +507,7 @@ function OrdersPage({ initialTab = 'buyer' }) {
                 className={`rounded-xl border px-4 py-3 text-sm ${
                   tradeFeedbackTone === 'success'
                     ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-800'
-                    : 'border-rose-400/20 bg-rose-500/10 text-rose-100'
+                    : 'border-rose-400/20 bg-rose-500/10 text-rose-800'
                 }`}
               >
                 {tradeFeedback}

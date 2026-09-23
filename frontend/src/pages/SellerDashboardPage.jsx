@@ -286,7 +286,7 @@ function SellerDashboardPage() {
             <p className="mt-3 text-sm text-mist">{stripeAccount.stripe_account_id}</p>
           ) : null}
           {feedback ? (
-            <div className="mt-4 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+            <div className="mt-4 rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-800">
               {feedback}
             </div>
           ) : null}

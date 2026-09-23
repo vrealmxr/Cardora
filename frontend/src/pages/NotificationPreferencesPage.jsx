@@ -213,7 +213,7 @@ function NotificationPreferencesPage() {
           className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${
             feedback.tone === 'success'
               ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-800'
-              : 'border-rose-400/25 bg-rose-500/10 text-rose-100'
+              : 'border-rose-400/25 bg-rose-500/10 text-rose-800'
           }`}
         >
           {feedback.text}

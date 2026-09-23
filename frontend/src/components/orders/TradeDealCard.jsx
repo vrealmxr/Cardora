@@ -310,7 +310,7 @@ function TradeDealCard({
       </div>
 
       {statusKey === 'disputed' ? (
-        <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+        <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-800">
           <div className="inline-flex items-center gap-2">
             <ShieldAlert className="h-4 w-4" />
             {copy.disputedNotice}
