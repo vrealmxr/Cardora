@@ -14,6 +14,8 @@ class BinderCardVariant extends Model
     protected $fillable = [
         'card_id',
         'variant_key',
+        'source_variant_id',
+        'source_variant_kind',
         'variant_name',
         'variant_type',
         'rarity',
@@ -32,6 +34,11 @@ class BinderCardVariant extends Model
     public function card(): BelongsTo
     {
         return $this->belongsTo(BinderCard::class, 'card_id');
+    }
+
+    public function releaseMemberships(): HasMany
+    {
+        return $this->hasMany(BinderCardReleaseMembership::class, 'variant_id');
     }
 
     /**

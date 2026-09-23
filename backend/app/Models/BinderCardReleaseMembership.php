@@ -9,6 +9,7 @@ class BinderCardReleaseMembership extends Model
 {
     protected $fillable = [
         'card_id',
+        'variant_id',
         'release_id',
         'membership_type',
         'source_provider',
@@ -19,6 +20,12 @@ class BinderCardReleaseMembership extends Model
     public function card(): BelongsTo
     {
         return $this->belongsTo(BinderCard::class, 'card_id');
+    }
+
+    /** Nullable -- a membership can be card-level only (variant unknown) or scoped to one specific printing/artwork. */
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(BinderCardVariant::class, 'variant_id');
     }
 
     public function release(): BelongsTo

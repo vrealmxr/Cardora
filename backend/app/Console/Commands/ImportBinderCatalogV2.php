@@ -74,7 +74,7 @@ class ImportBinderCatalogV2 extends Command
         }
 
         if ($run('release_memberships') && is_file("{$dir}/release_memberships.csv")) {
-            $this->importReleaseMemberships("{$dir}/release_memberships.csv", $cardIdByKey, $releaseIdByKey);
+            $this->importReleaseMemberships("{$dir}/release_memberships.csv", $cardIdByKey, $releaseIdByKey, $variantIdByKey);
         }
 
         $this->refreshSetCardCounts(array_values($setIdByKey));
@@ -270,6 +270,8 @@ class ImportBinderCatalogV2 extends Command
             $rows[$r['variant_key']] = [
                 'card_id' => $cardId,
                 'variant_key' => $r['variant_key'],
+                'source_variant_id' => $this->nullIfEmpty($r['source_variant_id'] ?? null),
+                'source_variant_kind' => $this->nullIfEmpty($r['source_variant_kind'] ?? null),
                 'variant_name' => $r['variant_name'] ?? 'Normal',
                 'variant_type' => $this->nullIfEmpty($r['variant_type'] ?? null),
                 'rarity' => $this->nullIfEmpty($r['rarity'] ?? null),
@@ -293,7 +295,7 @@ class ImportBinderCatalogV2 extends Command
             DB::table('binder_card_variants')->upsert(
                 array_values($chunk),
                 ['variant_key'],
-                ['card_id', 'variant_name', 'variant_type', 'rarity', 'region_code', 'edition_code', 'artist', 'image_small', 'image_large', 'sort_order', 'updated_at'],
+                ['card_id', 'source_variant_id', 'source_variant_kind', 'variant_name', 'variant_type', 'rarity', 'region_code', 'edition_code', 'artist', 'image_small', 'image_large', 'sort_order', 'updated_at'],
             );
         }
 
@@ -416,8 +418,12 @@ class ImportBinderCatalogV2 extends Command
         return DB::table('binder_releases')->pluck('id', 'release_key')->map(fn ($v) => (int) $v)->all();
     }
 
-    /** @param array<string,int> $cardIdByKey @param array<string,int> $releaseIdByKey */
-    private function importReleaseMemberships(string $path, array $cardIdByKey, array $releaseIdByKey): void
+    /**
+     * @param array<string,int> $cardIdByKey
+     * @param array<string,int> $releaseIdByKey
+     * @param array<string,int> $variantIdByKey
+     */
+    private function importReleaseMemberships(string $path, array $cardIdByKey, array $releaseIdByKey, array $variantIdByKey): void
     {
         [$header, $handle] = $this->openCsv($path);
         $now = now();
@@ -438,8 +444,15 @@ class ImportBinderCatalogV2 extends Command
                 continue;
             }
 
-            $rows["{$cardId}:{$releaseId}"] = [
+            // variant_key is optional -- a membership can stay card-level
+            // (variant unknown) when the source doesn't tie the release to
+            // one specific printing/artwork.
+            $variantKey = $this->nullIfEmpty($r['variant_key'] ?? null);
+            $variantId = $variantKey !== null ? ($variantIdByKey[$variantKey] ?? null) : null;
+
+            $rows["{$cardId}:{$variantId}:{$releaseId}"] = [
                 'card_id' => $cardId,
+                'variant_id' => $variantId,
                 'release_id' => $releaseId,
                 'membership_type' => $this->nullIfEmpty($r['membership_type'] ?? null),
                 'source_provider' => $this->nullIfEmpty($r['source_provider'] ?? null),
@@ -458,7 +471,7 @@ class ImportBinderCatalogV2 extends Command
         foreach (array_chunk($rows, self::CHUNK, true) as $chunk) {
             DB::table('binder_card_release_memberships')->upsert(
                 array_values($chunk),
-                ['card_id', 'release_id'],
+                ['card_id', 'variant_id', 'release_id'],
                 ['membership_type', 'source_provider', 'source_reference', 'notes', 'updated_at'],
             );
         }
