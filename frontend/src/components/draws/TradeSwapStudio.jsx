@@ -1,5 +1,5 @@
 ﻿import { ArrowRightLeft, GripVertical, ShieldCheck, Sparkles, UserStar, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import UserAvatar from '@/components/people/UserAvatar'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
@@ -26,6 +26,7 @@ function TradeSwapStudio({
   marketListings = [],
   submitting = false,
   onSubmit,
+  pendingAdd = null,
 }) {
   const isEnglish = locale === 'en'
   const copy = useMemo(
@@ -209,6 +210,16 @@ function TradeSwapStudio({
     setLocalError('')
   }
 
+  useEffect(() => {
+    if (!pendingAdd?.token || !pendingAdd?.listing) return
+    if (pendingAdd.side === 'mine') {
+      addMine(pendingAdd.listing)
+    } else if (pendingAdd.side === 'target') {
+      addTarget(pendingAdd.listing)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAdd?.token])
+
   const removeMine = (listingId) => {
     setSelectedMineIds((prev) => prev.filter((id) => id !== listingId))
   }
@@ -315,20 +326,26 @@ function TradeSwapStudio({
     const imageUrl = listingImageOf(item)
     const sellerRating = Number(item?.sellerRating ?? 0)
     const seller = item?.seller ?? null
+    const itemSellerId = Number(item?.sellerId ?? 0)
+    const isLockedOut =
+      source === 'target-pool' && targetOwnerId > 0 && itemSellerId > 0 && itemSellerId !== targetOwnerId
 
     return (
       <button
         key={`${source}-${listingId}`}
         type="button"
-        draggable
+        draggable={!isLockedOut}
+        disabled={isLockedOut}
         onDragStart={(event) => onDragStart(event, listingId, source)}
         onClick={() => (source === 'mine-pool' ? addMine(item) : addTarget(item))}
         className={`group w-full rounded-[20px] border p-2.5 text-left transition ${
-          isDragging
-            ? 'border-[#d4b074] bg-[#f6ead0] opacity-75'
-            : isSelected
-              ? 'border-[#d4b074] bg-[#fbf3e4] shadow-gold-soft'
-              : 'border-[#eadab7] bg-white hover:border-[#d4b074] hover:bg-[#fbf6ec]'
+          isLockedOut
+            ? 'cursor-not-allowed border-[#eadab7] bg-[#fffaf2] opacity-45'
+            : isDragging
+              ? 'border-[#d4b074] bg-[#f6ead0] opacity-75'
+              : isSelected
+                ? 'border-[#d4b074] bg-[#fbf3e4] shadow-gold-soft'
+                : 'border-[#eadab7] bg-white hover:border-[#d4b074] hover:bg-[#fbf6ec]'
         }`}
       >
         <div className="relative overflow-hidden rounded-[14px] border border-[#eadab7] bg-[#fffaf2]">
@@ -395,33 +412,33 @@ function TradeSwapStudio({
     return (
       <div
         key={`${side}-selected-${listingId}`}
-        className="flex items-center justify-between gap-2 rounded-xl border border-[#eadab7] bg-white px-2.5 py-2"
+        className="relative overflow-hidden rounded-[14px] border border-[#eadab7] bg-[#fffaf2]"
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="relative h-12 w-9 shrink-0 overflow-hidden rounded-lg border border-[#eadab7] bg-[#fffaf2]">
-            {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={item?.title ?? 'Trade card'}
-                className="h-full w-full object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-[#f8efd9] via-[#efe2c3] to-[#e1c792]" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold text-slate-900">{item?.title ?? 'Trade card'}</p>
-            <p className="text-[11px] text-gold-700">{formatCurrency(Number(item?.price ?? 0))}</p>
-          </div>
+        <div className="aspect-[0.76]">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={item?.title ?? 'Trade card'}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-[#f8efd9] via-[#efe2c3] to-[#e1c792]" />
+          )}
         </div>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] bg-gradient-to-t from-[rgba(255,249,239,0.96)] via-[rgba(255,249,239,0.84)] to-transparent px-2 py-2">
+          <p className="line-clamp-1 text-xs font-semibold text-slate-900">{item?.title ?? 'Trade card'}</p>
+          <p className="text-[11px] text-gold-700">{formatCurrency(Number(item?.price ?? 0))}</p>
+        </div>
+
         <button
           type="button"
           onClick={() => (side === 'mine' ? removeMine(listingId) : removeTarget(listingId))}
-          className="inline-flex items-center gap-1 rounded-full border border-[#eadab7] px-2 py-1 text-[10px] text-slate-600 transition hover:border-rose-300/40 hover:bg-rose-50 hover:text-rose-600"
+          aria-label={copy.remove}
+          className="absolute right-1.5 top-1.5 z-[2] inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#eadab7] bg-[rgba(255,252,245,0.96)] text-slate-500 transition hover:border-rose-300/40 hover:bg-rose-50 hover:text-rose-600"
         >
           <X className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{copy.remove}</span>
         </button>
       </div>
     )
@@ -491,7 +508,7 @@ function TradeSwapStudio({
                   }}
                   onDragLeave={() => setDragZone('')}
                   onDrop={(event) => onDropToZone(event, 'mine')}
-                  className={`min-h-[170px] rounded-2xl border p-3 transition sm:min-h-[220px] ${
+                  className={`min-h-[170px] min-w-0 rounded-2xl border p-3 transition sm:min-h-[220px] ${
                     dragZone === 'mine'
                       ? 'border-[#d4b074] bg-[#f6ead0] shadow-[0_0_40px_rgba(212,176,116,0.18)]'
                       : 'border-[#eadab7] bg-white'
@@ -521,7 +538,7 @@ function TradeSwapStudio({
                   }}
                   onDragLeave={() => setDragZone('')}
                   onDrop={(event) => onDropToZone(event, 'target')}
-                  className={`min-h-[170px] rounded-2xl border p-3 transition sm:min-h-[220px] ${
+                  className={`min-h-[170px] min-w-0 rounded-2xl border p-3 transition sm:min-h-[220px] ${
                     dragZone === 'target'
                       ? 'border-[#d4b074] bg-[#f6ead0] shadow-[0_0_40px_rgba(212,176,116,0.18)]'
                       : 'border-[#eadab7] bg-white'
@@ -533,10 +550,16 @@ function TradeSwapStudio({
                   </div>
 
                   {targetOwnerId ? (
-                    <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#eadab7] bg-[#fffaf2] px-2.5 py-1 text-[11px] text-slate-700">
-                      <UserStar className="h-3.5 w-3.5 text-gold-700" />
-                      {copy.owner}: {targetOwnerName}
-                      <span className="text-slate-500">{copy.rating}: {targetOwnerRating.toFixed(1)}</span>
+                    <div className="mt-2 flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-[#eadab7] bg-[#fffaf2] px-2.5 py-1.5 text-[11px] text-slate-700">
+                      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                        <UserStar className="h-3.5 w-3.5 shrink-0 text-gold-700" />
+                        <span className="truncate">
+                          {copy.owner}: {targetOwnerName}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-slate-500">
+                        {copy.rating}: {targetOwnerRating.toFixed(1)}
+                      </span>
                     </div>
                   ) : null}
 
@@ -561,6 +584,11 @@ function TradeSwapStudio({
                 {marketListings.length} {copy.poolCount}
               </span>
             </div>
+            {targetOwnerId ? (
+              <div className="mb-3 rounded-xl border border-[#eadab7] bg-[#fffaf2] px-3 py-2 text-[11px] leading-5 text-slate-600">
+                {copy.ownerOnly} ({targetOwnerName})
+              </div>
+            ) : null}
             <div className="max-h-[380px] overflow-auto pr-0.5 sm:max-h-[560px]">
               {marketListings.length ? (
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">

@@ -679,41 +679,54 @@ function CollectorProfilePage() {
               {listingEntries.length ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {listingEntries.map((listing) => {
-                    const primaryMedia = Array.isArray(listing.media) ? getMediaUrl(listing.media[0]) : null
+                    const linkedProduct = listing.product
+                    const primaryMedia = Array.isArray(linkedProduct?.media)
+                      ? getMediaUrl(linkedProduct.media[0])
+                      : null
+                    const title = linkedProduct?.title || listing.title_snapshot || copy.collectionItemFallback
+                    const slug = linkedProduct?.slug
 
-                    return (
-                      <Link key={listing.id} to={`/proion/${listing.slug}`} className="group block">
-                        <CardSurface className="overflow-hidden p-3">
-                          <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#081324] p-2">
-                            {primaryMedia ? (
-                              <img
-                                src={primaryMedia}
-                                alt={listing.title}
-                                className="h-[200px] w-full rounded-[14px] bg-[#050d1a] object-contain transition duration-300 group-hover:scale-[1.01]"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="flex h-[200px] w-full items-center justify-center text-sm text-mist">
-                                {copy.noImage}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="mt-3 space-y-2">
-                            <div className="flex flex-wrap gap-2">
-                              {listing.rarity ? <Badge tone="gold">{listing.rarity}</Badge> : null}
-                              {listing.condition ? <Badge tone="muted">{listing.condition}</Badge> : null}
+                    const cardBody = (
+                      <CardSurface className="overflow-hidden p-3">
+                        <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#081324] p-2">
+                          {primaryMedia ? (
+                            <img
+                              src={primaryMedia}
+                              alt={title}
+                              className="h-[200px] w-full rounded-[14px] bg-[#050d1a] object-contain transition duration-300 group-hover:scale-[1.01]"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-[200px] w-full items-center justify-center text-sm text-mist">
+                              {copy.noImage}
                             </div>
-                            <p className="line-clamp-2 text-sm font-semibold text-white transition group-hover:text-gold-100">
-                              {listing.title}
-                            </p>
-                            <p className="line-clamp-1 text-xs text-mist">
-                              {[listing.franchise, listing.series].filter(Boolean).join(' • ')}
-                            </p>
-                            <p className="text-base font-semibold text-gold-100">{formatCurrency(listing.price)}</p>
+                          )}
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          <div className="flex flex-wrap gap-2">
+                            {listing.rarity ? <Badge tone="gold">{listing.rarity}</Badge> : null}
+                            {listing.condition ? <Badge tone="muted">{listing.condition}</Badge> : null}
                           </div>
-                        </CardSurface>
+                          <p className="line-clamp-2 text-sm font-semibold text-white transition group-hover:text-gold-100">
+                            {title}
+                          </p>
+                          <p className="line-clamp-1 text-xs text-mist">
+                            {[linkedProduct?.franchise, linkedProduct?.series].filter(Boolean).join(' • ')}
+                          </p>
+                          <p className="text-base font-semibold text-gold-100">{formatCurrency(listing.price)}</p>
+                        </div>
+                      </CardSurface>
+                    )
+
+                    return slug ? (
+                      <Link key={listing.id} to={`/proion/${slug}`} className="group block">
+                        {cardBody}
                       </Link>
+                    ) : (
+                      <div key={listing.id} className="block">
+                        {cardBody}
+                      </div>
                     )
                   })}
                 </div>

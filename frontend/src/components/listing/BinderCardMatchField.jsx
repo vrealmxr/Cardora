@@ -1,5 +1,5 @@
 import { Check, Search, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Input, Select } from '@/components/ui/Input'
 import { fetchBinderCards, fetchBinderGames, fetchBinderSets } from '@/services/binderService'
 import { cn } from '@/utils/helpers'
@@ -29,6 +29,19 @@ function BinderCardMatchField({ cardId, snapshot, onChange, isEnglish }) {
   const debouncedCardQuery = useDebouncedValue(cardQuery, 300)
   const [cardResults, setCardResults] = useState([])
   const [loadingCards, setLoadingCards] = useState(false)
+  const [resultsOpen, setResultsOpen] = useState(false)
+  const searchAreaRef = useRef(null)
+
+  useEffect(() => {
+    if (!resultsOpen) return undefined
+    const handleClickOutside = (event) => {
+      if (searchAreaRef.current && !searchAreaRef.current.contains(event.target)) {
+        setResultsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [resultsOpen])
 
   useEffect(() => {
     fetchBinderGames()
@@ -120,6 +133,7 @@ function BinderCardMatchField({ cardId, snapshot, onChange, isEnglish }) {
       game: { name: game?.name ?? '' },
     })
     setExpanded(false)
+    setResultsOpen(false)
   }
 
   const clearMatch = () => {
@@ -193,41 +207,44 @@ function BinderCardMatchField({ cardId, snapshot, onChange, isEnglish }) {
         </Select>
       </div>
 
-      <div className="relative mt-3">
+      <div ref={searchAreaRef} className="relative mt-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <Input
           type="text"
           value={cardQuery}
           onChange={(event) => setCardQuery(event.target.value)}
+          onFocus={() => setResultsOpen(true)}
           placeholder={copy.searchPlaceholder}
           className="pl-9"
         />
-      </div>
 
-      <div className="mt-3 max-h-64 divide-y divide-[#eee2c4] overflow-y-auto rounded-[16px] border border-[#eee2c4]">
-        {loadingCards ? (
-          <div className="p-4 text-center text-sm text-slate-400">{copy.loading}</div>
-        ) : cardResults.length ? (
-          cardResults.map((card) => (
-            <button
-              key={card.id}
-              type="button"
-              onClick={() => selectCard(card)}
-              className={cn(
-                'flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-[#fff8ec]',
-                cardId === card.id && 'bg-[#fff8ec]',
-              )}
-            >
-              {card.imageUrl ? (
-                <img src={card.imageUrl} alt={card.name} className="h-10 w-7 shrink-0 rounded object-cover" />
-              ) : null}
-              <span className="min-w-0 flex-1 truncate text-sm text-ink">{card.name}</span>
-              {card.number ? <span className="shrink-0 text-xs text-slate-400">{card.number}</span> : null}
-            </button>
-          ))
-        ) : (
-          <div className="p-4 text-center text-sm text-slate-400">{copy.noResults}</div>
-        )}
+        {resultsOpen ? (
+          <div className="absolute inset-x-0 top-full z-10 mt-1.5 max-h-64 divide-y divide-[#eee2c4] overflow-y-auto rounded-[16px] border border-[#eee2c4] bg-white shadow-lg">
+            {loadingCards ? (
+              <div className="p-4 text-center text-sm text-slate-400">{copy.loading}</div>
+            ) : cardResults.length ? (
+              cardResults.map((card) => (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => selectCard(card)}
+                  className={cn(
+                    'flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-[#fff8ec]',
+                    cardId === card.id && 'bg-[#fff8ec]',
+                  )}
+                >
+                  {card.imageUrl ? (
+                    <img src={card.imageUrl} alt={card.name} className="h-10 w-7 shrink-0 rounded object-cover" />
+                  ) : null}
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{card.name}</span>
+                  {card.number ? <span className="shrink-0 text-xs text-slate-400">{card.number}</span> : null}
+                </button>
+              ))
+            ) : (
+              <div className="p-4 text-center text-sm text-slate-400">{copy.noResults}</div>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   )

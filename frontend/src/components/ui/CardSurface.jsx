@@ -1,6 +1,6 @@
 import { cn } from '@/utils/helpers'
 
-function CardSurface({ className, hover = true, children }) {
+function CardSurface({ className, hover = true, children, ...rest }) {
   const hasFeaturedGlow = typeof className === 'string' && className.includes('featured-glow')
   const resolvedClassName =
     typeof className === 'string' ? className.replace(/\bfeatured-glow\b/g, '').trim() : className
@@ -14,14 +14,14 @@ function CardSurface({ className, hover = true, children }) {
 
   if (hasFeaturedGlow) {
     return (
-      <div className="featured-glow h-full rounded-[24px]">
+      <div className="featured-glow h-full rounded-[24px]" {...rest}>
         <div className={cn(innerClassName, 'h-full')}>{children}</div>
       </div>
     )
   }
 
   return (
-    <div className={innerClassName}>
+    <div className={innerClassName} {...rest}>
       {children}
     </div>
   )

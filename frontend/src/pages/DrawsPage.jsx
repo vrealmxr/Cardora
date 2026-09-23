@@ -31,6 +31,7 @@ function DrawsPage({ studioMode = false }) {
   const [submittingTradeRequest, setSubmittingTradeRequest] = useState(false)
   const [tradeActionError, setTradeActionError] = useState('')
   const [tradeActionSuccess, setTradeActionSuccess] = useState('')
+  const [pendingTradeAdd, setPendingTradeAdd] = useState(null)
   const tradeFeedbackRef = useRef(null)
 
   const [incomingRequests, setIncomingRequests] = useState([])
@@ -691,7 +692,12 @@ function DrawsPage({ studioMode = false }) {
 
   const renderListingCard = (listing) => {
     const isOwnListing = Number(listing?.sellerId ?? 0) === Number(currentUser?.id ?? 0)
-    const openStudio = () => {
+    const addToStudio = () => {
+      setPendingTradeAdd({
+        token: Date.now(),
+        side: isOwnListing ? 'mine' : 'target',
+        listing,
+      })
       if (typeof document === 'undefined') return
       const section = document.getElementById('trade-studio')
       if (section) {
@@ -710,7 +716,7 @@ function DrawsPage({ studioMode = false }) {
                 {copy.loginToTrade}
               </Button>
             ) : (
-              <Button size="sm" onClick={openStudio}>
+              <Button size="sm" onClick={addToStudio}>
                 {isOwnListing
                   ? locale === 'en'
                     ? 'Add to your side'
@@ -789,6 +795,7 @@ function DrawsPage({ studioMode = false }) {
           marketListings={marketTradeStudioListings}
           submitting={submittingTradeRequest}
           onSubmit={handleTradeStudioRequestSubmit}
+          pendingAdd={pendingTradeAdd}
         />
       ) : null}
 
