@@ -123,6 +123,10 @@ class ImportOnePiece extends Command
     private array $unresolvedSpecialDonDesigns = []; // rows from the backlog CSV
     private array $orphanReleaseMemberships = [];
 
+    private array $gameplayOverrideRows = []; // raw rows from supplemental_gameplay_overrides.csv
+    private array $resolvedGameplayConflictBases = []; // base_number => true, conflicts that got an override applied
+    private array $gameplayOverridesApplied = []; // base_number => [field => ['from'=>..., 'to'=>..., provenance...]]
+
     public function handle(): int
     {
         $outDir = rtrim((string) ($this->option('out') ?: storage_path('app/onepiece')), '/');
@@ -149,6 +153,8 @@ class ImportOnePiece extends Command
         $this->info('Reading card objects...');
         $this->loadAllCards("{$dataDir}/english/cards");
         $this->info("Source card objects: {$this->sourceObjects}, base card numbers: " . count($this->cards));
+
+        $this->applyGameplayOverrides();
 
         $this->resolveHomesAndBuildRows();
         $this->primaryCardCount = count($this->cardRows);
@@ -415,11 +421,11 @@ class ImportOnePiece extends Command
             unset($existing['block_number'], $comparable['block_number']); // block_number can legitimately differ for genuine reprints in a later block
 
             $severeDiff = false;
+            $severeDiffFields = [];
             foreach (self::SEVERE_GAMEPLAY_FIELDS as $f) {
                 if (json_encode($existing[$f] ?? null) !== json_encode($comparable[$f] ?? null)) {
                     $severeDiff = true;
-
-                    break;
+                    $severeDiffFields[$f] = ['existing' => $existing[$f] ?? null, 'conflicting' => $comparable[$f] ?? null];
                 }
             }
             $textDiff = false;
@@ -433,7 +439,12 @@ class ImportOnePiece extends Command
 
             if ($severeDiff) {
                 $this->cards[$base]['severe_conflict'] = true;
-                $this->severeGameplayConflicts[] = ['base' => $base, 'pack' => $packId, 'source_id' => $sourceId];
+                $this->severeGameplayConflicts[] = [
+                    'base' => $base,
+                    'pack' => $packId,
+                    'source_id' => $sourceId,
+                    'conflicting_fields' => $severeDiffFields,
+                ];
             } elseif ($textDiff) {
                 $this->textOnlyGameplayVariants[] = ['base' => $base, 'pack' => $packId, 'source_id' => $sourceId];
             }
@@ -470,6 +481,59 @@ class ImportOnePiece extends Command
         }
 
         $this->cards[$base]['variants'][$sourceId] = true;
+    }
+
+    /**
+     * Applies database/data/onepiece-supplemental/supplemental_gameplay_overrides.csv
+     * -- a hand-researched, cross-checked correction to a base number's
+     * canonical gameplay fields (never rarity/artwork, which stay
+     * per-variant). Runs after loadAllCards() so every upstream conflict
+     * has already been detected, and clears severe_conflict so the card is
+     * no longer excluded once a verified resolution exists. The raw
+     * conflicting source values stay in $severeGameplayConflicts for the
+     * report regardless -- the override corrects the canonical record, it
+     * doesn't erase the evidence of why one was needed.
+     */
+    private function applyGameplayOverrides(): void
+    {
+        $dir = base_path(self::DON_SUPPLEMENTAL_DIR);
+        $this->gameplayOverrideRows = $this->readCsv("{$dir}/supplemental_gameplay_overrides.csv");
+
+        $byBase = [];
+        foreach ($this->gameplayOverrideRows as $row) {
+            $byBase[$row['base_number']][] = $row;
+        }
+
+        foreach ($byBase as $base => $rows) {
+            if (! isset($this->cards[$base])) {
+                $this->warn("  supplemental_gameplay_overrides.csv: base number {$base} not found in source data — override NOT applied");
+
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                $field = $row['field'];
+                $from = $this->cards[$base]['gameplay'][$field] ?? null;
+                $to = $row['value'] !== '' ? $row['value'] : null;
+                if (in_array($field, ['cost', 'power', 'counter'], true) && $to !== null) {
+                    $to = (int) $to;
+                }
+                $this->cards[$base]['gameplay'][$field] = $to;
+                $this->gameplayOverridesApplied[$base][$field] = [
+                    'from' => $from,
+                    'to' => $to,
+                    'source_provider' => $row['source_provider'],
+                    'source_url' => $row['source_url'],
+                    'verification_source' => $row['verification_source'],
+                    'notes' => $row['notes'],
+                ];
+            }
+
+            if ($this->cards[$base]['severe_conflict']) {
+                $this->cards[$base]['severe_conflict'] = false;
+                $this->resolvedGameplayConflictBases[$base] = true;
+            }
+        }
     }
 
     private function resolveHomesAndBuildRows(): void
@@ -988,7 +1052,11 @@ class ImportOnePiece extends Command
         $cardKeySet = array_flip($cardKeys);
         $orphanVariants = array_values(array_filter($this->variantRows, fn ($v) => ! isset($cardKeySet[$v['card_key']])));
 
-        $severeConflictBases = array_unique(array_column($this->severeGameplayConflicts, 'base'));
+        // upstream_gameplay_conflicts: every base number where source occurrences ever disagreed on a severe
+        // (non-textual) gameplay field -- historical evidence, kept regardless of whether it was later resolved.
+        $upstreamConflictBases = array_unique(array_column($this->severeGameplayConflicts, 'base'));
+        $resolvedConflictBases = array_keys($this->resolvedGameplayConflictBases);
+        $unresolvedConflictBases = array_diff($upstreamConflictBases, $resolvedConflictBases);
         $textVariantBases = array_unique(array_column($this->textOnlyGameplayVariants, 'base'));
 
         $failCounts = [
@@ -1009,7 +1077,7 @@ class ImportOnePiece extends Command
         $warningCounts = [
             'missing_images' => count($this->missingImages),
             'cards_with_synthetic_home' => $this->cardsWithSyntheticHome,
-            'severe_gameplay_conflicts' => count($severeConflictBases),
+            'unresolved_gameplay_conflicts' => count($unresolvedConflictBases),
             'text_only_gameplay_variants' => count($textVariantBases),
         ];
 
@@ -1063,8 +1131,12 @@ class ImportOnePiece extends Command
             'orphan_release_memberships' => $this->orphanReleaseMemberships,
             'importer_missing_images' => $importerMissingImages,
 
-            'severe_gameplay_conflicts' => $severeConflictBases,
-            'severe_gameplay_conflict_examples' => $this->severeGameplayConflicts,
+            'upstream_gameplay_conflicts' => count($upstreamConflictBases),
+            'resolved_gameplay_conflicts' => count($resolvedConflictBases),
+            'unresolved_gameplay_conflicts' => count($unresolvedConflictBases),
+            'gameplay_conflict_raw_evidence' => $this->severeGameplayConflicts,
+            'gameplay_overrides_applied' => $this->gameplayOverridesApplied,
+            'unresolved_gameplay_conflict_bases' => array_values($unresolvedConflictBases),
             'text_only_gameplay_variants' => $textVariantBases,
             'text_only_gameplay_variant_examples' => array_slice($this->textOnlyGameplayVariants, 0, 30),
 
@@ -1114,7 +1186,9 @@ class ImportOnePiece extends Command
             ['orphan_variants (FAIL)', count($r['orphan_variants'])],
             ['orphan_release_memberships (FAIL)', count($r['orphan_release_memberships'])],
             ['importer_missing_images (FAIL)', $r['importer_missing_images']],
-            ['severe_gameplay_conflicts (WARNING, excluded from output)', count($r['severe_gameplay_conflicts'])],
+            ['upstream_gameplay_conflicts', $r['upstream_gameplay_conflicts']],
+            ['resolved_gameplay_conflicts', $r['resolved_gameplay_conflicts']],
+            ['unresolved_gameplay_conflicts (WARNING, excluded from output)', $r['unresolved_gameplay_conflicts']],
             ['text_only_gameplay_variants (WARNING, kept as-is)', count($r['text_only_gameplay_variants'])],
             ['cards_with_synthetic_home (WARNING)', $r['cards_with_synthetic_home']],
             ['variants_with_multi_pack_provenance', $r['variants_with_multi_pack_provenance']],
@@ -1138,11 +1212,24 @@ class ImportOnePiece extends Command
         $this->comment('source_variant_kind distribution:');
         foreach ($r['source_variant_kind_distribution'] as $k => $v) $this->line("  {$k}: {$v}");
 
-        if ($r['severe_gameplay_conflict_examples'] !== []) {
+        if ($r['gameplay_conflict_raw_evidence'] !== []) {
             $this->newLine();
-            $this->error('Severe gameplay conflicts (name/category/colors/cost/power/counter/attributes differ) -- card EXCLUDED from output pending review:');
-            foreach ($r['severe_gameplay_conflict_examples'] as $e) {
-                $this->line("  {$e['base']} @ pack {$e['pack']} (source_id={$e['source_id']})");
+            $this->comment('Gameplay conflicts found (raw conflicting source values):');
+            foreach ($r['gameplay_conflict_raw_evidence'] as $e) {
+                $resolved = isset($r['gameplay_overrides_applied'][$e['base']]) ? 'RESOLVED via supplemental override' : 'UNRESOLVED — excluded from output';
+                $this->line("  {$e['base']} @ pack {$e['pack']} (source_id={$e['source_id']}) — {$resolved}");
+                foreach ($e['conflicting_fields'] ?? [] as $field => $vals) {
+                    $this->line('    ' . $field . ': ' . json_encode($vals['existing']) . ' vs ' . json_encode($vals['conflicting']));
+                }
+            }
+            if ($r['gameplay_overrides_applied'] !== []) {
+                $this->newLine();
+                $this->comment('Overrides applied:');
+                foreach ($r['gameplay_overrides_applied'] as $base => $fields) {
+                    foreach ($fields as $field => $o) {
+                        $this->line("  {$base}.{$field}: " . json_encode($o['from']) . ' -> ' . json_encode($o['to']) . " ({$o['verification_source']})");
+                    }
+                }
             }
         }
 
