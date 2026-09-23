@@ -47,9 +47,17 @@ return new class extends Migration
             $table->foreignId('variant_id')->nullable()->after('card_id')->constrained('binder_card_variants')->nullOnDelete();
         });
 
+        // VIRTUAL, not STORED: MariaDB/InnoDB forbids a STORED generated
+        // column from depending on a column whose FK uses SET NULL/CASCADE
+        // (nullOnDelete() above is ON DELETE SET NULL) -- error 1901,
+        // "Function or expression 'variant_id' cannot be used in the
+        // GENERATED ALWAYS AS clause" -- because the storage engine can't
+        // re-evaluate a stored value when that cascading action fires.
+        // VIRTUAL columns are computed at read time, so this restriction
+        // doesn't apply, and MariaDB supports indexing virtual columns.
         DB::statement(
             'ALTER TABLE binder_card_release_memberships
-             ADD COLUMN variant_id_key BIGINT UNSIGNED AS (COALESCE(variant_id, 0)) STORED'
+             ADD COLUMN variant_id_key BIGINT UNSIGNED AS (COALESCE(variant_id, 0)) VIRTUAL'
         );
         Schema::table('binder_card_release_memberships', function (Blueprint $table) {
             $table->dropUnique('binder_card_release_memberships_card_release_unique');
