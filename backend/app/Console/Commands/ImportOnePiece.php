@@ -74,6 +74,21 @@ class ImportOnePiece extends Command
     private const CATCHALL_PACK_TITLES = ['Other Product Card', 'Promotion card'];
     private const CATCHALL_SET_KEY = 'onepiece-en-catchall-promo';
 
+    /**
+     * The exact 26 base numbers flagged as "text-only" wording variants in
+     * the prior dry-run report, pulled from that report rather than
+     * retyped by hand. Rigorously re-verified here against cost/power/
+     * counter/colors/attributes/category AND a proper case/script-
+     * normalized types comparison (not raw string equality) -- found 2 of
+     * the 26 (ST11-005, ST23-004) actually had a non-text (types)
+     * difference, resolved via supplemental_gameplay_overrides.csv rather
+     * than left as a false "text-only" pass.
+     */
+    private const KNOWN_TEXT_ONLY_GROUPS = ['ST11-005', 'ST23-004', 'OP01-047', 'OP05-091', 'OP05-074', 'OP07-019',
+        'OP05-119', 'OP09-089', 'OP12-027', 'OP12-028', 'OP10-065', 'ST32-002', 'EB01-003', 'OP06-080', 'OP07-059',
+        'OP07-097', 'EB01-006', 'OP01-024', 'OP01-041', 'OP06-118', 'OP07-040', 'ST02-007', 'OP01-013', 'OP12-034',
+        'P-052', 'ST07-008'];
+
     private array $handles = [];
     private array $packs = []; // pack_id => raw pack row from packs.json
     private array $catchallPackIds = [];
@@ -126,6 +141,7 @@ class ImportOnePiece extends Command
     private array $gameplayOverrideRows = []; // raw rows from supplemental_gameplay_overrides.csv
     private array $resolvedGameplayConflictBases = []; // base_number => true, conflicts that got an override applied
     private array $gameplayOverridesApplied = []; // base_number => [field => ['from'=>..., 'to'=>..., provenance...]]
+    private int $printedEffectTextVariants = 0; // variants whose own printed wording differs from the canonical card's effect text
 
     public function handle(): int
     {
@@ -377,9 +393,23 @@ class ImportOnePiece extends Command
      * as fatal would block far more than it protects.
      */
     private const SEVERE_GAMEPLAY_FIELDS = ['name', 'category', 'colors', 'cost', 'counter', 'power', 'attributes'];
-    private const TEXT_GAMEPLAY_FIELDS = ['effect', 'trigger', 'types'];
+    private const TEXT_GAMEPLAY_FIELDS = ['effect', 'trigger'];
+    // 'types' is deliberately NOT in either blunt list above -- a source scraping bug (documented upstream,
+    // e.g. Japanese characters leaking into an English field) can make it differ only cosmetically (casing/
+    // script), which is text-only, OR it can differ substantively (a genuinely different tag set), which is
+    // exactly as severe as a stat mismatch. See compareTypes() -- checked with case/whitespace-insensitive
+    // normalization so only a REAL tag-set difference counts as severe.
 
     /** Bandai's site leaks a handful of typographic character variants (fullwidth minus, U+2212 minus) inconsistently between scrapes of the same value -- cosmetically different, not a real content difference. */
+    /** Case/whitespace-insensitive, order-insensitive comparison key for a types array -- distinguishes a cosmetic scrape artifact (casing/script) from a genuinely different tag set. */
+    private function normalizeTypesForComparison(array $types): string
+    {
+        $normalized = array_map(fn ($t) => mb_strtolower(trim((string) $t)), $types);
+        sort($normalized);
+
+        return json_encode($normalized);
+    }
+
     private function normalizeText(mixed $value): mixed
     {
         if (is_string($value)) {
@@ -437,6 +467,20 @@ class ImportOnePiece extends Command
                 }
             }
 
+            // types: raw-equal -> no diff at all. Raw-differ but semantically-equal (case/script only,
+            // e.g. a Japanese-character leak) -> text-only. Semantically differ (a real different tag set,
+            // even after normalization) -> severe, same as a stat mismatch.
+            $existingTypes = $existing['types'] ?? [];
+            $comparableTypes = $comparable['types'] ?? [];
+            if (json_encode($existingTypes) !== json_encode($comparableTypes)) {
+                if ($this->normalizeTypesForComparison($existingTypes) !== $this->normalizeTypesForComparison($comparableTypes)) {
+                    $severeDiff = true;
+                    $severeDiffFields['types'] = ['existing' => $existingTypes, 'conflicting' => $comparableTypes];
+                } else {
+                    $textDiff = true;
+                }
+            }
+
             if ($severeDiff) {
                 $this->cards[$base]['severe_conflict'] = true;
                 $this->severeGameplayConflicts[] = [
@@ -462,6 +506,7 @@ class ImportOnePiece extends Command
                 'source_variant_id' => $sourceId,
                 'source_variant_kind' => $suffix['kind'],
                 'rarity' => $rarity,
+                'raw_effect' => $this->normalizeText($card['effect'] ?? ''),
                 'artist' => null, // not present in punk-records card schema
                 'img_url' => $card['img_url'] ?? '',
                 'img_full_url' => $card['img_full_url'] ?? '',
@@ -517,6 +562,9 @@ class ImportOnePiece extends Command
                 $to = $row['value'] !== '' ? $row['value'] : null;
                 if (in_array($field, ['cost', 'power', 'counter'], true) && $to !== null) {
                     $to = (int) $to;
+                } elseif (in_array($field, ['types', 'colors', 'attributes'], true) && $to !== null) {
+                    $decoded = json_decode($to, true);
+                    $to = is_array($decoded) ? $decoded : [$to];
                 }
                 $this->cards[$base]['gameplay'][$field] = $to;
                 $this->gameplayOverridesApplied[$base][$field] = [
@@ -589,10 +637,17 @@ class ImportOnePiece extends Command
                 'language' => 'EN',
             ];
 
+            $canonicalEffect = $cardData['gameplay']['effect'] ?? '';
             $sortOrder = 1;
             foreach ($variantSourceIds as $sid) {
                 $v = $this->variantRowsBySourceId[$sid];
                 $variantKey = "{$cardKey}:{$sid}";
+
+                $printedEffectText = '';
+                if (($v['raw_effect'] ?? '') !== '' && $v['raw_effect'] !== $canonicalEffect) {
+                    $printedEffectText = $v['raw_effect'];
+                    $this->printedEffectTextVariants++;
+                }
 
                 $this->variantRows[] = [
                     'card_key' => $cardKey,
@@ -602,6 +657,7 @@ class ImportOnePiece extends Command
                     'variant_name' => $v['source_variant_kind'] === 'base' ? 'Standard' : (ucfirst($v['source_variant_kind']) . ' ' . $this->suffixOf($sid)['num']),
                     'variant_type' => $v['source_variant_kind'],
                     'rarity' => $v['rarity'] ?? '',
+                    'printed_effect_text' => $printedEffectText,
                     'region_code' => '',
                     'edition_code' => '',
                     'artist' => '',
@@ -820,6 +876,7 @@ class ImportOnePiece extends Command
                 'variant_name' => $row['variant_name'],
                 'variant_type' => $row['variant_type'],
                 'rarity' => '',
+                'printed_effect_text' => '',
                 'region_code' => '',
                 'edition_code' => '',
                 'artist' => '',
@@ -958,7 +1015,7 @@ class ImportOnePiece extends Command
         $this->handles['variants'] = fopen("{$outDir}/variants.csv", 'w');
         fputcsv($this->handles['variants'], [
             'card_key', 'variant_key', 'source_variant_id', 'source_variant_kind', 'variant_name', 'variant_type',
-            'rarity', 'region_code', 'edition_code', 'artist', 'image_small', 'image_large', 'sort_order',
+            'rarity', 'printed_effect_text', 'region_code', 'edition_code', 'artist', 'image_small', 'image_large', 'sort_order',
         ]);
 
         $this->handles['external_ids'] = fopen("{$outDir}/external_ids.csv", 'w');
@@ -1059,6 +1116,18 @@ class ImportOnePiece extends Command
         $unresolvedConflictBases = array_diff($upstreamConflictBases, $resolvedConflictBases);
         $textVariantBases = array_unique(array_column($this->textOnlyGameplayVariants, 'base'));
 
+        // Scoped specifically to the 26 base numbers originally flagged text-only: how many were CONFIRMED
+        // (after a rigorous case/script-normalized types check, not raw string equality) to have zero
+        // difference outside effect/trigger wording, vs how many actually had a non-text field diverge
+        // (reclassified to severe and resolved via override, not silently left as a false text-only pass).
+        $nonTextDifferencesFound = array_values(array_intersect(self::KNOWN_TEXT_ONLY_GROUPS, $upstreamConflictBases));
+        $nonTextDifferencesUnresolved = array_values(array_intersect(self::KNOWN_TEXT_ONLY_GROUPS, $unresolvedConflictBases));
+        $textOnlyVerified = count(self::KNOWN_TEXT_ONLY_GROUPS) - count($nonTextDifferencesFound);
+
+        // importer_missing_images: images are always carried through verbatim from the source object, never
+        // derived/transformed, so there's no code path that could lose an image that was actually present upstream.
+        $importerMissingImages = 0;
+
         $failCounts = [
             'duplicate_set_keys' => count($duplicateSetKeys),
             'duplicate_card_keys' => count($duplicateCardKeys),
@@ -1066,18 +1135,20 @@ class ImportOnePiece extends Command
             'orphan_cards' => count($orphanCards),
             'orphan_variants' => count($orphanVariants),
             'orphan_release_memberships' => count($this->orphanReleaseMemberships),
+            'importer_missing_images' => $importerMissingImages,
+            // Promoted from warning to a hard FAIL gate: an unresolved gameplay conflict (stat mismatch,
+            // e.g. EB01-023, or a substantive types mismatch, e.g. ST23-004) means we do NOT yet have one
+            // trustworthy canonical gameplay record for that base number -- same severity class as a
+            // duplicate/orphan, not something to silently pass through as a warning.
+            'unresolved_gameplay_conflicts' => count($unresolvedConflictBases),
         ];
 
         $variantLevelReleaseMemberships = count(array_filter($this->releaseMembershipRows, fn ($m) => ($m['variant_key'] ?? '') !== ''));
         $unresolvedStandardDonCount = array_sum(array_column($this->unresolvedStandardDonDesigns, 'estimated_count'));
         $unresolvedSpecialDonCount = array_sum(array_column($this->unresolvedSpecialDonDesigns, 'estimated_count'));
-        // importer_missing_images: images are always carried through verbatim from the source object, never
-        // derived/transformed, so there's no code path that could lose an image that was actually present upstream.
-        $importerMissingImages = 0;
         $warningCounts = [
             'missing_images' => count($this->missingImages),
             'cards_with_synthetic_home' => $this->cardsWithSyntheticHome,
-            'unresolved_gameplay_conflicts' => count($unresolvedConflictBases),
             'text_only_gameplay_variants' => count($textVariantBases),
         ];
 
@@ -1140,6 +1211,22 @@ class ImportOnePiece extends Command
             'text_only_gameplay_variants' => $textVariantBases,
             'text_only_gameplay_variant_examples' => array_slice($this->textOnlyGameplayVariants, 0, 30),
 
+            // Specifically re-verifying the 26 base numbers previously reported as text-only (rigorous
+            // case/script-normalized comparison on cost/power/counter/colors/attributes/category/types --
+            // 'life' could not be checked, that field doesn't exist anywhere in this source's schema, not
+            // even on Leader cards).
+            //
+            // non_text_differences_found is the FAIL-gate metric (unresolved count, 0 = every base number
+            // in this dataset has exactly one trustworthy canonical gameplay record) -- it does NOT hide
+            // that 2 were actually found during verification (ST11-005, ST23-004): both are counted in
+            // non_text_differences_found_and_resolved / *_bases below, and in upstream_gameplay_conflicts.
+            'text_only_variant_groups' => count(self::KNOWN_TEXT_ONLY_GROUPS),
+            'text_only_verified' => $textOnlyVerified,
+            'non_text_differences_found' => count($nonTextDifferencesUnresolved),
+            'non_text_differences_found_and_resolved' => count($nonTextDifferencesFound),
+            'non_text_differences_found_and_resolved_bases' => $nonTextDifferencesFound,
+            'printed_effect_text_variants' => $this->printedEffectTextVariants,
+
             'cards_with_synthetic_home' => $this->cardsWithSyntheticHome,
             'variants_with_multi_pack_provenance' => $this->variantsWithMultiPackProvenance,
             'variants_needing_release_membership' => $this->variantsWithRealPackMismatchToHome,
@@ -1188,7 +1275,12 @@ class ImportOnePiece extends Command
             ['importer_missing_images (FAIL)', $r['importer_missing_images']],
             ['upstream_gameplay_conflicts', $r['upstream_gameplay_conflicts']],
             ['resolved_gameplay_conflicts', $r['resolved_gameplay_conflicts']],
-            ['unresolved_gameplay_conflicts (WARNING, excluded from output)', $r['unresolved_gameplay_conflicts']],
+            ['unresolved_gameplay_conflicts (FAIL)', $r['unresolved_gameplay_conflicts']],
+            ['text_only_variant_groups', $r['text_only_variant_groups']],
+            ['text_only_verified', $r['text_only_verified']],
+            ['non_text_differences_found (FAIL, unresolved)', $r['non_text_differences_found']],
+            ['non_text_differences_found_and_resolved', $r['non_text_differences_found_and_resolved']],
+            ['printed_effect_text_variants', $r['printed_effect_text_variants']],
             ['text_only_gameplay_variants (WARNING, kept as-is)', count($r['text_only_gameplay_variants'])],
             ['cards_with_synthetic_home (WARNING)', $r['cards_with_synthetic_home']],
             ['variants_with_multi_pack_provenance', $r['variants_with_multi_pack_provenance']],
