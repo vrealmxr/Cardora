@@ -88,6 +88,17 @@ class VerificationController extends Controller
         $documents = $validated['documents'] ?? null;
         unset($validated['documents']);
 
+        // New documents mean the submission needs a fresh look — without
+        // this, adding files to an already-approved/rejected submission
+        // silently left it "Verified"/"Rejected" instead of re-entering the
+        // moderation queue (status isn't user-settable via this request on
+        // purpose, so nothing else resets it).
+        if (is_array($documents) && $documents !== []) {
+            $validated['status'] = 'submitted';
+            $validated['reviewed_at'] = null;
+            $validated['reviewed_by'] = null;
+        }
+
         $verificationSubmission->update($validated);
 
         if (is_array($documents) && $documents !== []) {

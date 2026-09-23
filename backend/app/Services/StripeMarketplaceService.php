@@ -361,17 +361,20 @@ class StripeMarketplaceService
             ]);
         }
 
+        // No 'transfer_group' here: Stripe rejects a Transfer that sets both
+        // 'source_transaction' and 'transfer_group' explicitly ("you cannot
+        // use transfer_group if the source_transaction already has one
+        // set") — it's inherited from the charge's own PaymentIntent
+        // (created with transfer_group in createPaymentIntent/checkout
+        // session above). The stripe_charge_id null-check just above
+        // guarantees source_transaction is always present here.
         $payload = [
             'amount' => $this->toStripeAmount((float) $order->seller_amount),
             'currency' => strtolower($order->currency),
             'destination' => $payoutAccount->stripe_account_id,
-            'transfer_group' => $this->transferGroup($order),
+            'source_transaction' => $order->stripe_charge_id,
             'metadata' => $this->stripeMetadataForOrder($order),
         ];
-
-        if ($order->stripe_charge_id) {
-            $payload['source_transaction'] = $order->stripe_charge_id;
-        }
 
         try {
             return $this->stripe()->transfers->create(
@@ -812,8 +815,13 @@ class StripeMarketplaceService
 
     protected function releaseTransferIdempotencyKey(Order $order, string $destinationAccountId): string
     {
+        // '_v2' bumps the key whenever the Transfer payload's shape changes
+        // (e.g. removing 'transfer_group' below) — Stripe remembers a key's
+        // first request and rejects a retry whose payload no longer
+        // matches it, which would otherwise permanently wedge any order
+        // that already failed once under the old shape.
         return sprintf(
-            'order_release_transfer_%s_%s_%s_%s',
+            'order_release_transfer_%s_%s_%s_%s_v2',
             $order->getKey(),
             $order->stripe_charge_id ?: 'no_charge',
             $destinationAccountId,
