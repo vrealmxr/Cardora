@@ -14,6 +14,53 @@
             --cardora-info-soft: #eff6ff;
         }
 
+        /*
+         * This panel has no built custom Filament theme (only the stock
+         * precompiled Filament CSS is loaded), so Tailwind utility classes
+         * that Filament's own views never happen to use — p-7/p-8, gap-5/6,
+         * space-y-*, the odd mt-*/px-*/py-* combo — silently do nothing.
+         * Hand-rolled CSS below reproduces exactly what those classes would
+         * have done, without depending on any bundle rebuild.
+         */
+        .cardora-admin-attention { row-gap: 1.5rem; display: flex; flex-direction: column; }
+        .cardora-admin-attention .cardora-attention-hero { padding: 1.75rem; }
+        .cardora-admin-attention .cardora-hero-inner { display: flex; flex-direction: column; row-gap: 1.5rem; }
+        .cardora-admin-attention .cardora-hero-copy { max-width: 48rem; }
+        .cardora-admin-attention .cardora-hero-copy > * + * { margin-top: 0.75rem; }
+        .cardora-admin-attention .cardora-hero-copy h2 { margin-top: 1rem; }
+        .cardora-admin-attention .cardora-hero-boxes { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+        .cardora-admin-attention .cardora-count-box > div > p + p,
+        .cardora-admin-attention .cardora-count-box > div > p + div { margin-top: 0.5rem; }
+        .cardora-admin-attention .cardora-count-box .cardora-status-chip-wrap { margin-top: 0.75rem; }
+        .cardora-admin-attention .cardora-groups-grid { display: grid; gap: 1.25rem; grid-template-columns: 1fr; margin-top: 1.5rem; }
+        .cardora-admin-attention .cardora-attention-card { padding: 1.25rem; }
+        .cardora-admin-attention .cardora-card-inner { display: flex; flex-direction: column; row-gap: 1.25rem; }
+        .cardora-admin-attention .cardora-card-head { display: flex; flex-direction: column; row-gap: 1rem; }
+        .cardora-admin-attention .cardora-card-icon-row { display: flex; align-items: flex-start; column-gap: 1rem; }
+        .cardora-admin-attention .cardora-card-title-row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 0.75rem; }
+        .cardora-admin-attention .cardora-card-meta { margin-top: 0.5rem; }
+        .cardora-admin-attention .cardora-card-description { margin-top: 1rem; }
+        .cardora-admin-attention .cardora-card-cta { padding: 0.625rem 1rem; }
+        .cardora-admin-attention .cardora-card-items { display: flex; flex-direction: column; row-gap: 0.75rem; }
+        .cardora-admin-attention .cardora-item-row { display: flex; align-items: flex-start; justify-content: space-between; column-gap: 1rem; }
+        .cardora-admin-attention .cardora-item-subtitle { margin-top: 0.25rem; }
+        .cardora-admin-attention .cardora-item-time { padding: 0.25rem 0.75rem; }
+
+        @media (min-width: 640px) {
+            .cardora-admin-attention .cardora-attention-hero { padding: 2rem; }
+            .cardora-admin-attention .cardora-hero-boxes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .cardora-admin-attention .cardora-attention-card { padding: 1.5rem; }
+        }
+
+        @media (min-width: 1024px) {
+            .cardora-admin-attention .cardora-card-head { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+        }
+
+        @media (min-width: 1280px) {
+            .cardora-admin-attention .cardora-hero-inner { flex-direction: row; align-items: center; justify-content: space-between; }
+            .cardora-admin-attention .cardora-groups-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
         .cardora-admin-attention .cardora-attention-hero {
             overflow: hidden;
             border-radius: 28px;
@@ -131,8 +178,8 @@
 
     <div class="cardora-admin-attention space-y-6">
         <div class="cardora-attention-hero p-7 sm:p-8">
-            <div class="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-                <div class="max-w-3xl">
+            <div class="cardora-hero-inner flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+                <div class="cardora-hero-copy max-w-3xl">
                     <p class="text-[11px] font-bold uppercase tracking-[0.36em] text-slate-500">
                         Admin Attention Center
                     </p>
@@ -144,7 +191,7 @@
                     </p>
                 </div>
 
-                <div class="grid gap-3 sm:grid-cols-2">
+                <div class="cardora-hero-boxes grid gap-3 sm:grid-cols-2">
                     <div class="cardora-count-box text-center">
                         <div>
                             <p class="text-[11px] font-bold uppercase tracking-[0.26em] text-slate-500">
@@ -161,7 +208,7 @@
                             <p class="text-[11px] font-bold uppercase tracking-[0.26em] text-slate-500">
                                 Status
                             </p>
-                            <div class="mt-3">
+                            <div class="cardora-status-chip-wrap mt-3">
                                 <span class="cardora-tone-chip" data-tone="{{ $hasUrgentItems ? 'danger' : 'success' }}">
                                     {{ $hasUrgentItems ? 'Needs action now' : 'All clear' }}
                                 </span>
@@ -172,31 +219,31 @@
             </div>
         </div>
 
-        <div class="grid gap-5 xl:grid-cols-2">
+        <div class="cardora-groups-grid grid gap-5 xl:grid-cols-2">
             @foreach ($groups as $group)
                 <section class="cardora-attention-card p-5 sm:p-6" data-tone="{{ $group['tone'] }}">
-                    <div class="flex flex-col gap-5">
-                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div class="cardora-card-inner flex flex-col gap-5">
+                        <div class="cardora-card-head flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div class="min-w-0">
-                                <div class="flex items-start gap-4">
+                                <div class="cardora-card-icon-row flex items-start gap-4">
                                     <div class="cardora-icon-badge shrink-0" data-tone="{{ $group['tone'] }}">
                                         <x-filament::icon :icon="$group['icon']" class="h-5 w-5" />
                                     </div>
 
                                     <div class="min-w-0">
-                                        <div class="flex flex-wrap items-center gap-3">
+                                        <div class="cardora-card-title-row flex flex-wrap items-center gap-3">
                                             <h3 class="text-lg font-bold text-slate-950">{{ $group['label'] }}</h3>
                                             <span class="cardora-tone-chip" data-tone="{{ $group['tone'] }}">
                                                 {{ $group['count'] }} item{{ (int) $group['count'] === 1 ? '' : 's' }}
                                             </span>
                                         </div>
-                                        <p class="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                                        <p class="cardora-card-meta mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
                                             {{ $group['meta'] }}
                                         </p>
                                     </div>
                                 </div>
 
-                                <p class="mt-4 text-sm leading-7 text-slate-600">
+                                <p class="cardora-card-description mt-4 text-sm leading-7 text-slate-600">
                                     {{ $group['description'] }}
                                 </p>
                             </div>
@@ -204,7 +251,7 @@
                             <div class="shrink-0">
                                 <a
                                     href="{{ $group['url'] }}"
-                                    class="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                    class="cardora-card-cta inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                                 >
                                     {{ $group['cta'] }}
                                 </a>
@@ -212,20 +259,20 @@
                         </div>
 
                         @if (filled($group['items']))
-                            <div class="space-y-3">
+                            <div class="cardora-card-items space-y-3">
                                 @foreach ($group['items'] as $item)
                                     <a href="{{ $item['url'] }}" class="cardora-item-link">
-                                        <div class="flex items-start justify-between gap-4">
+                                        <div class="cardora-item-row flex items-start justify-between gap-4">
                                             <div class="min-w-0">
                                                 <p class="truncate text-sm font-semibold text-slate-950">
                                                     {{ $item['title'] }}
                                                 </p>
-                                                <p class="mt-1 text-xs leading-6 text-slate-600">
+                                                <p class="cardora-item-subtitle mt-1 text-xs leading-6 text-slate-600">
                                                     {{ $item['subtitle'] }}
                                                 </p>
                                             </div>
 
-                                            <span class="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                            <span class="cardora-item-time shrink-0 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                                                 {{ $item['time'] }}
                                             </span>
                                         </div>
