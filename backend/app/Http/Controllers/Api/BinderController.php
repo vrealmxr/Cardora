@@ -41,6 +41,7 @@ class BinderController extends Controller
     public function games()
     {
         $games = BinderGame::query()
+            ->where('binder_enabled', true)
             ->withCount(['sets', 'cards'])
             ->orderBy('category')
             ->orderBy('sort_order')
@@ -63,7 +64,7 @@ class BinderController extends Controller
     public function sets(Request $request, string $gameSlug)
     {
         $gameSlug = self::SLUG_ALIASES[$gameSlug] ?? $gameSlug;
-        $game = BinderGame::query()->where('slug', $gameSlug)->firstOrFail();
+        $game = BinderGame::query()->where('slug', $gameSlug)->where('binder_enabled', true)->firstOrFail();
 
         $sets = BinderSet::query()
             ->where('game_id', $game->id)

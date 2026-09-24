@@ -16,11 +16,13 @@ class BinderGame extends Model
         'category',
         'catalog_group',
         'catalog_status',
+        'binder_enabled',
         'sort_order',
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
+        'binder_enabled' => 'boolean',
     ];
 
     public function sets(): HasMany
