@@ -13,10 +13,10 @@ use Illuminate\Support\Str;
  * despite the later date range) and "Fusion World" (the 2024+ relaunch,
  * its own FB/FS/SB-coded product line). ImportBinderCatalog's one-folder-
  * one-game model can't express that split, so this extends it and reuses
- * its card-file parsing (importCardFile/extractExtendedField/parseDate --
- * NOT reimplemented here, so the two commands can't diverge on extended-
- * field parsing) while partitioning sets.csv by abbreviation prefix
- * before writing to two separate binder_games.
+ * its card-file parsing (importCardFile/parseDate, and TcgplayerExtendedDataParser
+ * for extendedData -- NOT reimplemented here, so the two commands can't
+ * diverge on extended-field parsing) while partitioning sets.csv by
+ * abbreviation prefix before writing to two separate binder_games.
  */
 class ImportDragonBallCatalog extends ImportBinderCatalog
 {

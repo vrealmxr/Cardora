@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\BinderGame;
+use App\Support\TcgplayerExtendedDataParser;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -288,9 +289,9 @@ class ImportBinderCatalog extends Command
                 'external_product_id' => (int) $record['productId'],
                 'name' => trim((string) $record['name']),
                 'clean_name' => $record['cleanName'] !== '' ? $record['cleanName'] : null,
-                'number' => $this->extractExtendedField($extended, 'Number'),
-                'rarity' => $this->extractExtendedField($extended, 'Rarity'),
-                'card_type' => $this->extractExtendedField($extended, 'Card Type'),
+                'number' => TcgplayerExtendedDataParser::field($extended, 'Number'),
+                'rarity' => TcgplayerExtendedDataParser::field($extended, 'Rarity'),
+                'card_type' => TcgplayerExtendedDataParser::field($extended, 'Card Type'),
                 'image_url' => $record['imageUrl'] !== '' ? $record['imageUrl'] : null,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -319,31 +320,6 @@ class ImportBinderCatalog extends Command
             ['external_product_id'],
             ['set_id', 'game_id', 'name', 'clean_name', 'number', 'rarity', 'card_type', 'image_url', 'updated_at'],
         );
-    }
-
-    /**
-     * The extendedData column is a Python repr() of a list of dicts, not
-     * valid JSON (single quotes, True/False/None) — full parsing risks
-     * breaking on embedded apostrophes in long text fields like CardText.
-     * We only need a couple of short, simple fields, so a targeted regex
-     * against the stable 'name' key is far more robust than a real parser.
-     */
-    protected function extractExtendedField(string $extendedData, string $fieldName): ?string
-    {
-        $pattern = "/\\{'name':\\s*'" . preg_quote($fieldName, '/') . "',.*?'value':\\s*'([^']*)'/";
-
-        if (preg_match($pattern, $extendedData, $matches) === 1) {
-            // These are meant to be short flavor fields (a rarity name, a
-            // type word, a card number). Truncate defensively rather than
-            // trust the regex never over-matches into a much longer field —
-            // safer than widening the column for what should always be a
-            // few characters.
-            $value = trim(mb_substr($matches[1], 0, 190));
-
-            return $value !== '' ? $value : null;
-        }
-
-        return null;
     }
 
     protected function parseDate(?string $value): ?string
