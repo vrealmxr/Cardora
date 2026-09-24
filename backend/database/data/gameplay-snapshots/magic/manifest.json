@@ -1,0 +1,17 @@
+{
+  "game": "magic",
+  "label": "magic-gameplay-snapshot-v1",
+  "source": "scryfall",
+  "source_version": "bulk_data_id:e2ef41e3-5778-4bc2-af3f-78eca4dd9c23,file:default-cards-20260922210550.jsonl.gz",
+  "acquired_at": "2026-09-24T11:38:00Z",
+  "raw_filename": "default-cards-20260922210550.jsonl.gz",
+  "raw_sha256": "c26e3cd65f23809ab2f6e0a888de6623b3c4423a76e8f3ed373c83ee49cf18ff",
+  "raw_size_bytes": 78775246,
+  "raw_sha256_verified_against_original_manifest": true,
+  "original_manifest_path": "storage/app/scryfall-magic-frozen-235b2ff/manifest.json (production, canonical catalog import)",
+  "source_url": "https://data.scryfall.io/default-cards/default-cards-20260922210550.jsonl.gz",
+  "canonical_catalog_tag": null,
+  "canonical_catalog_tag_note": "magic-catalog-v1 tag does not exist yet locally or on remote -- pending separate task",
+  "canonical_catalog_commit": "235b2ff",
+  "note": "The EXACT original pinned artifact used for the v1 canonical import -- SHA256 verified byte-for-byte against the production manifest.json. Reused here for gameplay_data enrichment, not a re-fetch of current data. The raw file itself is NOT committed to git (78MB) -- it lives at storage/app/gameplay-snapshots/magic/ on the production server (frozen storage, not deployed via the normal rsync path). This manifest is what lets it be re-verified or re-acquired: fetch raw_filename from source_url and confirm raw_sha256 matches."
+}

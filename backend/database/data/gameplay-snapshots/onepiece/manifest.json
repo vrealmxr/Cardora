@@ -1,0 +1,17 @@
+{
+  "game": "onepiece",
+  "label": "onepiece-gameplay-snapshot-v1",
+  "source": "onepiece-cardgame (via buhbbl/punk-records mirror)",
+  "source_version": "git:29fed25ccd7013caa76653495701852981afd021",
+  "acquired_at": "2026-09-24T11:50:00Z",
+  "raw_filename": "punk-records-english-29fed25.tar.gz",
+  "raw_sha256": "226843947469510bc6644fd8532325556ef909fc0553521e1c903068f38564cf",
+  "raw_size_bytes": 1142680,
+  "archive_contents": "english/ subtree (split-per-card JSON, cards/<pack_id>/<card_id>.json), 4844 raw card files",
+  "source_repo": "https://github.com/buhbbl/punk-records",
+  "canonical_catalog_tag": null,
+  "canonical_catalog_tag_note": "onepiece-catalog-v1 tag does not exist yet locally or on remote -- pending separate task",
+  "canonical_catalog_commit": "bca623a",
+  "canonical_catalog_commit_note": "Last One Piece-related commit before the reported --apply; no manifest.json exists for the frozen onepiece/ output dir on production to confirm definitively.",
+  "note": "buhbbl/punk-records IS the correct primary-source repo (confirmed from ImportOnePiece.php's own commit message: 'a pinned commit of buhbbl/punk-records, fetched as a GitHub tarball at that exact commit and cached'). Used here as onepiece-gameplay-snapshot-v1 only -- NOT claimed as the original canonical import's exact commit, since that exact SHA was never recorded anywhere reachable. Leader raw.cost -> life normalization verified on this exact commit: 324 Leader records, 100% with raw cost populated, every outlier spot-checked against known real printed Life values. The raw archive (~1.1MB compressed, ~5MB extracted) is NOT committed to git -- it lives extracted at storage/app/gameplay-snapshots/onepiece/english/ on the production server."
+}

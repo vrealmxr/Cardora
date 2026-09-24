@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\Gameplay\OnePieceGameplayNormalizer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 
@@ -392,35 +393,10 @@ class ImportOnePiece extends Command
      * assumed) and are common enough (26 base numbers) that treating them
      * as fatal would block far more than it protects.
      */
-    private const SEVERE_GAMEPLAY_FIELDS = ['name', 'category', 'colors', 'cost', 'counter', 'power', 'attributes'];
-    private const TEXT_GAMEPLAY_FIELDS = ['effect', 'trigger'];
-    // 'types' is deliberately NOT in either blunt list above -- a source scraping bug (documented upstream,
-    // e.g. Japanese characters leaking into an English field) can make it differ only cosmetically (casing/
-    // script), which is text-only, OR it can differ substantively (a genuinely different tag set), which is
-    // exactly as severe as a stat mismatch. See compareTypes() -- checked with case/whitespace-insensitive
-    // normalization so only a REAL tag-set difference counts as severe.
-
-    /** Bandai's site leaks a handful of typographic character variants (fullwidth minus, U+2212 minus) inconsistently between scrapes of the same value -- cosmetically different, not a real content difference. */
-    /** Case/whitespace-insensitive, order-insensitive comparison key for a types array -- distinguishes a cosmetic scrape artifact (casing/script) from a genuinely different tag set. */
-    private function normalizeTypesForComparison(array $types): string
-    {
-        $normalized = array_map(fn ($t) => mb_strtolower(trim((string) $t)), $types);
-        sort($normalized);
-
-        return json_encode($normalized);
-    }
-
-    private function normalizeText(mixed $value): mixed
-    {
-        if (is_string($value)) {
-            return str_replace(["\xef\xbc\x8d", "\xe2\x88\x92"], '-', $value);
-        }
-        if (is_array($value)) {
-            return array_map([$this, 'normalizeText'], $value);
-        }
-
-        return $value;
-    }
+    // Severe/text-field classification, types normalization, and text normalization now
+    // live in OnePieceGameplayNormalizer (shared with GameplayBackfill's gameplay_data
+    // enrichment) so the two commands can never silently diverge on what counts as a
+    // severe gameplay conflict. See that class's docblocks for the EB01-023 rationale.
 
     private function indexCard(array $card, string $packId): void
     {
@@ -428,7 +404,7 @@ class ImportOnePiece extends Command
         $base = $this->baseNumberOf($sourceId);
         $suffix = $this->suffixOf($sourceId);
 
-        $gameplay = $this->normalizeText([
+        $gameplay = OnePieceGameplayNormalizer::normalizeLeaderCost(OnePieceGameplayNormalizer::normalizeText([
             'name' => $card['name'] ?? '',
             'category' => $card['category'] ?? '',
             'colors' => $card['colors'] ?? [],
@@ -440,7 +416,7 @@ class ImportOnePiece extends Command
             'types' => $card['types'] ?? [],
             'attributes' => $card['attributes'] ?? [],
             'block_number' => $card['block_number'] ?? null,
-        ]);
+        ]));
 
         if (! isset($this->cards[$base])) {
             $this->cards[$base] = ['gameplay' => $gameplay, 'variants' => [], 'severe_conflict' => false];
@@ -450,35 +426,12 @@ class ImportOnePiece extends Command
             $comparable = $gameplay;
             unset($existing['block_number'], $comparable['block_number']); // block_number can legitimately differ for genuine reprints in a later block
 
-            $severeDiff = false;
+            $cmp = OnePieceGameplayNormalizer::compare($existing, $comparable);
+            $severeDiff = $cmp['severe'];
+            $textDiff = $cmp['text'];
             $severeDiffFields = [];
-            foreach (self::SEVERE_GAMEPLAY_FIELDS as $f) {
-                if (json_encode($existing[$f] ?? null) !== json_encode($comparable[$f] ?? null)) {
-                    $severeDiff = true;
-                    $severeDiffFields[$f] = ['existing' => $existing[$f] ?? null, 'conflicting' => $comparable[$f] ?? null];
-                }
-            }
-            $textDiff = false;
-            foreach (self::TEXT_GAMEPLAY_FIELDS as $f) {
-                if (json_encode($existing[$f] ?? null) !== json_encode($comparable[$f] ?? null)) {
-                    $textDiff = true;
-
-                    break;
-                }
-            }
-
-            // types: raw-equal -> no diff at all. Raw-differ but semantically-equal (case/script only,
-            // e.g. a Japanese-character leak) -> text-only. Semantically differ (a real different tag set,
-            // even after normalization) -> severe, same as a stat mismatch.
-            $existingTypes = $existing['types'] ?? [];
-            $comparableTypes = $comparable['types'] ?? [];
-            if (json_encode($existingTypes) !== json_encode($comparableTypes)) {
-                if ($this->normalizeTypesForComparison($existingTypes) !== $this->normalizeTypesForComparison($comparableTypes)) {
-                    $severeDiff = true;
-                    $severeDiffFields['types'] = ['existing' => $existingTypes, 'conflicting' => $comparableTypes];
-                } else {
-                    $textDiff = true;
-                }
+            foreach ($cmp['severe_fields'] as $f) {
+                $severeDiffFields[$f] = ['existing' => $existing[$f] ?? null, 'conflicting' => $comparable[$f] ?? null];
             }
 
             if ($severeDiff) {
@@ -506,7 +459,7 @@ class ImportOnePiece extends Command
                 'source_variant_id' => $sourceId,
                 'source_variant_kind' => $suffix['kind'],
                 'rarity' => $rarity,
-                'raw_effect' => $this->normalizeText($card['effect'] ?? ''),
+                'raw_effect' => OnePieceGameplayNormalizer::normalizeText($card['effect'] ?? ''),
                 'artist' => null, // not present in punk-records card schema
                 'img_url' => $card['img_url'] ?? '',
                 'img_full_url' => $card['img_full_url'] ?? '',
@@ -556,25 +509,12 @@ class ImportOnePiece extends Command
                 continue;
             }
 
-            foreach ($rows as $row) {
-                $field = $row['field'];
-                $from = $this->cards[$base]['gameplay'][$field] ?? null;
-                $to = $row['value'] !== '' ? $row['value'] : null;
-                if (in_array($field, ['cost', 'power', 'counter'], true) && $to !== null) {
-                    $to = (int) $to;
-                } elseif (in_array($field, ['types', 'colors', 'attributes'], true) && $to !== null) {
-                    $decoded = json_decode($to, true);
-                    $to = is_array($decoded) ? $decoded : [$to];
-                }
-                $this->cards[$base]['gameplay'][$field] = $to;
-                $this->gameplayOverridesApplied[$base][$field] = [
-                    'from' => $from,
-                    'to' => $to,
-                    'source_provider' => $row['source_provider'],
-                    'source_url' => $row['source_url'],
-                    'verification_source' => $row['verification_source'],
-                    'notes' => $row['notes'],
-                ];
+            [$resolved, $applied] = OnePieceGameplayNormalizer::applyOverrides($this->cards[$base]['gameplay'], $rows);
+            $this->cards[$base]['gameplay'] = $resolved;
+            foreach ($applied as $entry) {
+                $field = $entry['field'];
+                unset($entry['field']);
+                $this->gameplayOverridesApplied[$base][$field] = $entry;
             }
 
             if ($this->cards[$base]['severe_conflict']) {

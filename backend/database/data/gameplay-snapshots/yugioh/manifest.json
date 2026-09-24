@@ -1,0 +1,15 @@
+{
+  "game": "yugioh",
+  "label": "yugioh-gameplay-snapshot-v1",
+  "source": "ygoprodeck",
+  "source_version": "fetch:2026-09-24T11:46:01Z (no upstream bulk/versioning mechanism exists to pin to -- YGOPRODeck's canonical catalog v1 manifest only recorded importer code commit + live endpoint URLs, no checksum, no dated export)",
+  "acquired_at": "2026-09-24T11:46:01Z",
+  "raw_filename": "ygoprodeck-cardinfo-raw.json",
+  "raw_sha256": "e55351c23b1ed0faf20ae4ca05a1ec2558fb6eb5442297cac779c984b4f8c4d4",
+  "raw_size_bytes": 21291896,
+  "endpoint": "https://db.ygoprodeck.com/api/v7/cardinfo.php",
+  "canonical_catalog_tag": null,
+  "canonical_catalog_tag_note": "yugioh-catalog-v1 tag does not exist yet locally or on remote -- pending separate task",
+  "canonical_catalog_commit": "1e31c38",
+  "note": "Controlled one-time fetch, raw bytes saved BEFORE any parsing (per explicit instruction). NOT a replacement for yugioh-catalog-v1's own source -- explicitly labeled yugioh-gameplay-snapshot-v1. The raw file (~21MB) is NOT committed to git -- it lives at storage/app/gameplay-snapshots/yugioh/ on the production server. Re-acquiring from the live endpoint will NOT reproduce this exact byte content (no upstream versioning exists), so re-verification here means re-running the coverage reconciliation, not a checksum match."
+}

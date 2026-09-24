@@ -1,0 +1,17 @@
+{
+  "game": "pokemon",
+  "label": "pokemon-gameplay-snapshot-v1",
+  "source": "tcgdex",
+  "source_version": "git:a211f11f3ba57d56c65c5ac33be35b77d3280757",
+  "acquired_at": "2026-09-24T11:45:00Z",
+  "raw_files": {
+    "cards.json": {"sha256": "b1e59869ecabc0b80fbecc59ccdc503f399d0340bb374d8c6460266b7f6e4518", "size_bytes": 27920432},
+    "sets.json": {"sha256": "3f57160fc04adcb15afeff93a35de7324fc955c242fc71ee9ea4f8d3677e41f8", "size_bytes": 2471619}
+  },
+  "compile_process": "git clone https://github.com/tcgdex/cards-database.git, checkout a211f11f3ba57d56c65c5ac33be35b77d3280757 (verified retrievable from upstream), cd server/ && bun install && bun run compile -- output generated/en/{cards,sets}.json",
+  "source_repo": "https://github.com/tcgdex/cards-database",
+  "canonical_catalog_tag": null,
+  "canonical_catalog_commit": "c966d70",
+  "canonical_catalog_commit_note": "No manifest.json ever existed for the Pokemon v1 canonical import (confirmed: no frozen archive anywhere in production storage/app or locally) -- this is the last Pokemon-related commit before the reported --apply, inferred from git log, not a recorded fact.",
+  "note": "NOT the original snapshot used for the v1 canonical import (that snapshot's own manifest/commit hash was never persisted anywhere reachable). This is a FRESH compile of the exact pinned upstream commit specified for gameplay_data enrichment -- established here for the first time. Field-for-field shape verified identical to the live api.tcgdex.net response (base1-4 Charizard matches exactly). Raw files (~30MB total) are NOT committed to git -- they live at storage/app/gameplay-snapshots/pokemon/ on the production server. Re-acquire by cloning source_repo at source_version and re-running compile_process; confirm output against raw_files' sha256."
+}
