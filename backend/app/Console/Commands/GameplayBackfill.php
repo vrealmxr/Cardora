@@ -123,6 +123,27 @@ class GameplayBackfill extends Command
         return self::SUCCESS;
     }
 
+    /**
+     * `resolved_at` is intentionally "now" on every run, so a raw JSON-string
+     * compare against a stored envelope would report "changed" on every
+     * single rerun forever, even when nothing meaningful did. Idempotency
+     * means the same MEANINGFUL content (schema_version/source/source_version/
+     * provenance/data) resolves the same way twice in a row -- resolved_at
+     * excluded from the comparison on both sides.
+     */
+    private function contentChanged(string $existingJson, \App\Services\Gameplay\GameplayEnvelope $envelope): bool
+    {
+        $existing = json_decode($existingJson, true);
+        if (! is_array($existing)) {
+            return true; // malformed stored value -- treat as a real change
+        }
+        unset($existing['resolved_at']);
+        $new = $envelope->toArray();
+        unset($new['resolved_at']);
+
+        return json_encode($existing) !== json_encode($new);
+    }
+
     private function gateFailed(array $report): bool
     {
         return $report['ambiguous_matches'] > 0
@@ -179,7 +200,7 @@ class GameplayBackfill extends Command
             $existing = $existingByKey[$cardKey] ?? null;
             if ($existing === null) {
                 $wouldBeAdded++;
-            } elseif ($existing !== $envelope->toJson()) {
+            } elseif ($this->contentChanged($existing, $envelope)) {
                 $wouldChange++;
             } else {
                 $alreadyPresent++;

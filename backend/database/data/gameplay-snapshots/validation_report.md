@@ -1,7 +1,83 @@
-# Gameplay backfill dry-run — validation report
+# Gameplay backfill — final frozen validation report (v1, applied)
 
-Produced by `php artisan cardora:gameplay-backfill --game=all --dry-run` against production,
-2026-09-24. All four games pass every hard-FAIL condition
+**Status: APPLIED to production, 2026-09-24.** `gameplay_data` is now populated for all 4 games.
+Tagged `gameplay-data-v1` (separate from the canonical catalog tags — `magic-catalog-v1` /
+`yugioh-catalog-v1` / `onepiece-catalog-v1` do not exist yet, that's a separate pending task).
+Frontend/scanner were **not** touched — they still read the pre-existing schema.
+
+## Pre-apply safety
+
+- Full `mysqldump --single-transaction --quick --routines --triggers`, gzip-compressed:
+  `storage/app/db-backups/pre-gameplay-backfill-20260924-122727.sql.gz` (32.6MB).
+- `gzip -t`: OK. Dump ends with a clean `-- Dump completed on 2026-09-24 12:27:31` marker
+  (not truncated), 1,172,772 lines.
+- Backup SHA256: `96290ad570d6fa03d6a5aa5f6a4f49046b109d7a05a7a542135816e2e2e787f6`.
+- All 4 snapshot raw files re-hashed against this directory's git-committed manifests
+  immediately before apply: Magic/Pokémon/Yu-Gi-Oh! matched byte-for-byte; One Piece verified
+  via local tarball hash match + production's extracted file count (4844, matching every prior
+  dry-run's `source_objects_total`).
+
+## Per-game apply results (ran individually, in order, each with its own post-validation)
+
+| Game | Written | Null (intentional gap) | Changed | Unresolved conflicts | Malformed | Expected | Match |
+|---|---|---|---|---|---|---|---|
+| Magic | 109254 | 0 | 0 | 0 | 0 | 109254 | ✓ |
+| Pokémon | 21267 | 42 | 0 | 0 | 0 | 21267 | ✓ |
+| Yu-Gi-Oh! | 38320 | 255 | 0 | 0 | 0 | 38320 | ✓ |
+| One Piece | 2785 | 14 | 0 | 0 | 0 | 2785 | ✓ |
+
+**Total written: 171,626** (matches the expected total exactly).
+
+After every single apply, all of `binder_cards` (382,489), `binder_card_variants` (241,690),
+`binder_sets` (3,749), `binder_card_external_ids` (538,446), `binder_releases` (33),
+`binder_card_release_memberships` (942), `users` (17), `orders` (17), `products` (361), and
+`binder_user_cards` (20) were re-checked and confirmed **byte-identical to the pre-apply
+baseline** — no row created, deleted, or touched outside `binder_cards.gameplay_data`. Each
+earlier game's rows were also re-checked intact after every subsequent game's apply.
+
+One Piece's 14 null rows were explicitly verified to be exactly the 14 `onepiece:don:*` card
+keys (`null_card_keys_are_all_don=yes`) — not a mismatch masquerading as the expected gap.
+
+## Post-apply idempotency (re-ran `--game=all --dry-run` after the last apply)
+
+A real bug surfaced and was fixed here: the first idempotency re-run showed
+`already_present=0` / `would_change=<full count>` for every game, because `resolved_at`
+(intentionally "now" on every resolve) was included in the raw JSON-string comparison, so a
+rerun would have reported "changed" forever. Fixed in `GameplayBackfill::contentChanged()` to
+compare the envelope excluding `resolved_at`. After the fix:
+
+```
+                already_present  would_change  would_be_added   without_gameplay (unchanged)
+MAGIC           109254           0             0                0
+POKEMON         21267            0             0                42
+YUGIOH          38320            0             0                255
+ONEPIECE        2785             0             0                14
+TOTAL           171626           0             0                311
+```
+
+`already_present` totals exactly 171,626 as expected. No automatic "filling" of the 311
+intentional gaps was attempted — they remain `gameplay_data = NULL` by design.
+
+## Post-write spot checks (read back from the actual stored production rows)
+
+- **Magic** `magic:scryfall:6904ea20-...` (Delver of Secrets // Insectile Aberration): stored
+  `data.faces[]` present with both faces' fields nested; top-level `mana_cost`/`power`/
+  `toughness`/`oracle_text` correctly absent.
+- **Yu-Gi-Oh!** Decode Talker (Link Monster, `yugioh-duel-devastator-dude-en023`): stored
+  `data` has `linkval`/`linkmarkers`/`atk`, no `level`/`def`/`rank`/`scale`.
+- **One Piece** `onepiece-en-st-01-st01-001` (Leader): stored `data.life = 5`, no `cost` key.
+  `onepiece-en-st-01-st01-002` (Character): stored `data.cost = 2`, no `life` key.
+- **One Piece** `onepiece-en-op14-eb04-eb01-023` (Edward Weevil): stored `data.power = 6000`
+  (not the conflicting 8000), `counter` correctly absent; `provenance` records the applied
+  override exactly.
+- **Pokémon** Charizard/Pikachu: stored `attacks`/`abilities`/`weaknesses`/`resistances`
+  correctly nested; `evolves_from` correctly absent on Basic-stage Pikachu.
+
+---
+
+## Original dry-run reconciliation (unchanged from the pre-apply review)
+
+All four games passed every hard-FAIL condition
 (`ambiguous_matches`, `unresolved_gameplay_conflicts`, `cards_that_would_be_created`,
 `variants_that_would_be_created`, `canonical_identity_changes` are all `0`).
 
