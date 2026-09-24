@@ -22,6 +22,19 @@ use Laravel\Sanctum\PersonalAccessToken;
 class BinderController extends Controller
 {
     /**
+     * Old binder_games.slug -> current slug, for games renamed after a
+     * mis-scoped catalog registration (e.g. 'disney' turned out to always
+     * mean Disney Lorcana specifically; 'star-wars' turned out to be Star
+     * Wars Miniatures, not the current Star Wars: Unlimited game).
+     * Renaming the row is correct, but an old bookmarked/shared URL like
+     * /binder/star-wars must keep resolving instead of 404ing.
+     */
+    private const SLUG_ALIASES = [
+        'disney' => 'disney-lorcana',
+        'star-wars' => 'star-wars-miniatures',
+    ];
+
+    /**
      * Game picker screen: every game, grouped by category, with live set
      * and card counts.
      */
@@ -49,6 +62,7 @@ class BinderController extends Controller
      */
     public function sets(Request $request, string $gameSlug)
     {
+        $gameSlug = self::SLUG_ALIASES[$gameSlug] ?? $gameSlug;
         $game = BinderGame::query()->where('slug', $gameSlug)->firstOrFail();
 
         $sets = BinderSet::query()

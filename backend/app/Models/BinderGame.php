@@ -14,6 +14,8 @@ class BinderGame extends Model
         'slug',
         'name',
         'category',
+        'catalog_group',
+        'catalog_status',
         'sort_order',
     ];
 

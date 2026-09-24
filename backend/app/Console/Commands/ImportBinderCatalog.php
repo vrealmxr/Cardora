@@ -18,20 +18,51 @@ class ImportBinderCatalog extends Command
     /**
      * game slug => [display name, category, sort_order, folder path relative to the data root]
      *
-     * Only games with a real (non-error-placeholder) catalog in the data
-     * export are listed here. Sports (Basketball/Soccer/Football/F1/UFC/MLB)
-     * and Fortnite/Minecraft/World of Warcraft only have scrape-failure
-     * placeholder CSVs right now ("ERROR, No URL found") — add them here
-     * once cardora-sets-data actually has real rows for them.
+     * Registers binder_games + binder_sets for every game we've identified,
+     * including ones with no real card-level data yet -- importCardFile()
+     * already refuses to import a card row from an "ERROR, No URL found"
+     * placeholder CSV (no `productId` column, so it returns 0 immediately),
+     * so re-running this for a source_needed game safely yields sets with
+     * card_count=0, never a fabricated "ERROR" card. catalog_group/
+     * catalog_status aren't set here -- see the one-off governance pass
+     * that renamed disney/star-wars and classified every row (2026-09-25).
+     *
+     * Marvel and DC Comics are deliberately NOT listed here: their
+     * sets.csv rows are comic-book issue lists (10823 / 8979 rows), not
+     * booster sets -- whether/how those map to binder_sets is a separate
+     * modeling decision, not made by just running this importer.
+     *
+     * Dragon Ball is deliberately NOT listed here either -- its single
+     * folder mixes two different rulesets (Masters vs Fusion World) that
+     * need a prefix-based split, not a straight one-folder-one-game import
+     * (see ImportDragonBallCatalog).
      */
     private const GAMES = [
         'pokemon' => ['Pokémon', 'tcg', 10, 'TCG/Pokemon'],
         'yugioh' => ['Yu-Gi-Oh!', 'tcg', 20, 'TCG/Yugioh'],
         'magic-the-gathering' => ['Magic: The Gathering', 'tcg', 30, 'TCG/Magic The gathering'],
         'one-piece' => ['One Piece', 'tcg', 40, 'TCG/One Piece'],
-        'disney' => ['Disney', 'tcg', 50, 'TCG/Disney'],
-        'star-wars' => ['Star Wars', 'tcg', 60, 'Entertainment/Star Wars'],
-        'riftbound' => ['League of Legends', 'gaming', 10, 'Gaming/League of Legends'],
+        'disney-lorcana' => ['Disney Lorcana', 'tcg', 50, 'TCG/Disney'],
+        'star-wars-miniatures' => ['Star Wars Miniatures', 'collectible', 60, 'Entertainment/Star Wars'],
+        'riftbound' => ['Riftbound', 'tcg', 11, 'Gaming/League of Legends'],
+        'nba' => ['NBA', 'sports', 10, 'Sports/NBA'],
+        'nfl' => ['NFL', 'sports', 20, 'Sports/NFL'],
+        'mlb' => ['MLB', 'sports', 30, 'Sports/MLB'],
+        'ufc' => ['UFC', 'sports', 40, 'Sports/UFC'],
+        'soccer' => ['Soccer', 'sports', 50, 'Sports/Soccer'],
+        'euroleague' => ['Euroleague', 'sports', 60, 'Sports/Euroleague'],
+        'formula-1' => ['Formula 1', 'sports', 70, 'Sports/Formula 1'],
+        'fortnite' => ['Fortnite', 'gaming', 20, 'Gaming/Fortnite'],
+        'minecraft' => ['Minecraft', 'gaming', 30, 'Gaming/Minecraft'],
+        'world-of-warcraft' => ['World of Warcraft', 'gaming', 40, 'Gaming/World of Warcraft'],
+        'overwatch' => ['Overwatch', 'gaming', 50, 'Gaming/Overwatch'],
+        'naruto' => ['Naruto', 'tcg', 80, 'Anime/Naruto'],
+        'bleach' => ['Bleach', 'tcg', 90, 'Anime/Bleach'],
+        'demon-slayer' => ['Demon Slayer', 'tcg', 100, 'Anime/Demon Slayer'],
+        'jujutsu-kaisen' => ['Jujutsu Kaisen', 'tcg', 110, 'Anime/Jujutsu Kaisen'],
+        'attack-on-titan' => ['Attack on Titan', 'tcg', 120, 'Anime/Attack on Titan'],
+        'harry-potter' => ['Harry Potter', 'tcg', 130, 'Entertainment/Harry Potter'],
+        'lord-of-the-rings' => ['The Lord of the Rings', 'tcg', 140, 'Entertainment/The Lord Of The Rings'],
     ];
 
     private const INSERT_CHUNK_SIZE = 500;
@@ -123,12 +154,30 @@ class ImportBinderCatalog extends Command
     /**
      * @return array<int, int> external_group_id => binder_sets.id
      */
+    /**
+     * `groupId` is a genuine, stable, unique-per-set TCGplayer numeric id
+     * for the original catalog-v1 games (Pokemon/Yugioh/Magic/...). For
+     * several newly-registered games (NBA/Euroleague/Fortnite/Naruto/
+     * Harry Potter/...) it's instead a manufacturer+year *label* string
+     * (e.g. "NBA-2020-Panin") that (a) isn't numeric -- (int) casts every
+     * row to 0, silently collapsing 30 sets into 1 via the upsert key --
+     * and (b) isn't even unique per real set within one game (two
+     * different 2020-21 NBA products share that exact label). Anything
+     * that doesn't parse as a clean positive integer gets a synthetic
+     * external_group_id instead (a high base so it can never collide with
+     * a real TCGplayer id), with the original string preserved verbatim
+     * in source_set_id for traceability -- never silently dropped or
+     * treated as if it were a real numeric identity.
+     */
+    private const SYNTHETIC_GROUP_ID_BASE = 900_000_000;
+
     private function importSets(BinderGame $game, string $setsCsvPath): array
     {
         $handle = fopen($setsCsvPath, 'r');
         $header = fgetcsv($handle);
         $rows = [];
         $now = now();
+        $syntheticCounter = 0;
 
         while (($row = fgetcsv($handle)) !== false) {
             $record = array_combine($header, $row);
@@ -137,7 +186,9 @@ class ImportBinderCatalog extends Command
                 continue;
             }
 
-            $groupId = (int) $record['groupId'];
+            $rawGroupId = $record['groupId'];
+            $isRealNumericId = ctype_digit($rawGroupId);
+            $groupId = $isRealNumericId ? (int) $rawGroupId : self::SYNTHETIC_GROUP_ID_BASE + $syntheticCounter++;
             $name = trim((string) $record['name']);
 
             $rows[$groupId] = [
@@ -147,6 +198,8 @@ class ImportBinderCatalog extends Command
                 'name' => $name !== '' ? $name : "Set {$groupId}",
                 'abbreviation' => $record['abbreviation'] !== '' ? $record['abbreviation'] : null,
                 'released_at' => $this->parseDate($record['publishedOn'] ?? null),
+                'source' => $isRealNumericId ? null : 'cardora-sets-data-csv',
+                'source_set_id' => $isRealNumericId ? null : $rawGroupId,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -160,7 +213,7 @@ class ImportBinderCatalog extends Command
             DB::table('binder_sets')->upsert(
                 array_values($chunk),
                 ['game_id', 'external_group_id'],
-                ['slug', 'name', 'abbreviation', 'released_at', 'updated_at'],
+                ['slug', 'name', 'abbreviation', 'released_at', 'source', 'source_set_id', 'updated_at'],
             );
         }
 
@@ -198,7 +251,7 @@ class ImportBinderCatalog extends Command
         $this->line("  Cards/: {$totalCards} cards across " . count($files) . ' files');
     }
 
-    private function importCardFile(BinderGame $game, array $setIdByGroupId, string $file): int
+    protected function importCardFile(BinderGame $game, array $setIdByGroupId, string $file): int
     {
         $handle = fopen($file, 'r');
         $header = fgetcsv($handle);
@@ -259,7 +312,7 @@ class ImportBinderCatalog extends Command
         return $count;
     }
 
-    private function flushCards(array $rows): void
+    protected function flushCards(array $rows): void
     {
         DB::table('binder_cards')->upsert(
             $rows,
@@ -275,7 +328,7 @@ class ImportBinderCatalog extends Command
      * We only need a couple of short, simple fields, so a targeted regex
      * against the stable 'name' key is far more robust than a real parser.
      */
-    private function extractExtendedField(string $extendedData, string $fieldName): ?string
+    protected function extractExtendedField(string $extendedData, string $fieldName): ?string
     {
         $pattern = "/\\{'name':\\s*'" . preg_quote($fieldName, '/') . "',.*?'value':\\s*'([^']*)'/";
 
@@ -293,7 +346,7 @@ class ImportBinderCatalog extends Command
         return null;
     }
 
-    private function parseDate(?string $value): ?string
+    protected function parseDate(?string $value): ?string
     {
         if (! $value) {
             return null;
@@ -306,7 +359,7 @@ class ImportBinderCatalog extends Command
         }
     }
 
-    private function refreshSetCardCounts(BinderGame $game): void
+    protected function refreshSetCardCounts(BinderGame $game): void
     {
         // Only count actual cards (rows with a Number), not sealed products
         // like booster boxes — matches what the set list badge should show.
