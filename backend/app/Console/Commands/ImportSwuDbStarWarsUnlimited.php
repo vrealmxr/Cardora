@@ -201,10 +201,18 @@ class ImportSwuDbStarWarsUnlimited extends Command
                     ['external_id' => (string) $card['tcgplayerId'], 'external_type' => 'product_id', 'external_url' => null],
                 );
             }
-            $this->safeUpsertExternalId(
-                ['entity_type' => 'card', 'entity_key' => $row['cardKey'], 'provider' => 'swu-db'],
-                ['external_id' => (string) $card['cid'], 'external_type' => 'cid', 'external_url' => null],
-            );
+            if (! empty($card['cid'])) {
+                $this->safeUpsertExternalId(
+                    ['entity_type' => 'card', 'entity_key' => $row['cardKey'], 'provider' => 'swu-db'],
+                    ['external_id' => (string) $card['cid'], 'external_type' => 'cid', 'external_url' => null],
+                );
+            } else {
+                // A handful of promo records (e.g. "2025 Gift Box") have no
+                // cid at all in the source -- (Set, Number) via card_key is
+                // still a fine canonical anchor, just note the gap rather
+                // than crash or fabricate an id.
+                $this->report['unresolved'][] = "card_key {$row['cardKey']}: source record has no cid";
+            }
 
             $variants = [
                 ['id' => Str::slug($ownVariantType), 'name' => $ownVariantType, 'kind' => 'base'],

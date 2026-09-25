@@ -260,11 +260,10 @@ class ImportRiftcodexRiftbound extends Command
             $this->report['cards_written']++;
 
             if (! empty($baseCard['tcgplayer_id'])) {
-                DB::table('binder_card_external_ids')->updateOrInsert(
+                $this->safeUpsertExternalId(
                     ['entity_type' => 'card', 'entity_key' => $cardKey, 'provider' => 'tcgplayer'],
                     ['external_id' => (string) $baseCard['tcgplayer_id'], 'external_type' => 'product_id', 'external_url' => null],
                 );
-                $this->report['external_ids_written']++;
             }
 
             $sort = 1;
@@ -299,11 +298,10 @@ class ImportRiftcodexRiftbound extends Command
                 );
                 $this->report['variants_written']++;
 
-                DB::table('binder_card_external_ids')->updateOrInsert(
+                $this->safeUpsertExternalId(
                     ['entity_type' => 'variant', 'entity_key' => $row['variantKey'], 'provider' => 'riftcodex'],
                     ['external_id' => $card['id'], 'external_type' => 'card_id', 'external_url' => null],
                 );
-                $this->report['external_ids_written']++;
             }
         }
 
@@ -342,6 +340,32 @@ class ImportRiftcodexRiftbound extends Command
         }
 
         return ['id' => 'base', 'name' => 'Normal'];
+    }
+
+    /**
+     * binder_card_external_ids enforces (provider, external_type,
+     * external_id) uniqueness -- confirmed on real data that a single
+     * TCGplayer product listing can be the marketplace's ID for what
+     * Riftcodex treats as two distinct canonical cards (e.g. base vs an
+     * overnumbered reprint TCGplayer never split into a separate SKU).
+     * That's a genuine "marketplace product ID != canonical card ID"
+     * collision, not a bug -- record it as unresolved and keep going
+     * rather than losing the whole import to one duplicate key.
+     */
+    private function safeUpsertExternalId(array $match, array $values): void
+    {
+        try {
+            DB::table('binder_card_external_ids')->updateOrInsert($match, $values);
+            $this->report['external_ids_written']++;
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ((int) $e->getCode() === 23000) {
+                $this->report['unresolved'][] = 'external_id collision (marketplace ID shared across canonical cards): '
+                    .json_encode($match).' -> '.json_encode($values);
+
+                return;
+            }
+            throw $e;
+        }
     }
 
     private function cacheImage(string $url, string $game, string $setKey, string $cardKey, string $variantKey, string $side): ?string
