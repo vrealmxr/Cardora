@@ -29,6 +29,17 @@ class BinderController extends Controller
      * Renaming the row is correct, but an old bookmarked/shared URL like
      * /binder/star-wars must keep resolving instead of 404ing.
      */
+    /**
+     * v2 imports that cache images locally (Lorcana, Riftbound, Fusion
+     * World, Star Wars: Unlimited) store a site-relative "/cards/..."
+     * path. APP_URL is cardora.gr, which is fronted by a Cloudflare Pages
+     * Worker that doesn't proxy that path -- serving it relative would
+     * 404/loop through the SPA. api.cardora.gr is the same origin server
+     * reached directly (no Pages Worker in front), so it's used as the
+     * base instead of Laravel's own url()/asset() helpers.
+     */
+    private const IMAGE_ORIGIN_BASE_URL = 'https://api.cardora.gr';
+
     private const SLUG_ALIASES = [
         'disney' => 'disney-lorcana',
         'star-wars' => 'star-wars-miniatures',
@@ -158,7 +169,7 @@ class BinderController extends Controller
                 'number' => $card->number,
                 'rarity' => $card->rarity,
                 'cardType' => $card->card_type,
-                'imageUrl' => $card->image_url ?: $card->fallbackImageUrl,
+                'imageUrl' => self::absolutizeImageUrl($card->image_url) ?: self::absolutizeImageUrl($card->fallbackImageUrl),
                 'ownedQuantity' => $userId ? (int) ($card->ownedQuantity ?? 0) : null,
                 'ownedPrice' => $userId && $card->ownedPrice !== null ? (float) $card->ownedPrice : null,
             ]);
@@ -207,14 +218,30 @@ class BinderController extends Controller
      */
     private function fallbackVariantImage(int $cardId): ?string
     {
-        return DB::table('binder_card_variants')
-            ->selectRaw('COALESCE(image_large, image_small) as img')
-            ->where('card_id', $cardId)
-            ->where(fn ($q) => $q->whereNotNull('image_large')->orWhereNotNull('image_small'))
-            ->orderByRaw("source_variant_kind = 'base' desc")
-            ->orderBy('sort_order')
-            ->limit(1)
-            ->value('img');
+        return self::absolutizeImageUrl(
+            DB::table('binder_card_variants')
+                ->selectRaw('COALESCE(image_large, image_small) as img')
+                ->where('card_id', $cardId)
+                ->where(fn ($q) => $q->whereNotNull('image_large')->orWhereNotNull('image_small'))
+                ->orderByRaw("source_variant_kind = 'base' desc")
+                ->orderBy('sort_order')
+                ->limit(1)
+                ->value('img')
+        );
+    }
+
+    /**
+     * Absolute URLs (Scryfall, TCGdex, YGOPRODeck...) pass through
+     * untouched; a site-relative "/cards/..." path is rewritten to the
+     * origin server directly -- see IMAGE_ORIGIN_BASE_URL docblock.
+     */
+    private static function absolutizeImageUrl(?string $url): ?string
+    {
+        if (! $url || str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+
+        return self::IMAGE_ORIGIN_BASE_URL.'/'.ltrim($url, '/');
     }
 
     /**
@@ -409,7 +436,7 @@ class BinderController extends Controller
             ->map(fn ($row) => [
                 'id' => $row->id,
                 'name' => $row->name,
-                'imageUrl' => $row->image_url ?: $this->fallbackVariantImage($row->id),
+                'imageUrl' => self::absolutizeImageUrl($row->image_url) ?: $this->fallbackVariantImage($row->id),
                 'setName' => $row->set_name,
                 'price' => (float) $row->price,
             ]);
@@ -726,7 +753,7 @@ class BinderController extends Controller
                 'cardId' => $userCard->card_id,
                 'name' => $userCard->card->name,
                 'number' => $userCard->card->number,
-                'imageUrl' => $userCard->card->image_url ?: $this->fallbackVariantImage($userCard->card_id),
+                'imageUrl' => self::absolutizeImageUrl($userCard->card->image_url) ?: $this->fallbackVariantImage($userCard->card_id),
                 'setName' => $userCard->card->set->name,
                 'gameSlug' => $userCard->card->set->game->slug,
                 'quantity' => $userCard->quantity,
