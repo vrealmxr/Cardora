@@ -13,18 +13,24 @@ use Illuminate\Support\Facades\Http;
  * not a re-import: canonical identity (card_key/variant_key) is never
  * touched, only image_small/image_large on existing rows.
  *
- * Magic only, for now: its card_key embeds the actual Scryfall UUID
- * ("magic:scryfall:{uuid}"), so the exact source record can be re-fetched
- * directly. Pokemon's and Yu-Gi-Oh!'s card_keys are human-readable slugs
- * (e.g. "pokemon-2011bw-1", "yugioh-2-player-starter-deck-...-end00") with
- * no embedded TCGdex/YGOPRODeck id and a null source_variant_id on the
- * rows checked -- there's no reliable way to reverse a slug back to the
- * source's real id without risking a wrong match, so those two are left
- * as a known, still-open backlog item rather than guessed at.
+ * Magic: card_key embeds the Scryfall UUID directly
+ * ("magic:scryfall:{uuid}").
+ *
+ * Pokemon: card_key is a human-readable slug with no embedded id, but the
+ * exact TCGdex card id was already captured at import time in
+ * binder_card_external_ids (provider=tcgdex, external_type=card_id) --
+ * found on closer inspection after an earlier pass wrongly assumed it
+ * wasn't stored anywhere.
+ *
+ * Yu-Gi-Oh!: same story, binder_card_external_ids has the exact
+ * YGOPRODeck set_code (provider=ygoprodeck, external_type=set_code). The
+ * API has no "look up by set_code" query param, so this fetches the full
+ * bulk card list once and matches set_code inside each card's card_sets[]
+ * locally, rather than one request per card.
  */
 class EnrichMissingCardImages extends Command
 {
-    protected $signature = 'cardora:enrich-missing-images {game : one of magic-the-gathering}';
+    protected $signature = 'cardora:enrich-missing-images {game : one of magic-the-gathering|pokemon|yugioh}';
 
     protected $description = 'Backfill missing images on existing v2 canonical variants from their original source';
 
@@ -51,11 +57,15 @@ class EnrichMissingCardImages extends Command
 
         $this->info("Found {$rows->count()} variants missing images for {$slug}.");
 
+        $ygoSetCodeToImage = $slug === 'yugioh' ? $this->buildYgoSetCodeImageMap() : null;
+
         foreach ($rows as $row) {
             $this->report['checked']++;
 
             $imageUrl = match ($slug) {
                 'magic-the-gathering' => $this->fetchScryfallImage($row->card_key, $row->source_variant_id),
+                'pokemon' => $this->fetchTcgdexImage($row->card_key),
+                'yugioh' => $this->lookupYgoImage($row->card_key, $ygoSetCodeToImage),
                 default => null,
             };
 
@@ -70,7 +80,9 @@ class EnrichMissingCardImages extends Command
                 $this->report['still_missing']++;
             }
 
-            usleep(60_000);
+            if ($slug !== 'yugioh') {
+                usleep(60_000);
+            }
         }
 
         $this->info('--- Enrichment report ---');
@@ -106,4 +118,90 @@ class EnrichMissingCardImages extends Command
         return $uris['large'] ?? $uris['normal'] ?? null;
     }
 
+    private function fetchTcgdexImage(string $cardKey): ?string
+    {
+        $tcgdexId = DB::table('binder_card_external_ids')
+            ->where('entity_type', 'card')
+            ->where('entity_key', $cardKey)
+            ->where('provider', 'tcgdex')
+            ->value('external_id');
+
+        if (! $tcgdexId) {
+            $this->report['errors']++;
+
+            return null;
+        }
+
+        try {
+            $resp = Http::timeout(15)->get("https://api.tcgdex.net/v2/en/cards/{$tcgdexId}");
+        } catch (\Throwable $e) {
+            $this->report['errors']++;
+
+            return null;
+        }
+
+        if (! $resp->ok()) {
+            return null;
+        }
+
+        $image = $resp->json('image');
+
+        return $image ? $image.'/high.png' : null;
+    }
+
+    /**
+     * @return array<string,string> set_code (uppercased) => image_url
+     */
+    private function buildYgoSetCodeImageMap(): array
+    {
+        $this->info('Fetching full YGOPRODeck bulk data to resolve set_codes locally...');
+
+        try {
+            $resp = Http::timeout(60)->get('https://db.ygoprodeck.com/api/v7/cardinfo.php');
+        } catch (\Throwable $e) {
+            $this->error('Failed to fetch YGOPRODeck bulk data: '.$e->getMessage());
+
+            return [];
+        }
+
+        $cards = $resp->json('data') ?? [];
+        $map = [];
+        foreach ($cards as $card) {
+            $imageUrl = $card['card_images'][0]['image_url'] ?? null;
+            if (! $imageUrl) {
+                continue;
+            }
+            foreach ($card['card_sets'] ?? [] as $set) {
+                if (! empty($set['set_code'])) {
+                    $map[strtoupper($set['set_code'])] = $imageUrl;
+                }
+            }
+        }
+
+        $this->info('Indexed '.count($map).' set_codes from '.count($cards).' cards.');
+
+        return $map;
+    }
+
+    private function lookupYgoImage(string $cardKey, ?array $map): ?string
+    {
+        if (! $map) {
+            return null;
+        }
+
+        $setCode = DB::table('binder_card_external_ids')
+            ->where('entity_type', 'card')
+            ->where('entity_key', $cardKey)
+            ->where('provider', 'ygoprodeck')
+            ->where('external_type', 'set_code')
+            ->value('external_id');
+
+        if (! $setCode) {
+            $this->report['errors']++;
+
+            return null;
+        }
+
+        return $map[strtoupper($setCode)] ?? null;
+    }
 }
