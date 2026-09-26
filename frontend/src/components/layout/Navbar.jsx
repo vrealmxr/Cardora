@@ -52,9 +52,11 @@ function BinderMenuItemContent({ badgeLabel }) {
       <span className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(115deg,transparent_30%,rgba(255,232,180,0.35)_50%,transparent_70%)] transition-transform duration-700 ease-out group-hover:translate-x-full" />
       <Album className="relative h-4 w-4 shrink-0 text-[#f3d385]" />
       <span className="relative flex-1">Cardora Binder</span>
-      <span className="relative rounded-full border border-[#f3d385]/40 bg-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#f3d385]">
-        {badgeLabel}
-      </span>
+      {badgeLabel ? (
+        <span className="relative rounded-full border border-[#f3d385]/40 bg-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#f3d385]">
+          {badgeLabel}
+        </span>
+      ) : null}
     </>
   )
 }
@@ -382,7 +384,7 @@ function Navbar() {
                           title="Cardora Binder"
                           className={cn(binderMenuItemClassName, 'mb-2')}
                         >
-                          <BinderMenuItemContent badgeLabel={locale === 'en' ? 'Soon' : 'Σύντομα'} />
+                          <BinderMenuItemContent />
                         </Link>
                         <Link
                           to={localized('/profil')}
@@ -569,7 +571,7 @@ function Navbar() {
                   title="Cardora Binder"
                   className={binderMenuItemClassName}
                 >
-                  <BinderMenuItemContent badgeLabel={locale === 'en' ? 'Soon' : 'Σύντομα'} />
+                  <BinderMenuItemContent />
                 </Link>
                 <Link
                   to={localized('/dimiourgia-aggelias')}

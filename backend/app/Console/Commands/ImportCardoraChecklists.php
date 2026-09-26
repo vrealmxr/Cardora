@@ -374,6 +374,11 @@ class ImportCardoraChecklists extends Command
 
     private function writeToDatabase(BinderGame $game, array $setsToWrite, array $allCanonical): void
     {
+        $cardCountBySetKey = [];
+        foreach ($allCanonical as $card) {
+            $cardCountBySetKey[$card['set_key']] = ($cardCountBySetKey[$card['set_key']] ?? 0) + 1;
+        }
+
         $setIdByKey = [];
         foreach ($setsToWrite as $setKey => $meta) {
             DB::table('binder_sets')->updateOrInsert(
@@ -388,6 +393,7 @@ class ImportCardoraChecklists extends Command
                     'set_code' => $meta['season'],
                     'set_type' => 'main',
                     'language' => 'EN',
+                    'card_count' => $cardCountBySetKey[$setKey] ?? 0,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ],

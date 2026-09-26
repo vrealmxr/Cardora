@@ -115,6 +115,19 @@ class BinderController extends Controller
 
         $cards = BinderCard::query()
             ->where('set_id', $set->id)
+            // v2 canonical imports (card_key set) only ever write images to
+            // binder_card_variants.image_small/large, never back to
+            // binder_cards.image_url -- fall back to the card's best variant
+            // image so the grid isn't blank for every v2 game.
+            ->addSelect([
+                'fallbackImageUrl' => DB::table('binder_card_variants')
+                    ->selectRaw('COALESCE(image_large, image_small)')
+                    ->whereColumn('card_id', 'binder_cards.id')
+                    ->where(fn ($q) => $q->whereNotNull('image_large')->orWhereNotNull('image_small'))
+                    ->orderByRaw("source_variant_kind = 'base' desc")
+                    ->orderBy('sort_order')
+                    ->limit(1),
+            ])
             ->when($productType === 'cards', fn ($query) => $query->whereNotNull('number'))
             ->when($productType === 'sealed', fn ($query) => $query->whereNull('number'))
             ->when($request->filled('search'), function ($query) use ($request) {
@@ -145,7 +158,7 @@ class BinderController extends Controller
                 'number' => $card->number,
                 'rarity' => $card->rarity,
                 'cardType' => $card->card_type,
-                'imageUrl' => $card->image_url,
+                'imageUrl' => $card->image_url ?: $card->fallbackImageUrl,
                 'ownedQuantity' => $userId ? (int) ($card->ownedQuantity ?? 0) : null,
                 'ownedPrice' => $userId && $card->ownedPrice !== null ? (float) $card->ownedPrice : null,
             ]);
@@ -185,6 +198,23 @@ class BinderController extends Controller
         $accessToken = PersonalAccessToken::findToken($token);
 
         return $accessToken?->tokenable?->getKey();
+    }
+
+    /**
+     * Same v2-image fallback as the cards() listing's addSelect, for the
+     * low-traffic single-row/small-N call sites where a correlated
+     * subquery isn't already in play.
+     */
+    private function fallbackVariantImage(int $cardId): ?string
+    {
+        return DB::table('binder_card_variants')
+            ->selectRaw('COALESCE(image_large, image_small) as img')
+            ->where('card_id', $cardId)
+            ->where(fn ($q) => $q->whereNotNull('image_large')->orWhereNotNull('image_small'))
+            ->orderByRaw("source_variant_kind = 'base' desc")
+            ->orderBy('sort_order')
+            ->limit(1)
+            ->value('img');
     }
 
     /**
@@ -379,7 +409,7 @@ class BinderController extends Controller
             ->map(fn ($row) => [
                 'id' => $row->id,
                 'name' => $row->name,
-                'imageUrl' => $row->image_url,
+                'imageUrl' => $row->image_url ?: $this->fallbackVariantImage($row->id),
                 'setName' => $row->set_name,
                 'price' => (float) $row->price,
             ]);
@@ -696,7 +726,7 @@ class BinderController extends Controller
                 'cardId' => $userCard->card_id,
                 'name' => $userCard->card->name,
                 'number' => $userCard->card->number,
-                'imageUrl' => $userCard->card->image_url,
+                'imageUrl' => $userCard->card->image_url ?: $this->fallbackVariantImage($userCard->card_id),
                 'setName' => $userCard->card->set->name,
                 'gameSlug' => $userCard->card->set->game->slug,
                 'quantity' => $userCard->quantity,

@@ -6,7 +6,15 @@ const MainLayout = lazy(() => import('@/layouts/MainLayout'))
 const AboutPage = lazy(() => import('@/pages/AboutPage'))
 const AccountSettingsPage = lazy(() => import('@/pages/AccountSettingsPage'))
 const AuthPage = lazy(() => import('@/pages/AuthPage'))
+const BinderAlertsPage = lazy(() => import('@/pages/BinderAlertsPage'))
+const BinderDashboardPage = lazy(() => import('@/pages/BinderDashboardPage'))
+const BinderDuplicatesPage = lazy(() => import('@/pages/BinderDuplicatesPage'))
+const BinderGamesPage = lazy(() => import('@/pages/BinderGamesPage'))
+const BinderLibraryPage = lazy(() => import('@/pages/BinderLibraryPage'))
+const BinderSetCatalogPage = lazy(() => import('@/pages/BinderSetCatalogPage'))
+const BinderSetDetailPage = lazy(() => import('@/pages/BinderSetDetailPage'))
 const BlogArticlePage = lazy(() => import('@/pages/BlogArticlePage'))
+const CardoraScannerPage = lazy(() => import('@/pages/CardoraScannerPage'))
 const ComingSoonPage = lazy(() => import('@/pages/ComingSoonPage'))
 const BlogPage = lazy(() => import('@/pages/BlogPage'))
 const CardoraProSuccessPage = lazy(() => import('@/pages/CardoraProSuccessPage'))
@@ -142,20 +150,16 @@ function AppRoutes() {
   // they render their own full-page shell (BinderShell: dark navy chrome,
   // own nav) rather than the marketplace's light Navbar/Footer, since this
   // is meant to read as a distinct sub-application, not another market page.
-  const binderComingSoon = (
-    <ComingSoonPage titleEl="Το Cardora Binder έρχεται σύντομα." titleEn="Cardora Binder is coming soon." />
-  )
-
   const renderBinderRoutes = (locale) => (
     <>
-      <Route path={`/${locale}/cardora-binder`} element={binderComingSoon} />
-      <Route path={`/${locale}/cardora-binder/library`} element={binderComingSoon} />
-      <Route path={`/${locale}/cardora-binder/alerts`} element={binderComingSoon} />
-      <Route path={`/${locale}/cardora-binder/duplicates`} element={binderComingSoon} />
-      <Route path={`/${locale}/cardora-binder/games`} element={binderComingSoon} />
-      <Route path={`/${locale}/cardora-binder/games/:gameSlug`} element={binderComingSoon} />
-      <Route path={`/${locale}/cardora-binder/sets/:setId`} element={binderComingSoon} />
-      <Route path={`/${locale}/cardora-scanner`} element={binderComingSoon} />
+      <Route path={`/${locale}/cardora-binder`} element={<BinderDashboardPage />} />
+      <Route path={`/${locale}/cardora-binder/library`} element={<BinderLibraryPage />} />
+      <Route path={`/${locale}/cardora-binder/alerts`} element={<BinderAlertsPage />} />
+      <Route path={`/${locale}/cardora-binder/duplicates`} element={<BinderDuplicatesPage />} />
+      <Route path={`/${locale}/cardora-binder/games`} element={<BinderGamesPage />} />
+      <Route path={`/${locale}/cardora-binder/games/:gameSlug`} element={<BinderSetCatalogPage />} />
+      <Route path={`/${locale}/cardora-binder/sets/:setId`} element={<BinderSetDetailPage />} />
+      <Route path={`/${locale}/cardora-scanner`} element={<CardoraScannerPage />} />
     </>
   )
 
