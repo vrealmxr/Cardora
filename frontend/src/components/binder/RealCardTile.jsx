@@ -44,6 +44,11 @@ function RealCardTile({ card, owned, price, quantity, isPro, onToggleOwned, onPr
         <p className="truncate text-[11.5px] font-semibold text-ink" title={card.name}>
           {card.name}
         </p>
+        {card.cardType || card.team ? (
+          <p className="truncate text-[9.5px] text-slate-400" title={[card.cardType, card.team].filter(Boolean).join(' — ')}>
+            {[card.cardType, card.team].filter(Boolean).join(' — ')}
+          </p>
+        ) : null}
         <div className="flex items-center justify-between gap-1.5">
           <span className="truncate text-[10px] text-slate-400">{card.number}</span>
           {card.rarity ? (

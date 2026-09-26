@@ -169,6 +169,7 @@ class BinderController extends Controller
                 'number' => $card->number,
                 'rarity' => $card->rarity,
                 'cardType' => $card->card_type,
+                'team' => json_decode($card->gameplay_data ?? '', true)['data']['team'] ?? null,
                 'imageUrl' => self::absolutizeImageUrl($card->image_url) ?: self::absolutizeImageUrl($card->fallbackImageUrl),
                 'ownedQuantity' => $userId ? (int) ($card->ownedQuantity ?? 0) : null,
                 'ownedPrice' => $userId && $card->ownedPrice !== null ? (float) $card->ownedPrice : null,
