@@ -283,7 +283,15 @@ class ImportDeckplanetFusionWorld extends Command
 
     private function cacheImage(string $url, string $game, string $setKey, string $cardKey, string $variantKey, string $side): ?string
     {
-        $publicDir = public_path("cards/{$game}/{$setKey}/{$cardKey}/{$variantKey}");
+        // DeckPlanet's variant discriminator (printing id) is a plain
+        // integer, so the path segment after ":" would be digits-only --
+        // confirmed the production host's edge/WAF rewrites that to the
+        // SPA fallback instead of serving it (reads "word:1234" as a
+        // host:port pattern). This only affects the FILE PATH; variant_key
+        // itself (the real DB identity) is untouched.
+        $pathSafeVariantKey = preg_replace('/:(\d+)$/', ':v$1', $variantKey);
+
+        $publicDir = public_path("cards/{$game}/{$setKey}/{$cardKey}/{$pathSafeVariantKey}");
         File::ensureDirectoryExists($publicDir);
 
         try {
@@ -316,7 +324,7 @@ class ImportDeckplanetFusionWorld extends Command
             File::copy($canonicalPath, $destPath);
         }
 
-        return "/cards/{$game}/{$setKey}/{$cardKey}/{$variantKey}/{$side}.png";
+        return "/cards/{$game}/{$setKey}/{$cardKey}/{$pathSafeVariantKey}/{$side}.png";
     }
 
     private function printReport(): void

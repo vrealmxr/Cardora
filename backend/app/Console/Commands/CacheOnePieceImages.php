@@ -30,7 +30,7 @@ use Illuminate\Support\Facades\Http;
  */
 class CacheOnePieceImages extends Command
 {
-    protected $signature = 'cardora:cache-onepiece-images {--limit= : Cap how many variants to process, for a quick check}';
+    protected $signature = 'cardora:cache-onepiece-images {--limit= : Cap how many variants to process, for a quick check} {--concurrency=15}';
 
     protected $description = 'Download and locally cache One Piece v2 card images (hotlinked source blocks cross-origin embedding)';
 
@@ -49,19 +49,34 @@ class CacheOnePieceImages extends Command
 
         $this->info("Found {$rows->count()} One Piece variants hotlinking the source site.");
 
-        foreach ($rows as $row) {
-            $this->report['checked']++;
+        $concurrency = (int) $this->option('concurrency');
 
-            $newPath = $this->cacheImage($row->image_small, 'one-piece', $row->set_key, $row->card_key, $row->variant_key);
-            if ($newPath) {
-                DB::table('binder_card_variants')->where('id', $row->variant_id)->update([
-                    'image_small' => $newPath,
-                    'image_large' => $newPath,
-                    'updated_at' => now(),
-                ]);
+        // The source site got noticeably slower under sustained sequential
+        // requests (likely rate-limiting or just plain latency) -- a first
+        // run stalled at ~1.7s/request. Fetching in small concurrent
+        // batches via Http::pool() cuts wall-clock time a lot without
+        // hammering the source any harder per-window than a slow
+        // sequential loop already was.
+        foreach ($rows->chunk($concurrency) as $batch) {
+            $responses = Http::pool(fn ($pool) => $batch->map(
+                fn ($row) => $pool->as($row->variant_id)->timeout(15)->get($row->image_small)
+            )->all());
+
+            foreach ($batch as $row) {
+                $this->report['checked']++;
+                $response = $responses[$row->variant_id] ?? null;
+
+                $newPath = $this->storeImage($response, $row->image_small, 'one-piece', $row->set_key, $row->card_key, $row->variant_key);
+                if ($newPath) {
+                    DB::table('binder_card_variants')->where('id', $row->variant_id)->update([
+                        'image_small' => $newPath,
+                        'image_large' => $newPath,
+                        'updated_at' => now(),
+                    ]);
+                }
             }
 
-            if ($this->report['checked'] % 200 === 0) {
+            if ($this->report['checked'] % 200 < $concurrency) {
                 $this->info("... {$this->report['checked']}/{$rows->count()}");
             }
         }
@@ -74,16 +89,15 @@ class CacheOnePieceImages extends Command
         return self::SUCCESS;
     }
 
-    private function cacheImage(string $url, string $game, string $setKey, string $cardKey, string $variantKey): ?string
+    private function storeImage($response, string $url, string $game, string $setKey, string $cardKey, string $variantKey): ?string
     {
-        try {
-            $bytes = Http::timeout(20)->get($url)->body();
-        } catch (\Throwable $e) {
+        if (! $response || $response instanceof \Throwable || ! $response->ok()) {
             $this->report['failed']++;
 
             return null;
         }
 
+        $bytes = $response->body();
         if (! $bytes) {
             $this->report['failed']++;
 

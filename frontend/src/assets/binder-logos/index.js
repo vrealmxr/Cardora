@@ -24,6 +24,7 @@ const GAME_LOGOS = {
   'disney-lorcana': disney,
   'star-wars': starWars,
   'star-wars-miniatures': starWars,
+  'star-wars-unlimited': starWars,
   riftbound,
 }
 
