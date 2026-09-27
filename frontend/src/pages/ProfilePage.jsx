@@ -194,7 +194,7 @@ function ProfilePage() {
           readyTitle: 'Your account is ready for protected buying and selling',
           blockedTitle: 'Before you buy or sell, complete the full activation checklist',
           description:
-            'Cardora requires identity verification, address verification, IBAN verification, a Stripe connected account and complete private shipping details before all marketplace actions unlock.',
+            'Cardora requires identity verification through Didit (or an existing preserved approval), a ready Stripe connected account and complete private shipping details before all marketplace actions unlock.',
           warning:
             'Until everything is completed, buying, selling, bidding and raffle entries stay locked, and listings cannot remain visible.',
           welcome:
@@ -208,7 +208,7 @@ function ProfilePage() {
           readyTitle: 'Ο λογαριασμός σου είναι έτοιμος για protected αγορές και πωλήσεις',
           blockedTitle: 'Πριν αγοράσεις ή πουλήσεις, ολοκλήρωσε όλο το activation checklist',
           description:
-            'Η Cardora απαιτεί επαλήθευση ταυτότητας, διεύθυνσης, IBAN, Stripe Connected Account και πλήρη ιδιωτικά στοιχεία αποστολής πριν ξεκλειδώσουν όλες οι marketplace ενέργειες.',
+            'Η Cardora απαιτεί επαλήθευση ταυτότητας μέσω Didit (ή διατηρημένη προηγούμενη έγκριση), έτοιμο Stripe Connected Account και πλήρη ιδιωτικά στοιχεία αποστολής πριν ξεκλειδώσουν όλες οι marketplace ενέργειες.',
           warning:
             'Μέχρι να ολοκληρωθούν όλα, αγορές, πωλήσεις, bids και συμμετοχές σε κληρώσεις παραμένουν κλειδωμένα, ενώ οι αγγελίες δεν μπορούν να παραμένουν ορατές.',
           welcome:
@@ -1006,4 +1006,3 @@ function ProfilePage() {
 }
 
 export default ProfilePage
-

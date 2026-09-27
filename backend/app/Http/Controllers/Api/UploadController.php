@@ -17,6 +17,7 @@ class UploadController extends Controller
         ]);
 
         $collection = $validated['collection'] ?? 'general';
+        abort_if(config('didit.enabled') && str_starts_with(strtolower($collection), 'verification'), 410, 'Use Didit verification.');
         $directory = sprintf('uploads/%s/%s', $collection, now()->format('Y/m'));
         $disk = config('filesystems.default', 'public');
 

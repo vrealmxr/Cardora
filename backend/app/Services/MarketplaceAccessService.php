@@ -13,6 +13,9 @@ class MarketplaceAccessService
 {
     public function summaryForUser(User $user, ?string $locale = null): array
     {
+        if (config('didit.enabled')) {
+            return $this->diditSummary($user, $this->normalizeLocale($locale));
+        }
         $locale = $this->normalizeLocale($locale);
         $latestVerificationSubmissions = $this->latestVerificationSubmissions($user);
         $stripeAccount = $user->relationLoaded('sellerPayoutAccount')
@@ -77,6 +80,37 @@ class MarketplaceAccessService
         throw ValidationException::withMessages([
             'marketplace' => [$summary['blocking_message']],
         ]);
+    }
+
+    protected function diditSummary(User $user, string $locale): array
+    {
+        $state = app(DiditService::class)->status($user);
+        $en = $locale === 'en';
+        $identity = [
+            'key' => 'identity', 'label' => $en ? 'Identity verification' : 'Επαλήθευση ταυτότητας',
+            'status_key' => $state['verified'] ? 'approved' : 'pending',
+            'status_label' => $state['verified'] ? ($en ? 'Verified' : 'Επαληθευμένος') : ($en ? 'Verification required' : 'Απαιτείται επαλήθευση'),
+            'ready' => $state['verified'],
+            'description' => $state['verified'] ? ($en ? 'Your account is verified.' : 'Ο λογαριασμός σου είναι επαληθευμένος.') : ($en ? 'Complete identity verification with Didit.' : 'Ολοκλήρωσε την επαλήθευση ταυτότητας μέσω Didit.'),
+            'action_label' => $en ? 'Verification center' : 'Κέντρο επαλήθευσης',
+            'action_path' => '/epalithefsi-logariasmou',
+        ];
+        $stripe = $this->stripeRequirement($user->sellerPayoutAccount, $locale);
+        $shipping = $this->sellerShippingOriginRequirement($user, $locale);
+        $requirements = [$identity, $stripe, $shipping];
+        $missing = collect($requirements)->filter(fn ($r) => ! $r['ready'])->values();
+        $canBuy = $identity['ready'] && $stripe['ready'];
+        $canSell = $canBuy && $shipping['ready'];
+        return [
+            'is_marketplace_ready' => $canSell, 'can_buy' => $canBuy, 'can_sell' => $canSell,
+            'can_checkout' => $canBuy, 'can_create_listing' => $canSell, 'can_bid' => $canBuy, 'can_join_draws' => $canBuy,
+            'completion_percentage' => (int) round((3 - $missing->count()) / 3 * 100),
+            'ready_count' => 3 - $missing->count(), 'total_requirements' => 3,
+            'missing_keys' => $missing->pluck('key')->all(),
+            'blocking_message' => $canBuy ? $this->sellerBlockingMessage($missing->all(), $locale) : $this->blockingMessage($missing->all(), $locale),
+            'requirements' => $requirements, 'verification' => ['identity' => $identity],
+            'stripe_connect' => $stripe, 'seller_shipping_origin' => $shipping,
+        ];
     }
 
     public function assertCanSell(User $user, ?string $locale = null): void

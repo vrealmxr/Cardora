@@ -44,7 +44,9 @@ use App\Http\Controllers\Api\AdminTradeDealController;
 use App\Http\Controllers\Api\UploadController;
 use App\Http\Controllers\Api\VerificationController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\DiditController;
 
+Route::post('/webhooks/didit', [DiditController::class, 'webhook']);
 Route::post('/stripe/webhooks', [StripeWebhookController::class, 'handle']);
 Route::post('/webhooks/boxnow', [BoxNowWebhookController::class, 'handle']);
 
@@ -210,6 +212,9 @@ Route::middleware(['auth:sanctum', 'set.locale'])->group(function (): void {
         Route::put('/collection/{collectionEntry}', [ProfileCollectionController::class, 'update']);
         Route::delete('/collection/{collectionEntry}', [ProfileCollectionController::class, 'destroy']);
         Route::get('/verification', [VerificationController::class, 'show']);
+        Route::get('/verification/didit', [DiditController::class, 'show']);
+        Route::post('/verification/didit', [DiditController::class, 'store'])->middleware('throttle:6,1');
+        Route::post('/verification/didit/refresh', [DiditController::class, 'refresh'])->middleware('throttle:3,1');
         Route::post('/verification', [VerificationController::class, 'store']);
         Route::put('/verification/{verificationSubmission}', [VerificationController::class, 'update']);
     });

@@ -97,6 +97,7 @@ class UserResource extends RestrictableResource
                 Section::make('Marketplace status')
                     ->schema([
                         Select::make('trust_status')
+                            ->disabled(fn () => config('didit.enabled'))
                             ->options(MarketplaceAdminOptions::trustStatuses())
                             ->default('new')
                             ->required(),
@@ -109,7 +110,7 @@ class UserResource extends RestrictableResource
                         TextInput::make('purchase_count')
                             ->numeric()
                             ->default(0),
-                        Toggle::make('is_verified_seller'),
+                        Toggle::make('is_verified_seller')->disabled(fn () => config('didit.enabled')),
                         DateTimePicker::make('last_seen_at'),
                     ])
                     ->columns(3),

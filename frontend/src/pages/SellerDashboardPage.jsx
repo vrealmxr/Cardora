@@ -52,7 +52,7 @@ function SellerDashboardPage() {
           connectReady: 'Stripe account ready',
           verificationTitle: 'Marketplace activation checklist',
           verificationText:
-            'Buying and selling stay locked until identity, address, IBAN and Stripe Connect are all ready. Sellers also need complete private shipping details before listings can stay visible.',
+            'Buying and selling require identity verification through Didit (or a preserved approval) and a ready Stripe account. Sellers also need complete private shipping details.',
           openVerification: 'Open verification center',
           connectButton: 'Create Stripe Connected Account',
           connectButtonPending: 'Complete Stripe setup now',
@@ -89,7 +89,7 @@ function SellerDashboardPage() {
           connectReady: 'Το Stripe account είναι έτοιμο',
           verificationTitle: 'Checklist ενεργοποίησης marketplace',
           verificationText:
-            'Αγορές και πωλήσεις μένουν κλειδωμένες μέχρι να ολοκληρωθούν ταυτότητα, διεύθυνση, IBAN και Stripe Connect. Οι πωλητές χρειάζονται επίσης πλήρη ιδιωτικά στοιχεία αποστολής για να παραμένουν ορατές οι αγγελίες τους.',
+            'Αγορές και πωλήσεις απαιτούν επαλήθευση ταυτότητας μέσω Didit (ή διατηρημένη έγκριση) και έτοιμο Stripe account. Οι πωλητές χρειάζονται επίσης πλήρη ιδιωτικά στοιχεία αποστολής.',
           openVerification: 'Άνοιγμα verification center',
           connectButton: 'Δημιουργία Stripe Connected Account',
           connectButtonPending: 'Ολοκλήρωσε τώρα το Stripe setup',

@@ -78,7 +78,7 @@ class UpdateProfileRequest extends FormRequest
             'notification_preferences.security.email' => ['nullable', 'boolean'],
             'locale' => ['nullable', Rule::in(config('app.supported_locales', ['el', 'en']))],
             'favorite_categories' => ['nullable', 'array'],
-            'trust_status' => ['nullable', 'string', 'max:100'],
+            'trust_status' => [Rule::prohibitedIf(config('didit.enabled')), 'nullable', 'string', 'max:100'],
         ];
     }
 }

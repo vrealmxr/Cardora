@@ -13,6 +13,11 @@ use Filament\Tables\Table;
 
 class DocumentsRelationManager extends RelationManager
 {
+    public function isReadOnly(): bool
+    {
+        return config('didit.enabled') || parent::isReadOnly();
+    }
+
     protected static string $relationship = 'documents';
 
     protected static ?string $title = 'Verification files';

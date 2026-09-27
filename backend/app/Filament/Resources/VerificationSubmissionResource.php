@@ -23,6 +23,10 @@ use Illuminate\Support\HtmlString;
 
 class VerificationSubmissionResource extends RestrictableResource
 {
+    public static function canCreate(): bool { return ! config('didit.enabled') && parent::canCreate(); }
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool { return ! config('didit.enabled') && parent::canEdit($record); }
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool { return ! config('didit.enabled') && parent::canDelete($record); }
+    public static function canDeleteAny(): bool { return ! config('didit.enabled') && parent::canDeleteAny(); }
     protected static ?string $model = VerificationSubmission::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-shield-check';
@@ -139,6 +143,7 @@ class VerificationSubmissionResource extends RestrictableResource
                     ->icon('heroicon-o-eye')
                     ->url(fn (VerificationSubmission $record): string => static::getUrl('edit', ['record' => $record])),
                 Tables\Actions\Action::make('approve')
+                    ->visible(fn () => ! config('didit.enabled'))
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
                     ->action(fn (VerificationSubmission $record) => $record->update([
@@ -147,6 +152,7 @@ class VerificationSubmissionResource extends RestrictableResource
                         'reviewed_by' => auth()->id(),
                     ])),
                 Tables\Actions\Action::make('needsRevision')
+                    ->visible(fn () => ! config('didit.enabled'))
                     ->label('Needs revision')
                     ->icon('heroicon-o-pencil-square')
                     ->color('warning')
@@ -156,6 +162,7 @@ class VerificationSubmissionResource extends RestrictableResource
                         'reviewed_by' => auth()->id(),
                     ])),
                 Tables\Actions\Action::make('reject')
+                    ->visible(fn () => ! config('didit.enabled'))
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->requiresConfirmation()

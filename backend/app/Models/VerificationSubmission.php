@@ -100,6 +100,9 @@ class VerificationSubmission extends Model
 
     public function syncUserVerificationState(): void
     {
+        if (config('didit.enabled')) {
+            return; // Historical submissions no longer determine current verification.
+        }
         if (! $this->user_id) {
             return;
         }

@@ -1,4 +1,5 @@
 import LegalDocumentPage from '@/components/legal/LegalDocumentPage'
+import { diditLegal } from '@/data/diditLegal'
 
 const DOCUMENT = {
   el: {
@@ -6,7 +7,7 @@ const DOCUMENT = {
     title: 'Πολιτική Απορρήτου του marketplace Cardora',
     description:
       'Η παρούσα πολιτική εξηγεί ποια προσωπικά δεδομένα επεξεργάζεται η Cardora, για ποιους σκοπούς, με ποια νομική βάση, σε ποιους αποδέκτες διαβιβάζονται, για πόσο χρόνο διατηρούνται και ποια δικαιώματα έχουν οι χρήστες σύμφωνα με τον GDPR και την εφαρμοστέα νομοθεσία.',
-    updated: 'Τελευταία ενημέρωση: 6 Απριλίου 2026',
+    updated: 'Τελευταία ενημέρωση: 27 Σεπτεμβρίου 2026',
     intro:
       'Η παρούσα Πολιτική Απορρήτου εφαρμόζεται στην ιστοσελίδα, στα seller και buyer flows, στα verification εργαλεία, στις protected πληρωμές, στις order και support διαδικασίες, στα μηνύματα, στις ειδοποιήσεις και σε κάθε συναφή υπηρεσία της Cardora που λειτουργεί η VRealm Ι.Κ.Ε.',
     introSecondary:
@@ -43,6 +44,7 @@ const DOCUMENT = {
       },
     ],
     sections: [
+      diditLegal.el,
       {
         id: 'scope',
         icon: 'privacy',
@@ -59,12 +61,12 @@ const DOCUMENT = {
         paragraphs: [
           'Η Cardora μπορεί να επεξεργάζεται στοιχεία ταυτοποίησης και επικοινωνίας όπως ονοματεπώνυμο, handle, email, πόλη, βιογραφικό, avatar, public profile image και preferences προφίλ. Μπορεί επίσης να επεξεργάζεται στοιχεία λογαριασμού και πρόσβασης όπως hashed password, authentication states, security logs και indicators που σχετίζονται με τη συσκευή ή το session.',
           'Στο πλαίσιο του marketplace επεξεργάζονται επίσης στοιχεία αγγελιών, favorites, follows, order history, notifications, reviews, support tickets, on-platform messages και moderation results. Στο πλαίσιο checkout και payouts επεξεργάζονται order metadata, payment references, charge, transfer και payout references, connected account statuses, refund indicators και σχετικά audit trails.',
-          'Όπου απαιτείται verification ή payout readiness, μπορεί να επεξεργάζονται στοιχεία ταυτότητας, ημερομηνία γέννησης, αποδεικτικό διεύθυνσης, στοιχεία τράπεζας, trader στοιχεία, business documents και supporting submissions.',
+          'Η επαλήθευση ταυτότητας πραγματοποιείται μέσω Didit, όπως περιγράφεται στην ειδική ενότητα. Στοιχεία πληρωμών και τραπεζικού λογαριασμού επεξεργάζονται στο πλαίσιο Stripe/Stripe Connect. Δεν ζητείται ξεχωριστό αποδεικτικό διεύθυνσης ή IBAN για την επαλήθευση Cardora.',
         ],
         bullets: [
           'Δημόσια στοιχεία προφίλ: handle, βιογραφικό, πόλη, avatar, cover και δημόσια metrics.',
           'Στοιχεία αγγελιών και παραγγελιών: τίτλος, περιγραφή, τιμή, quantity, shipping states και dispute notes.',
-          'Στοιχεία verification: submissions ταυτότητας, διεύθυνσης, τράπεζας, trader και payout readiness.',
+          'Στοιχεία επαλήθευσης: αναγνωριστικά συνεδρίας Didit, κατάσταση, χρονικές ενδείξεις και αποδεικτικό ενημέρωσης/συγκατάθεσης, καθώς και ιστορικά αρχεία της προηγούμενης διαδικασίας.',
           'Provider references: payment intents, charges, transfers, payouts και connected-account states.',
         ],
       },
@@ -84,7 +86,7 @@ const DOCUMENT = {
         title: '4. Checkout, payouts, verification και provider διαβιβάσεις',
         paragraphs: [
           'Η Cardora χρησιμοποιεί providers όπως Stripe και Stripe Connect για protected checkout, connected accounts, releases, transfers, payouts και related payment states. Κατά τη χρήση αυτών των flows, η Cardora μπορεί να διαβιβάζει στον provider τα δεδομένα που είναι αναγκαία για την επεξεργασία της πληρωμής, τον έλεγχο συμβατότητας, την επαλήθευση seller readiness και τη νόμιμη εκτέλεση της υπηρεσίας.',
-          'Όπου απαιτείται connected account onboarding, seller verification ή trader traceability, μπορεί να επεξεργάζονται από την Cardora και τους providers στοιχεία ταυτότητας, διεύθυνσης, τραπεζικά στοιχεία ή άλλα supporting documents. Η Cardora δεν προτρέπει χρήστες να παρακάμπτουν τα protected flows ούτε να μεταφέρουν συναλλαγές εκτός πλατφόρμας.',
+          'Η Didit παρέχει την επαλήθευση ταυτότητας. Το Stripe μπορεί αυτοτελώς να ζητήσει στοιχεία ταυτότητας, διεύθυνσης, τραπεζικού λογαριασμού ή έγγραφα στο δικό του onboarding. Η Cardora δεν ζητεί αποδεικτικό διεύθυνσης ή τραπεζικό έγγραφο στη νέα ροή επαλήθευσης και δεν προτρέπει σε παράκαμψη των προστατευμένων πληρωμών.',
         ],
       },
       {

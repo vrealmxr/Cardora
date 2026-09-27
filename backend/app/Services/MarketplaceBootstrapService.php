@@ -1239,6 +1239,17 @@ class MarketplaceBootstrapService
 
     protected function buildVerificationPayload(User $authUser, string $locale): array
     {
+        if (config('didit.enabled')) {
+            $state = app(DiditService::class)->status($authUser);
+            return [
+                ...$state,
+                'overallStatus' => $state['verified'] ? ($locale === 'en' ? 'Verified' : 'Επαληθευμένος') : ($locale === 'en' ? 'Verification required' : 'Απαιτείται επαλήθευση'),
+                'progressPercentage' => $state['verified'] ? 100 : 0,
+                'progress' => ['completed' => $state['verified'] ? 1 : 0, 'total' => 1],
+                'payoutStatus' => $locale === 'en' ? 'Managed through Stripe' : 'Διαχείριση μέσω Stripe',
+                'sections' => [],
+            ];
+        }
         $definitions = $this->verificationDefinitions($locale);
         $submissions = VerificationSubmission::query()
             ->with('documents')

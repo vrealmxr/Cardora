@@ -28,6 +28,7 @@ class VerificationController extends Controller
         StoreVerificationSubmissionRequest $request,
         MarketplaceNotificationService $notifications
     ) {
+        abort_if(config('didit.enabled'), 410, 'Η επαλήθευση γίνεται πλέον μέσω Didit. / Use Didit verification.');
         $validated = $request->validated();
         $documents = $validated['documents'] ?? [];
         unset($validated['documents']);
@@ -78,6 +79,7 @@ class VerificationController extends Controller
         VerificationSubmission $verificationSubmission,
         MarketplaceNotificationService $notifications
     ) {
+        abort_if(config('didit.enabled'), 410, 'Η επαλήθευση γίνεται πλέον μέσω Didit. / Use Didit verification.');
         abort_unless(
             $verificationSubmission->user_id === $request->user()->getKey(),
             403,

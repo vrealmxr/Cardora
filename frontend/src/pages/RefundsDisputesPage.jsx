@@ -116,7 +116,7 @@ const DOCUMENT = {
       {
         badge: 'Privacy',
         title: 'Πολιτική Απορρήτου',
-        text: 'Πώς επεξεργάζονται και διατηρούνται message history, order evidence, verification files και provider references.',
+        text: 'Πώς επεξεργάζονται και διατηρούνται μηνύματα, αποδεικτικά παραγγελιών, αποτελέσματα επαλήθευσης Didit, ιστορικά αρχεία και αναγνωριστικά παρόχων.',
         to: '/politiki-aporritou',
         cta: 'Άνοιγμα πολιτικής',
       },

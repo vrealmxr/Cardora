@@ -71,7 +71,7 @@ class CardoraStaticContent
                     [
                         'title' => 'Verification & Safety',
                         'items' => [
-                            ['question' => 'Why does Cardora ask for verification documents and Stripe Connect setup?', 'answer' => 'Identity, address, IBAN and Stripe Connect setup help protect buyers and sellers while keeping future payout releases clean and traceable.'],
+                            config('didit.enabled') ? ['question' => 'How does Cardora verification work?', 'answer' => 'Identity is verified through Didit inside Cardora, with a QR option to continue on your phone. No proof of address or separate IBAN document is requested. Verification is renewed annually. Stripe Connect onboarding and payment requirements remain separate.'] : ['question' => 'Why does Cardora ask for verification documents and Stripe Connect setup?', 'answer' => 'Identity, address, IBAN and Stripe Connect setup help protect buyers and sellers while keeping future payout releases clean and traceable.'],
                             ['question' => 'Who can like a public collector profile?', 'answer' => 'Only registered and signed-in users can like another collector public profile.'],
                         ],
                     ],
@@ -96,7 +96,7 @@ class CardoraStaticContent
                     [
                         'title' => 'ÃŽâ€¢Ãâ‚¬ÃŽÂ±ÃŽÂ»ÃŽÂ®ÃŽÂ¸ÃŽÂµÃâ€¦ÃÆ’ÃŽÂ· & ÃŽâ€˜ÃÆ’Ãâ€ ÃŽÂ¬ÃŽÂ»ÃŽÂµÃŽÂ¹ÃŽÂ±',
                         'items' => [
-                            ['question' => 'ÃŽâ€œÃŽÂ¹ÃŽÂ±Ãâ€žÃŽÂ¯ ÃŽÂ¶ÃŽÂ·Ãâ€žÃŽÂ¬ ÃŽÂ· Cardora ÃŽÂ­ÃŽÂ³ÃŽÂ³ÃÂÃŽÂ±Ãâ€ ÃŽÂ± ÃŽÂµÃâ‚¬ÃŽÂ±ÃŽÂ»ÃŽÂ®ÃŽÂ¸ÃŽÂµÃâ€¦ÃÆ’ÃŽÂ·Ãâ€š ÃŽÂºÃŽÂ±ÃŽÂ¹ Stripe Connect setup;', 'answer' => 'ÃŽâ€” Ãâ€žÃŽÂ±Ãâ€¦Ãâ€žÃÅ’Ãâ€žÃŽÂ·Ãâ€žÃŽÂ±, ÃŽÂ· ÃŽÂ´ÃŽÂ¹ÃŽÂµÃÂÃŽÂ¸Ãâ€¦ÃŽÂ½ÃÆ’ÃŽÂ·, Ãâ€žÃŽÂ¿ IBAN ÃŽÂºÃŽÂ±ÃŽÂ¹ Ãâ€žÃŽÂ¿ Stripe Connect setup ÃŽÂ²ÃŽÂ¿ÃŽÂ·ÃŽÂ¸ÃŽÂ¿ÃÂÃŽÂ½ ÃÆ’Ãâ€žÃŽÂ·ÃŽÂ½ Ãâ‚¬ÃÂÃŽÂ¿ÃÆ’Ãâ€žÃŽÂ±ÃÆ’ÃŽÂ¯ÃŽÂ± ÃŽÂ±ÃŽÂ³ÃŽÂ¿ÃÂÃŽÂ±ÃÆ’Ãâ€žÃŽÂ® ÃŽÂºÃŽÂ±ÃŽÂ¹ Ãâ‚¬Ãâ€°ÃŽÂ»ÃŽÂ·Ãâ€žÃŽÂ® ÃŽÂºÃŽÂ±ÃŽÂ¹ ÃŽÂºÃÂÃŽÂ±Ãâ€žÃŽÂ¿ÃÂÃŽÂ½ ÃŽÂºÃŽÂ±ÃŽÂ¸ÃŽÂ±ÃÂÃŽÂ® ÃŽÂºÃŽÂ¬ÃŽÂ¸ÃŽÂµ ÃŽÂ¼ÃŽÂµÃŽÂ»ÃŽÂ»ÃŽÂ¿ÃŽÂ½Ãâ€žÃŽÂ¹ÃŽÂºÃŽÂ® ÃŽÂ±Ãâ‚¬ÃŽÂ¿ÃŽÂ´ÃŽÂ­ÃÆ’ÃŽÂ¼ÃŽÂµÃâ€¦ÃÆ’ÃŽÂ· payout.'],
+                            config('didit.enabled') ? ['question' => 'Πώς γίνεται η επαλήθευση Cardora;', 'answer' => 'Η ταυτότητα επαληθεύεται μέσω Didit μέσα στην Cardora, με QR για συνέχεια στο κινητό. Δεν ζητείται αποδεικτικό διεύθυνσης ή ξεχωριστό έγγραφο IBAN. Η επαλήθευση ανανεώνεται ετησίως. Το onboarding και οι απαιτήσεις πληρωμών Stripe Connect παραμένουν αυτοτελή.'] : ['question' => 'ÃŽâ€œÃŽÂ¹ÃŽÂ±Ãâ€žÃŽÂ¯ ÃŽÂ¶ÃŽÂ·Ãâ€žÃŽÂ¬ ÃŽÂ· Cardora ÃŽÂ­ÃŽÂ³ÃŽÂ³ÃÂÃŽÂ±Ãâ€ ÃŽÂ± ÃŽÂµÃâ‚¬ÃŽÂ±ÃŽÂ»ÃŽÂ®ÃŽÂ¸ÃŽÂµÃâ€¦ÃÆ’ÃŽÂ·Ãâ€š ÃŽÂºÃŽÂ±ÃŽÂ¹ Stripe Connect setup;', 'answer' => 'ÃŽâ€” Ãâ€žÃŽÂ±Ãâ€¦Ãâ€žÃÅ’Ãâ€žÃŽÂ·Ãâ€žÃŽÂ±, ÃŽÂ· ÃŽÂ´ÃŽÂ¹ÃŽÂµÃÂÃŽÂ¸Ãâ€¦ÃŽÂ½ÃÆ’ÃŽÂ·, Ãâ€žÃŽÂ¿ IBAN ÃŽÂºÃŽÂ±ÃŽÂ¹ Ãâ€žÃŽÂ¿ Stripe Connect setup ÃŽÂ²ÃŽÂ¿ÃŽÂ·ÃŽÂ¸ÃŽÂ¿ÃÂÃŽÂ½ ÃÆ’Ãâ€žÃŽÂ·ÃŽÂ½ Ãâ‚¬ÃÂÃŽÂ¿ÃÆ’Ãâ€žÃŽÂ±ÃÆ’ÃŽÂ¯ÃŽÂ± ÃŽÂ±ÃŽÂ³ÃŽÂ¿ÃÂÃŽÂ±ÃÆ’Ãâ€žÃŽÂ® ÃŽÂºÃŽÂ±ÃŽÂ¹ Ãâ‚¬Ãâ€°ÃŽÂ»ÃŽÂ·Ãâ€žÃŽÂ® ÃŽÂºÃŽÂ±ÃŽÂ¹ ÃŽÂºÃÂÃŽÂ±Ãâ€žÃŽÂ¿ÃÂÃŽÂ½ ÃŽÂºÃŽÂ±ÃŽÂ¸ÃŽÂ±ÃÂÃŽÂ® ÃŽÂºÃŽÂ¬ÃŽÂ¸ÃŽÂµ ÃŽÂ¼ÃŽÂµÃŽÂ»ÃŽÂ»ÃŽÂ¿ÃŽÂ½Ãâ€žÃŽÂ¹ÃŽÂºÃŽÂ® ÃŽÂ±Ãâ‚¬ÃŽÂ¿ÃŽÂ´ÃŽÂ­ÃÆ’ÃŽÂ¼ÃŽÂµÃâ€¦ÃÆ’ÃŽÂ· payout.'],
                             ['question' => 'ÃŽÂ ÃŽÂ¿ÃŽÂ¹ÃŽÂ¿Ãâ€š ÃŽÂ¼Ãâ‚¬ÃŽÂ¿ÃÂÃŽÂµÃŽÂ¯ ÃŽÂ½ÃŽÂ± ÃŽÂºÃŽÂ¬ÃŽÂ½ÃŽÂµÃŽÂ¹ like ÃÆ’ÃŽÂµ ÃŽÂ´ÃŽÂ·ÃŽÂ¼ÃÅ’ÃÆ’ÃŽÂ¹ÃŽÂ¿ collector profile;', 'answer' => 'ÃŽÅ“ÃÅ’ÃŽÂ½ÃŽÂ¿ ÃŽÂµÃŽÂ³ÃŽÂ³ÃŽÂµÃŽÂ³ÃÂÃŽÂ±ÃŽÂ¼ÃŽÂ¼ÃŽÂ­ÃŽÂ½ÃŽÂ¿ÃŽÂ¹ ÃŽÂºÃŽÂ±ÃŽÂ¹ ÃÆ’Ãâ€¦ÃŽÂ½ÃŽÂ´ÃŽÂµÃŽÂ´ÃŽÂµÃŽÂ¼ÃŽÂ­ÃŽÂ½ÃŽÂ¿ÃŽÂ¹ Ãâ€¡ÃÂÃŽÂ®ÃÆ’Ãâ€žÃŽÂµÃâ€š ÃŽÂ¼Ãâ‚¬ÃŽÂ¿ÃÂÃŽÂ¿ÃÂÃŽÂ½ ÃŽÂ½ÃŽÂ± ÃŽÂºÃŽÂ¬ÃŽÂ½ÃŽÂ¿Ãâ€¦ÃŽÂ½ like ÃÆ’ÃŽÂµ ÃŽÂ¬ÃŽÂ»ÃŽÂ»ÃŽÂ¿ ÃŽÂ´ÃŽÂ·ÃŽÂ¼ÃÅ’ÃÆ’ÃŽÂ¹ÃŽÂ¿ Ãâ‚¬ÃÂÃŽÂ¿Ãâ€ ÃŽÂ¯ÃŽÂ» ÃÆ’Ãâ€¦ÃŽÂ»ÃŽÂ»ÃŽÂ­ÃŽÂºÃâ€žÃŽÂ·.'],
                         ],
                     ],
@@ -145,4 +145,3 @@ class CardoraStaticContent
             ];
     }
 }
-

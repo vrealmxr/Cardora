@@ -34,7 +34,7 @@ const COPY = {
     title: 'Terms of Use for the Cardora marketplace',
     description:
       'These terms govern how Cardora operates as a collectibles marketplace, how protected payments and seller releases work, and what buyers and sellers must do regarding listings, shipping, disputes and moderation.',
-    updated: 'Last updated: 22 September 2026',
+    updated: 'Last updated: 27 September 2026',
     intro:
       'These terms apply to the Cardora marketplace operated by VRealm I.K.E. They cover user-to-user sales, official Cardora activities, protected payment flows, shipping, verification, moderation and dispute handling.',
     introSecondary:
@@ -113,7 +113,10 @@ const COPY = {
         icon: 'trust',
         title: '3. Accounts, verification and payout readiness',
         paragraphs: [
-          'Users must provide accurate information and protect their credentials. Cardora may require identity, address, bank, tax, trader or payment-provider verification before enabling selling, protected payouts or other higher-risk marketplace actions.',
+          'Users must provide accurate information and protect their credentials. Cardora uses Didit for identity verification through its configured document, liveness, face-match and device/IP checks. No separate proof of address or IBAN document is currently required for Cardora verification. Stripe and Stripe Connect retain their own onboarding and payment requirements.',
+          'Verification data processing is described in the Privacy Policy and the notice shown before starting. Separate explicit biometric consent is required; accepting these Terms is not sufficient. You may contact Support to discuss alternative review, withdraw consent or request human review of a decision. Features requiring verification may remain unavailable until verification is resolved. A verified badge does not guarantee user conduct or product authenticity.',
+          'Existing verification may be preserved during provider migration. Where reverification is required for an individual account, its Verification Center displays the current requirement. Payment-provider verification remains a separate requirement.',
+          'Verification must be renewed annually, using current information. Each Didit cycle expires one calendar year after its session starts; preserved legacy approvals expire one year after migration. At expiry, verification-dependent access is restricted until a new verification is approved. Old Didit session data is scheduled for deletion as described in the Privacy Policy. Annual verification does not automatically update your profile or shipping details; you remain responsible for keeping them accurate.',
         ],
       },
       {
@@ -184,7 +187,7 @@ const COPY = {
     title: 'Όροι Χρήσης του marketplace Cardora',
     description:
       'Οι παρόντες όροι ρυθμίζουν τον τρόπο λειτουργίας της Cardora ως marketplace συλλεκτικών, τον τρόπο με τον οποίο λειτουργούν οι προστατευμένες πληρωμές και οι αποδεσμεύσεις, καθώς και τις υποχρεώσεις αγοραστών, πωλητών και χρηστών σε θέματα αγγελιών, αποστολών, διαφορών, moderation και ασφάλειας της πλατφόρμας.',
-    updated: 'Τελευταία ενημέρωση: 22 Σεπτεμβρίου 2026',
+    updated: 'Τελευταία ενημέρωση: 27 Σεπτεμβρίου 2026',
     intro:
       'Οι παρόντες Όροι Χρήσης διέπουν τη χρήση του marketplace Cardora που λειτουργεί η VRealm Ι.Κ.Ε. και καλύπτουν τις συναλλαγές μεταξύ χρηστών, τις επίσημες δραστηριότητες της Cardora, τα protected payment flows, τις αποστολές, τα disputes, τις επαληθεύσεις και τους μηχανισμούς ασφάλειας της πλατφόρμας.',
     introSecondary:
@@ -273,7 +276,10 @@ const COPY = {
         icon: 'trust',
         title: '5. Επαλήθευση, traceability trader και ετοιμότητα payout',
         paragraphs: [
-          'Η Cardora μπορεί να απαιτήσει επαλήθευση ταυτότητας, διεύθυνσης, τραπεζικών στοιχείων, φορολογικών στοιχείων, επιχειρηματικών στοιχείων, payment-provider setup ή άλλων πληροφοριών πριν ενεργοποιήσει συγκεκριμένες λειτουργίες, όπως πωλήσεις, λήψη payouts, protected transactions ή χρήση flows αυξημένου ρίσκου.',
+          'Η Cardora χρησιμοποιεί τη Didit για επαλήθευση ταυτότητας μέσω του επιλεγμένου workflow ελέγχου εγγράφου ταυτότητας, ζωντανής παρουσίας, αντιστοίχισης προσώπου και στοιχείων συσκευής/IP. Δεν ζητείται σήμερα ξεχωριστό αποδεικτικό διεύθυνσης ή έγγραφο IBAN για την επαλήθευση Cardora. Οι αυτοτελείς απαιτήσεις Stripe και Stripe Connect για onboarding και πληρωμές εξακολουθούν να ισχύουν.',
+          'Η επεξεργασία προσωπικών δεδομένων διέπεται από την Πολιτική Απορρήτου και την ειδική ενημέρωση πριν την έναρξη. Για τη βιομετρική επαλήθευση ζητείται χωριστή ρητή συγκατάθεση· η αποδοχή των παρόντων όρων δεν αρκεί. Ο χρήστης μπορεί να απευθυνθεί στην υποστήριξη για διαθέσιμη εναλλακτική εξέταση, ανάκληση συγκατάθεσης ή ανθρώπινη επανεξέταση αποτελέσματος. Οι λειτουργίες που απαιτούν επαλήθευση μπορεί να παραμένουν μη διαθέσιμες μέχρι την επίλυση. Η ένδειξη επαλήθευσης δεν εγγυάται τη συμπεριφορά του χρήστη ή την αυθεντικότητα των προϊόντων.',
+          'Κατά τη μετάβαση σε νέο πάροχο μπορούν να διατηρούνται προϋπάρχουσες εγκρίσεις. Εφόσον απαιτείται νέα επαλήθευση συγκεκριμένου λογαριασμού, η απαίτηση εμφανίζεται στο Κέντρο Επαλήθευσής του. Η επαλήθευση του παρόχου πληρωμών παραμένει αυτοτελής.',
+          'Η επαλήθευση ανανεώνεται ετησίως με επίκαιρα στοιχεία. Κάθε κύκλος Didit λήγει ένα ημερολογιακό έτος μετά την έναρξη της συνεδρίας· οι διατηρημένες προϋπάρχουσες εγκρίσεις λήγουν ένα έτος μετά τη μετάβαση. Στη λήξη περιορίζεται η πρόσβαση σε λειτουργίες που απαιτούν επαλήθευση μέχρι να εγκριθεί νέα διαδικασία. Τα δεδομένα της παλιάς συνεδρίας Didit δρομολογούνται για διαγραφή σύμφωνα με την Πολιτική Απορρήτου. Η ετήσια επαλήθευση δεν ενημερώνει αυτόματα το προφίλ ή τη διεύθυνση αποστολής· ο χρήστης εξακολουθεί να ευθύνεται για την ακρίβειά τους.',
           'Αν πωλείς ως trader, η Cardora μπορεί να ζητήσει νομικά στοιχεία επιχείρησης, καταχωρημένη διεύθυνση, Α.Φ.Μ., στοιχεία μητρώου, στοιχεία επικοινωνίας, αντίγραφα αναγνωριστικών εγγράφων και self-certifications σχετικά με τη νομιμότητα και συμμόρφωση των προϊόντων που προσφέρεις.',
           'Πωλητής μπορεί να μην έχει δυνατότητα δημοσίευσης listing, ολοκλήρωσης checkout-backed πώλησης ή λήψης release μέχρι να ολοκληρωθεί επιτυχώς η απαιτούμενη verification διαδικασία και να είναι σε καλή κατάσταση ο connected payout λογαριασμός του.',
         ],

@@ -51,6 +51,7 @@ const SellerDashboardPage = lazy(() => import('@/pages/SellerDashboardPage'))
 const SupportCenterPage = lazy(() => import('@/pages/SupportCenterPage'))
 const TermsPage = lazy(() => import('@/pages/TermsPage'))
 const VerificationPage = lazy(() => import('@/pages/VerificationPage'))
+const MobileVerificationPage = lazy(() => import('@/pages/MobileVerificationPage'))
 
 function RouteFallback() {
   return (
@@ -119,6 +120,7 @@ function AppRoutes() {
       <Route path="rythmiseis-eidopoiiseon" element={<NotificationPreferencesPage />} />
       <Route path="sylloges/:handle" element={<CollectorProfilePage />} />
       <Route path="epalithefsi-logariasmou" element={<VerificationPage />} />
+      <Route path="epalithefsi-kinitou" element={<MobileVerificationPage />} />
       <Route path="dashboard-agorasti" element={<OrdersPage initialTab="buyer" />} />
       <Route path="dashboard-politi" element={<SellerDashboardPage />} />
       <Route path="dashboard-politi/kliroseis" element={<RaffleStudioPage />} />

@@ -1033,8 +1033,8 @@ export function MarketplaceProvider({ children }) {
 
       const defaultMessage =
         locale === 'en'
-          ? 'Complete identity verification, address verification, IBAN verification and Stripe Connect before using the marketplace.'
-          : 'Ολοκλήρωσε επαλήθευση ταυτότητας, διεύθυνσης, IBAN και Stripe Connected Account πριν χρησιμοποιήσεις το marketplace.'
+          ? 'Complete identity verification through Didit and Stripe Connect before using the marketplace.'
+          : 'Ολοκλήρωσε επαλήθευση ταυτότητας μέσω Didit και Stripe Connected Account πριν χρησιμοποιήσεις το marketplace.'
 
       if (mode === 'buy') {
         return (
