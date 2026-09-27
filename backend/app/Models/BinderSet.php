@@ -29,6 +29,7 @@ class BinderSet extends Model
         'card_count',
         'base_total',
         'numbered_total',
+        'image_url',
     ];
 
     protected $casts = [

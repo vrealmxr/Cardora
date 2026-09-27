@@ -53,7 +53,10 @@ class BinderController extends Controller
     {
         $games = BinderGame::query()
             ->where('binder_enabled', true)
-            ->withCount(['sets', 'cards'])
+            ->withCount([
+                'sets' => fn ($query) => $query->where('card_count', '>', 0)->whereNotNull('set_key'),
+                'cards' => fn ($query) => $query->whereNotNull('card_key'),
+            ])
             ->orderBy('category')
             ->orderBy('sort_order')
             ->get()
@@ -79,6 +82,12 @@ class BinderController extends Controller
 
         $sets = BinderSet::query()
             ->where('game_id', $game->id)
+            ->where('card_count', '>', 0)
+            // Older marketplace-catalog sets (source=NULL, no set_key) can
+            // coexist with a v2 canonical set of the identical name and
+            // both be populated -- Binder only ever shows the v2 canonical
+            // side (confirmed: no set holds a mix of v1/v2 cards).
+            ->whereNotNull('set_key')
             ->when($request->filled('search'), function ($query) use ($request) {
                 $query->where('name', 'like', '%' . $request->string('search') . '%');
             })
@@ -91,6 +100,7 @@ class BinderController extends Controller
                 'abbreviation' => $set->abbreviation,
                 'releasedAt' => $set->released_at?->toDateString(),
                 'cardCount' => $set->card_count,
+                'imageUrl' => self::absolutizeImageUrl($set->image_url),
             ]);
 
         return response()->json([

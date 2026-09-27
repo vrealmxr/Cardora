@@ -24,11 +24,20 @@ function RealSetCard({ set, to, locale, cardsLabel }) {
     >
       <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-lg border border-[#f0e6c8] bg-[#fbf6e9] px-3 text-center">
         {releaseDate ? (
-          <span className="absolute right-2 top-2 text-[9px] font-medium uppercase tracking-wide text-slate-400">
+          <span className="absolute right-2 top-2 z-10 rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-400 backdrop-blur-sm">
             {releaseDate}
           </span>
         ) : null}
-        <p className="font-display text-base font-semibold leading-tight text-[#6b4718]">{set.name}</p>
+        {set.imageUrl ? (
+          <img
+            src={set.imageUrl}
+            alt={set.name}
+            loading="lazy"
+            className="h-full w-full object-contain p-3"
+          />
+        ) : (
+          <p className="font-display text-base font-semibold leading-tight text-[#6b4718]">{set.name}</p>
+        )}
       </div>
 
       <p className="mt-2.5 truncate text-xs font-semibold text-ink group-hover:text-[#6b4718]">{set.name}</p>
