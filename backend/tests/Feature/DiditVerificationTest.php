@@ -78,9 +78,41 @@ class DiditVerificationTest extends TestCase
         Http::fake(['*/session/' => Http::response(['session_id' => $id, 'url' => 'https://verify.didit.me/session/secret', 'workflow_id' => config('didit.workflow_id'), 'vendor_data' => (string) $user->id, 'status' => 'Approved'], 201)]);
         $this->postJson('/api/profile/verification/didit', ['consent' => true, 'notice_version' => config('didit.notice_version'), 'vendor_data' => 'another-user'])->assertCreated()->assertJsonPath('data.session_id', $id);
         Http::assertSent(fn ($request) => $request['vendor_data'] === (string) $user->id && $request['workflow_id'] === config('didit.workflow_id'));
+        Http::assertSent(fn ($request) => $request['callback_method'] === 'initiator'
+            && str_ends_with($request['callback'], '/el/epalithefsi-apotelesma'));
         $this->assertFalse($user->fresh()->is_verified_seller);
         $this->assertDatabaseHas('didit_sessions', ['session_id' => $id, 'notice_version' => config('didit.notice_version')]);
         $this->assertNotSame('https://verify.didit.me/session/secret', DiditSession::first()->getRawOriginal('verification_url'));
+    }
+
+    public function test_resuming_updates_provider_callback_without_extending_retention(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $session = $this->createDiditSession($user);
+        $deadline = $session->retention_due_at->toIso8601String();
+        Http::fake(['*/session/' => Http::response([
+            'session_id' => $session->session_id, 'url' => $session->verification_url,
+            'workflow_id' => config('didit.workflow_id'), 'vendor_data' => (string) $user->id,
+            'status' => 'In Progress',
+        ], 201)]);
+        $this->postJson('/api/profile/verification/didit', ['consent' => true, 'notice_version' => config('didit.notice_version')])
+            ->assertCreated()->assertJsonPath('data.session_id', $session->session_id);
+        Http::assertSent(fn ($request) => $request['callback_method'] === 'initiator'
+            && str_ends_with($request['callback'], '/el/epalithefsi-apotelesma'));
+        $this->assertSame($deadline, $session->fresh()->retention_due_at->toIso8601String());
+        $this->assertDatabaseCount('didit_sessions', 1);
+        $this->assertFalse($user->fresh()->is_verified_seller);
+    }
+
+    public function test_review_session_does_not_create_another_session(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $session = $this->createDiditSession($user);
+        $session->update(['status' => 'In Review']);
+        $this->postJson('/api/profile/verification/didit', ['consent' => true, 'notice_version' => config('didit.notice_version')])->assertConflict();
+        Http::assertNothingSent();
     }
 
     public function test_signed_decisions_are_idempotent_and_stale_events_do_not_revoke(): void

@@ -1,4 +1,5 @@
 import { Suspense, lazy } from 'react'
+const VerificationResultPage = lazy(() => import('@/pages/VerificationResultPage'))
 import { Navigate, Route, Routes } from 'react-router-dom'
 import LocaleRedirect from '@/routes/LocaleRedirect'
 
@@ -121,6 +122,7 @@ function AppRoutes() {
       <Route path="sylloges/:handle" element={<CollectorProfilePage />} />
       <Route path="epalithefsi-logariasmou" element={<VerificationPage />} />
       <Route path="epalithefsi-kinitou" element={<MobileVerificationPage />} />
+      <Route path="epalithefsi-apotelesma" element={<VerificationResultPage />} />
       <Route path="dashboard-agorasti" element={<OrdersPage initialTab="buyer" />} />
       <Route path="dashboard-politi" element={<SellerDashboardPage />} />
       <Route path="dashboard-politi/kliroseis" element={<RaffleStudioPage />} />

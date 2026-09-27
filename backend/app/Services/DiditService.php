@@ -43,14 +43,14 @@ class DiditService
             $verification = IdentityVerification::firstOrCreate(['user_id' => $user->id]);
             abort_if($verification->status === 'Approved', 409, 'Ο λογαριασμός είναι ήδη επαληθευμένος. / Already verified.');
             $session = DiditSession::where('session_id', $verification->current_session_id)->first();
-            if ($session && $session->created_at->gt(now()->subDays(7)) && in_array($session->status, ['Not Started', 'In Progress', 'Awaiting User', 'Resubmitted', 'In Review'], true)) {
-                return ['session_id' => $session->session_id, 'url' => $session->verification_url];
-            }
+            abort_if($session?->status === 'In Review', 409, 'Η επαλήθευση εξετάζεται. / Verification is under review.');
+            // Ask Didit to resume unfinished sessions so their callback is updated too.
             try {
                 $response = $this->client()->post(config('didit.base_url').'/session/', [
                 'workflow_id' => config('didit.workflow_id'),
                 'vendor_data' => (string) $user->id,
-                'callback' => rtrim(config('services.frontend.url', config('app.url')), '/').'/'.$locale.'/epalithefsi-logariasmou',
+                'callback' => rtrim(config('services.frontend.url', config('app.url')), '/').'/'.$locale.'/epalithefsi-apotelesma',
+                // A QR handoff finishes on the phone, but only the initiating browser returns.
                 'callback_method' => 'initiator',
                 'language' => $locale,
                 ]);

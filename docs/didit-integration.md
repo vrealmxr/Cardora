@@ -16,6 +16,16 @@ Didit console scope: VRealm, My Application / Live, application `af6e0c45-ca9d-4
 
 ## Enforcement
 
+### Hosted mobile-only redirect (2026-09-27 follow-up)
+
+The current frontend uses a full-page redirect to the server-issued `https://verify.didit.me/…` URL, after the existing notice and explicit consent. The embedded SDK and Cardora-generated QR have been removed. Didit handles the QR/device handoff. A read-only check of published workflow v4 (`e862c342-7bde-4373-864a-b0dc3d2540ad`) confirmed `is_desktop_allowed=false`; no verification checks or workflow settings were changed by this follow-up.
+
+Session creation sends `callback_method=initiator` and callback `https://cardora.gr/{locale}/epalithefsi-apotelesma`. After a desktop-to-phone QR handoff only the original device returns to Cardora; the phone stays on Didit's completion screen. If verification starts on a phone, that phone is the initiator and returns to Cardora. Unfinished sessions are resumed through the create API so Didit updates their callback, without extending their original Cardora retention deadline. In-review sessions cannot start another attempt. Old Cardora mobile QR links remain supported as a redirect to their existing Didit URL.
+
+The return page ignores the untrusted callback `status`, compares the returned session identifier to authenticated backend state, refreshes decisions server-side and displays success, failure, pending review or further-action messages. It removes callback query parameters from browser history. A signed-out visitor is told to return to the original device, without a login prompt. Existing Cardora authentication behavior is unchanged. The exact Didit-hosted mobile completion copy and a full real cross-device verification still require a consenting test participant; no custom Didit-hosted text was configured.
+
+Follow-up validation: 16 backend tests / 97 assertions, two Node redirect/result tests, scoped eslint and production build passed. Local browser QA checked pending, success, failure, mismatched sessions and ignoring a forged URL status. Existing dependency audit warnings were not addressed with a broad dependency upgrade in this scoped change.
+
 `identity_verifications.expires_at` controls marketplace eligibility. Expiry is checked on access, session creation, reconciliation, and by `didit:expire` every minute. At the deadline the account becomes `Kyc Expired`, its badge is revoked, and a fresh session is required. Stripe state is never changed. Old webhook deliveries and API reconciliation cannot extend the deadline or approve an expired cycle.
 
 Each session has an immutable `retention_due_at`. `didit:expire --delete` runs hourly, targeting only due sessions recorded by Cardora. It sends `DELETE /v3/session/{session_id}/delete/` with `retain_face_embeddings: false`. Failures are retried no more often than hourly, logged without provider payloads, displayed in the admin retention list, and produce a failed command exit. A 200 response must have an accepted non-retention outcome; 204 is supported for older deployments. A 404 is recorded as `session_already_absent`, not as proof of global privacy erasure.
