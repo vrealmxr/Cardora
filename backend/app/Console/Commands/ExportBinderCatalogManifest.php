@@ -47,48 +47,77 @@ class ExportBinderCatalogManifest extends Command
         ]);
 
         $count = 0;
+        $lastId = 0;
+        $pageSize = 5000;
+        $categoryFilter = $this->option('category');
 
-        DB::table('binder_card_variants as v')
-            ->join('binder_cards as c', 'c.id', '=', 'v.card_id')
-            ->join('binder_sets as s', 's.id', '=', 'c.set_id')
-            ->join('binder_games as g', 'g.id', '=', 'c.game_id')
-            ->where('g.binder_enabled', true)
-            ->whereNotNull('c.card_key')
-            ->when($this->option('category'), fn ($q, $cat) => $q->where('g.category', $cat))
-            ->select([
-                'v.id',
-                'g.slug as game_slug', 'g.name as game_name', 'g.category as game_category',
-                's.set_key', 's.name as set_name', 's.set_code', 's.released_at as set_released_at',
-                'c.card_key', 'c.name as card_name', 'c.number as card_number',
-                'c.rarity', 'c.card_type', 'c.gameplay_data',
-                'v.variant_key', 'v.variant_name', 'v.variant_type', 'v.artist',
-                'c.image_url as card_image_url', 'v.image_small', 'v.image_large',
-            ])
-            ->orderBy('v.id')
-            ->chunkById(2000, function ($rows) use ($handle, &$count) {
-                foreach ($rows as $row) {
-                    $imageUrl = self::absolutizeImageUrl($row->image_large ?: $row->image_small ?: $row->card_image_url);
-                    $team = null;
-                    if ($row->gameplay_data) {
-                        $decoded = json_decode($row->gameplay_data, true);
-                        $team = $decoded['data']['team'] ?? null;
-                    }
+        // Laravel's fluent builder always emits joins in FROM-clause order
+        // but can't inject the STRAIGHT_JOIN hint -- and it turns out to
+        // matter a lot here: without it, MySQL's optimizer drives this
+        // join from binder_games (tiny, ~10 rows) outward instead of using
+        // binder_card_variants' primary key for the WHERE id > ?  ORDER BY
+        // id LIMIT page, so it was materializing and filesorting nearly
+        // the *entire* ~1.6M-row join on every single page (confirmed:
+        // 6.5s for one 2000-row page; identical query with STRAIGHT_JOIN
+        // added, 0.017s -- a ~380x difference). Raw SQL + manual
+        // keyset pagination it is.
+        while (true) {
+            $bindings = [$lastId];
+            $categorySql = '';
+            if ($categoryFilter) {
+                $categorySql = 'AND g.category = ?';
+                $bindings[] = $categoryFilter;
+            }
+            $bindings[] = $pageSize;
 
-                    fputcsv($handle, [
-                        $row->game_slug, $row->game_name, $row->game_category,
-                        $row->set_key, $row->set_name, $row->set_code, $row->set_released_at,
-                        $row->card_key, $row->card_name, $row->card_number, $row->rarity, $row->card_type, $team,
-                        $row->variant_key, $row->variant_name, $row->variant_type, $row->artist,
-                        $imageUrl, $imageUrl ? '1' : '0',
-                    ]);
+            $rows = DB::select("
+                SELECT STRAIGHT_JOIN
+                    v.id,
+                    g.slug as game_slug, g.name as game_name, g.category as game_category,
+                    s.set_key, s.name as set_name, s.set_code, s.released_at as set_released_at,
+                    c.card_key, c.name as card_name, c.number as card_number,
+                    c.rarity, c.card_type, c.gameplay_data,
+                    v.variant_key, v.variant_name, v.variant_type, v.artist,
+                    c.image_url as card_image_url, v.image_small, v.image_large
+                FROM binder_card_variants v
+                JOIN binder_cards c ON c.id = v.card_id
+                JOIN binder_sets s ON s.id = c.set_id
+                JOIN binder_games g ON g.id = c.game_id
+                WHERE g.binder_enabled = 1 AND c.card_key IS NOT NULL AND v.id > ? {$categorySql}
+                ORDER BY v.id
+                LIMIT ?
+            ", $bindings);
 
-                    $count++;
+            if (! $rows) {
+                break;
+            }
+
+            foreach ($rows as $row) {
+                $imageUrl = self::absolutizeImageUrl($row->image_large ?: $row->image_small ?: $row->card_image_url);
+                $team = null;
+                if ($row->gameplay_data) {
+                    $decoded = json_decode($row->gameplay_data, true);
+                    $team = $decoded['data']['team'] ?? null;
                 }
 
-                if ($count % 100000 < 2000) {
-                    $this->info("... {$count} rows written");
-                }
-            }, 'v.id', 'id');
+                fputcsv($handle, [
+                    $row->game_slug, $row->game_name, $row->game_category,
+                    $row->set_key, $row->set_name, $row->set_code, $row->set_released_at,
+                    $row->card_key, $row->card_name, $row->card_number, $row->rarity, $row->card_type, $team,
+                    $row->variant_key, $row->variant_name, $row->variant_type, $row->artist,
+                    $imageUrl, $imageUrl ? '1' : '0',
+                ]);
+
+                $count++;
+                $lastId = $row->id;
+            }
+
+            $this->info("... {$count} rows written");
+
+            if (count($rows) < $pageSize) {
+                break;
+            }
+        }
 
         fclose($handle);
 
