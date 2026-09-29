@@ -103,6 +103,9 @@ function BlogPage() {
               <Badge tone="info">{copy.badgeSecondary}</Badge>
             </div>
             <h1 className="mt-5 font-display text-5xl text-white sm:text-6xl">{seo?.h1 || copy.title}</h1>
+            {seo?.h2 ? (
+              <h2 className="mt-2 font-display text-xl text-gold-100 sm:text-2xl">{seo.h2}</h2>
+            ) : null}
             <p className="mt-4 max-w-3xl text-sm leading-7 text-mist">{copy.description}</p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Button as={Link} to="/dimiourgia-aggelias">

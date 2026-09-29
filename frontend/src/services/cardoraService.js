@@ -5,7 +5,13 @@ const unwrapData = (payload) => payload?.data ?? payload ?? null
 export const cardoraService = {
   getBootstrap: async () => unwrapData(await apiClient.get('/bootstrap')),
 
-  getSeoSettings: async () => unwrapData(await apiClient.get('/seo')),
+  // The locale query param exists purely so each locale gets its own browser
+  // HTTP-cache entry keyed by URL -- relying on `Vary: X-Locale` alone let a
+  // stale cached response for one locale get reused after a client-side
+  // language switch in the same tab (fixed on reload only, since that forces
+  // revalidation). The server still derives the actual locale from the
+  // X-Locale header via SetLocale middleware; this param is not read there.
+  getSeoSettings: async (locale) => unwrapData(await apiClient.get(locale ? `/seo?locale=${locale}` : '/seo')),
 
   register: async (payload) => {
     const response = await apiClient.post('/auth/register', payload)

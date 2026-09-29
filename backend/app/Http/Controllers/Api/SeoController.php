@@ -22,13 +22,20 @@ class SeoController extends Controller
                     'metaTitle' => $setting->meta_title,
                     'metaDescription' => $setting->meta_description,
                     'h1' => $setting->h1,
+                    'h2' => $setting->h2,
                 ],
             ]);
 
         return response()->json(
             ['data' => $settings],
             200,
-            ['Cache-Control' => 'public, max-age=30'],
+            // Vary is required here: the response depends on the X-Locale
+            // request header (set by SetLocale middleware), not the URL --
+            // without it, any cache (browser or CDN) that only keys on the
+            // URL will happily serve one locale's response to the other.
+            // Confirmed live: the browser was reusing a cached Greek
+            // response for an English page for up to 30s.
+            ['Cache-Control' => 'public, max-age=30', 'Vary' => 'X-Locale'],
             JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
         );
     }

@@ -101,6 +101,9 @@ function AboutPage() {
           <div>
             <Badge tone="gold">{copy.badge}</Badge>
             <h1 className="mt-6 font-display text-6xl text-ink">{seo?.h1 || copy.title}</h1>
+            {seo?.h2 ? (
+              <h2 className="mt-3 font-display text-2xl text-mist">{seo.h2}</h2>
+            ) : null}
             <p className="mt-5 max-w-3xl text-lg leading-8 text-mist">{copy.intro}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button as={Link} to="/eggrafi" size="lg">

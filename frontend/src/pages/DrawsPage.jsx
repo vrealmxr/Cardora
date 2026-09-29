@@ -763,6 +763,9 @@ function DrawsPage({ studioMode = false }) {
           <Badge tone="warning">{copy.noAutoRelease}</Badge>
         </div>
         <h1 className="mt-4 font-display text-3xl text-slate-900 sm:text-5xl">{pageTitle}</h1>
+        {!studioMode && seo?.h2 ? (
+          <h2 className="mt-2 font-display text-xl text-mist sm:text-2xl">{seo.h2}</h2>
+        ) : null}
         <p className="mt-3 max-w-4xl text-sm leading-7 text-mist">{pageDescription}</p>
         <p className="mt-4 rounded-xl border border-[#d4b074] bg-[#f6ead0] px-4 py-3 text-sm text-gold-700">
           {copy.connectedRequired}

@@ -12,5 +12,6 @@ class PageSeoSetting extends Model
         'meta_title',
         'meta_description',
         'h1',
+        'h2',
     ];
 }

@@ -201,6 +201,9 @@ function CategoryPage({ categorySlug }) {
             <h1 className="mt-3.5 font-display text-4xl text-white md:text-5xl">
               {seo?.h1 || category.name}
             </h1>
+            {seo?.h2 ? (
+              <h2 className="mt-2 font-display text-xl text-gold-100 md:text-2xl">{seo.h2}</h2>
+            ) : null}
             <p className="mt-3.5 max-w-3xl text-base leading-7 text-mist">{category.description}</p>
             <div className="mt-5 flex flex-wrap gap-2">
               {(category.spotlightFilters ?? []).map((item) => (

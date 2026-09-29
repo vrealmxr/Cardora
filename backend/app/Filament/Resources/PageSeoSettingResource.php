@@ -61,6 +61,10 @@ class PageSeoSettingResource extends Resource
                             ->label('Page heading (H1)')
                             ->maxLength(255)
                             ->columnSpanFull(),
+                        TextInput::make('h2')
+                            ->label('Subheading (H2)')
+                            ->maxLength(255)
+                            ->columnSpanFull(),
                     ]),
             ]);
     }

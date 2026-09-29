@@ -17,7 +17,8 @@ import { useMarketplace } from '@/hooks/useMarketplace'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 function HomePage() {
   const { locale } = useI18n()
-  const seoH1 = useSeo('home')?.h1
+  const seo = useSeo('home')
+  const seoH1 = seo?.h1
   const {
     categories,
     myDrawParticipations,
@@ -341,6 +342,9 @@ function HomePage() {
               <h1 className="mt-4 max-w-3xl font-display text-3xl leading-[1.06] text-ink sm:text-4xl md:text-5xl xl:text-6xl">
                 {seoH1 || copy.heroTitle}
               </h1>
+              {seo?.h2 ? (
+                <h2 className="mt-2 font-display text-lg text-mist sm:text-xl">{seo.h2}</h2>
+              ) : null}
               <p className="mt-3 max-w-2xl text-sm leading-6 text-mist sm:mt-5 sm:text-base sm:leading-7">
                 {copy.heroDescription}
               </p>

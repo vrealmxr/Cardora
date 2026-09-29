@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { translations } from '@/i18n/translations'
 import {
@@ -57,7 +57,17 @@ export function I18nProvider({ children }) {
     window.localStorage.setItem(STORAGE_KEY, locale)
   }, [locale])
 
-  useEffect(() => {
+  // Layout effect (not a regular effect): this sets the generic per-locale
+  // default title/meta *before* any page's <PageSeo> override effect runs.
+  // Passive effects fire child-first then parent-last within a commit, so a
+  // plain useEffect here would always win the race and stomp PageSeo's
+  // title whenever the target locale's SEO data was already cached (no
+  // async fetch gap left for PageSeo to re-apply itself afterwards) --
+  // exactly the "toggling language sometimes leaves the wrong title/H1/H2
+  // until a hard reload" bug reported live on cardora.gr 2026-09-29.
+  // Layout effects always run before passive effects across the whole
+  // tree, so this default reliably loses to PageSeo's override either way.
+  useLayoutEffect(() => {
     const seo = SEO_COPY[locale] ?? SEO_COPY.el
 
     document.title = seo.title

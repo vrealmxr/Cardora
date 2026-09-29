@@ -14,7 +14,7 @@ export function SeoProvider({ children }) {
     let cancelled = false
 
     cardoraService
-      .getSeoSettings()
+      .getSeoSettings(locale)
       .then((data) => {
         if (!cancelled && data) {
           setSettingsByLocale((prev) => ({ ...prev, [locale]: data }))
