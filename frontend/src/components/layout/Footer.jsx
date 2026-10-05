@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import LanguageToggle from '@/components/ui/LanguageToggle'
+import PartnerLogos from '@/components/trust/PartnerLogos'
 import StripeTransparencyCard from '@/components/trust/StripeTransparencyCard'
 import { footerUsefulLinks, mainNavigation } from '@/data/siteNavigation'
 import { useMarketplace } from '@/hooks/useMarketplace'
@@ -104,7 +105,9 @@ function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-4 border-t border-[#ecdcb9] pt-5 text-sm text-mist md:flex-row md:items-center md:justify-between">
+        <PartnerLogos className="mt-10 justify-center border-t border-[#ecdcb9] pt-6 md:justify-start" />
+
+        <div className="mt-6 flex flex-col gap-4 border-t border-[#ecdcb9] pt-5 text-sm text-mist md:flex-row md:items-center md:justify-between">
           <p>{t('footer.copyright')}</p>
           <div className="flex flex-wrap gap-4">
             <a href="https://www.instagram.com/cardora.gr" target="_blank" rel="noreferrer" className="transition hover:text-gold-100">

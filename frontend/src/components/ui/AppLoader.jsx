@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import PartnerLogos from '@/components/trust/PartnerLogos'
 import { useI18n } from '@/hooks/useI18n'
 import { usePageLoader } from '@/hooks/usePageLoader'
 
@@ -116,7 +117,7 @@ function AppLoader() {
 
   return (
     <div
-      className={`pointer-events-auto fixed inset-0 z-[140] transition-opacity duration-500 ${
+      className={`pointer-events-auto fixed inset-0 z-[140] overflow-y-auto transition-opacity duration-500 ${
         isLoading ? 'opacity-100' : 'opacity-0'
       }`}
       aria-hidden={!isLoading}
@@ -182,6 +183,10 @@ function AppLoader() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="relative mt-8 border-t border-[#eadab7] pt-5">
+            <PartnerLogos size="sm" className="justify-center" />
           </div>
         </div>
       </div>
