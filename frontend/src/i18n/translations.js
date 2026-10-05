@@ -57,6 +57,7 @@ export const translations = {
       prohibitedItems:
         '\u0391\u03c0\u03b1\u03b3\u03bf\u03c1\u03b5\u03c5\u03bc\u03ad\u03bd\u03b1 \u0391\u03bd\u03c4\u03b9\u03ba\u03b5\u03af\u03bc\u03b5\u03bd\u03b1',
       cardoraDraws: 'Trades',
+      tutorials: 'Tutorials',
       collectorsBlog: 'Blog \u03c3\u03c5\u03bb\u03bb\u03b5\u03ba\u03c4\u03ce\u03bd',
       cardsCategory: 'Pokemon, Yu-Gi-Oh!, Magic, One Piece',
       figuresCategory: 'Funko Pop, Hot Toys, anime figures',
@@ -133,6 +134,7 @@ export const translations = {
       refundsDisputes: 'Refunds & Disputes',
       prohibitedItems: 'Prohibited Items',
       cardoraDraws: 'Trades',
+      tutorials: 'Tutorials',
       collectorsBlog: 'Collectors blog',
       cardsCategory: 'Pokemon, Yu-Gi-Oh!, Magic, One Piece',
       figuresCategory: 'Funko Pop, Hot Toys, anime figures',

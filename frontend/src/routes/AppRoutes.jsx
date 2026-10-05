@@ -51,6 +51,8 @@ const SearchResultsPage = lazy(() => import('@/pages/SearchResultsPage'))
 const SellerDashboardPage = lazy(() => import('@/pages/SellerDashboardPage'))
 const SupportCenterPage = lazy(() => import('@/pages/SupportCenterPage'))
 const TermsPage = lazy(() => import('@/pages/TermsPage'))
+const TutorialsPage = lazy(() => import('@/pages/TutorialsPage'))
+const TutorialPage = lazy(() => import('@/pages/TutorialPage'))
 const VerificationPage = lazy(() => import('@/pages/VerificationPage'))
 const MobileVerificationPage = lazy(() => import('@/pages/MobileVerificationPage'))
 
@@ -138,6 +140,8 @@ function AppRoutes() {
       <Route path="minymata" element={<MessagesPage />} />
       <Route path="kentro-ypostiriksis" element={<SupportCenterPage />} />
       <Route path="faq" element={<FaqPage />} />
+      <Route path="tutorials" element={<TutorialsPage />} />
+      <Route path="tutorials/:slug" element={<TutorialPage />} />
       <Route
         path="cardora-pro"
         element={<ComingSoonPage titleEl="Η Cardora PRO έρχεται σύντομα." titleEn="Cardora PRO is coming soon." />}

@@ -20,6 +20,7 @@ export const footerUsefulLinks = [
   { key: 'prohibitedItems', href: '/apagorevmena-antikeimena' },
   { key: 'cardoraDraws', href: '/kliroseis' },
   { key: 'collectorsBlog', href: '/blog' },
+  { key: 'tutorials', href: '/tutorials' },
   { key: 'supportCenter', href: '/kentro-ypostiriksis' },
   { key: 'faq', href: '/faq' },
   { key: 'contact', href: '/epikoinonia' },
