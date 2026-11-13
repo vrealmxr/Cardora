@@ -25,6 +25,10 @@ class RouteServiceProvider extends ServiceProvider
     public function boot(): void
     {
         RateLimiter::for('api', function (Request $request) {
+            // Signed public renderer reads retain the guest limit per visitor, not per shared Worker IP.
+            if ($visitor = \App\Services\PublicRenderSignature::verifiedVisitor($request)) {
+                return Limit::perMinute(90)->by('public-render:' . $visitor);
+            }
             if ($request->user()) {
                 return Limit::perMinute(180)->by('user:' . $request->user()->getAuthIdentifier());
             }

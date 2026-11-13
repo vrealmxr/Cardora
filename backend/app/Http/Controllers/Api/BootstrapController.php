@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\MarketplaceBootstrapService;
+use App\Services\PublicPageDataService;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -25,10 +26,10 @@ class BootstrapController extends Controller
         ];
 
         try {
-            $payload = $bootstrapService->build(
-                $this->resolveAuthUser($request),
-                app()->getLocale()
-            );
+            $user = $this->resolveAuthUser($request);
+            $payload = $user
+                ? $bootstrapService->build($user, app()->getLocale())
+                : app(PublicPageDataService::class)->snapshot(app()->getLocale());
 
             return response()->json(
                 ['data' => $payload],

@@ -325,3 +325,5 @@ Route::middleware(['auth:sanctum', 'set.locale'])->group(function (): void {
         Route::get('/price', [EbayPriceController::class, 'show'])->middleware('throttle:30,1');
     });
 });
+
+require __DIR__.'/public_pages_api.php';
