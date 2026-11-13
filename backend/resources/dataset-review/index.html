@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dataset Review · Cardora</title>
+  <link rel="stylesheet" href="/admin/dataset-review/review.css">
+  <script defer src="/admin/dataset-review/review.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6-6 6 6-6 12z"/><path d="M6 9h12M9 9l3 12M15 9l-3 12"/></svg>CARDORA</div>
+    <span class="badge">Διαχείριση admins</span>
+  </header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">ΑΠΟ ΤΟ SCAN ΣΤΟ DATASET</p><h1>Dataset Review</h1><p>Έλεγξε τις εικόνες. Διόρθωσε τα στοιχεία. Κράτησε μόνο όσα τεκμηριώνονται.</p></div>
+      <button id="export" class="secondary" disabled>Εξαγωγή εγκεκριμένων</button>
+    </section>
+    <div id="notice" role="status" aria-live="polite">Σύνδεση με την τοπική συλλογή…</div>
+    <section class="stats" aria-label="Σύνοψη συλλογής">
+      <div><strong id="count-all">—</strong><span>Συνολικά scans</span></div>
+      <div><strong id="count-pending">—</strong><span>Προς έλεγχο</span></div>
+      <div><strong id="count-approved">—</strong><span>Ελεγμένα στοιχεία</span></div>
+      <div><strong id="count-ready">—</strong><span>Έτοιμα για export</span></div>
+    </section>
+    <div class="workspace">
+      <aside class="queue panel">
+        <div class="section-title"><h2>Συλλογή</h2><button id="refresh" class="quiet" title="Ανανέωση συλλογής">Ανανέωση</button></div>
+        <label for="search">Αναζήτηση</label><input id="search" type="search" maxlength="200" placeholder="Όνομα, set, αριθμός ή ID">
+        <label for="filter">Κατάσταση</label>
+        <select id="filter"><option value="pending">Προς έλεγχο</option><option value="all">Όλα</option><option value="approved">Ελεγμένα στοιχεία</option><option value="ready">Έτοιμα για export</option><option value="rejected">Απορριφθέντα</option></select>
+        <p id="list-summary" class="muted"></p>
+        <div id="scan-list"></div>
+        <div class="pagination"><button id="prev" class="quiet">Πίσω</button><span id="page"></span><button id="next" class="quiet">Επόμενα</button></div>
+      </aside>
+      <section id="empty" class="panel empty"><h2>Επίλεξε ένα scan</h2><p>Οι φωτογραφίες και τα στοιχεία ελέγχου θα εμφανιστούν εδώ.</p></section>
+      <section id="visual" class="panel" hidden>
+        <div class="section-title"><h2>Πρωτότυπη λήψη</h2><span id="record-status" class="badge"></span></div>
+        <p id="scan-meta" class="muted"></p>
+        <div id="photos" class="photos"></div>
+        <p class="muted">Πάτησε μια φωτογραφία για μεγέθυνση. Οι αποθηκευμένες λήψεις περιλαμβάνουν και το φόντο.</p>
+        <section class="prediction"><h3>Πρόβλεψη μοντέλου</h3><p class="muted">Αναφορά για σύγκριση · δεν αποτελεί επιβεβαιωμένη ετικέτα.</p><dl id="prediction"></dl></section>
+        <details><summary>Έκδοση μοντέλου &amp; τελευταία αξιολόγηση</summary><pre id="provenance"></pre></details>
+      </section>
+      <section id="editor" class="panel" hidden>
+        <h2>Επιβεβαιωμένα στοιχεία</h2>
+        <p class="muted">Τα αρχικά στοιχεία προέρχονται από την πρόβλεψη. Διόρθωσέ τα πριν εγκρίνεις.</p>
+        <form id="review-form">
+          <label for="category">Κατηγορία *</label><select id="category" name="category" required></select>
+          <label for="name">Όνομα κάρτας / παίκτη *</label><input id="name" name="name" maxlength="300" required>
+          <label for="set_name">Set / έκδοση κυκλοφορίας *</label><input id="set_name" name="set_name" maxlength="300" required>
+          <div class="fields"><div><label for="collector_number">Πλήρης αριθμός κάρτας *</label><input id="collector_number" name="collector_number" maxlength="300" required></div><div><label for="language">Γλώσσα</label><input id="language" name="language" maxlength="300"></div></div>
+          <label for="parallel">Parallel / παραλλαγή</label><input id="parallel" name="parallel" maxlength="300" placeholder="Κενό αν δεν επιβεβαιώνεται">
+          <div class="fields"><div><label for="finish">Finish</label><input id="finish" name="finish" maxlength="300" placeholder="π.χ. foil"></div><div><label for="serial_number">Serial number</label><input id="serial_number" name="serial_number" maxlength="300" placeholder="π.χ. 71/99"></div></div>
+          <p class="hint">Άγνωστο parallel ή finish παραμένει κενό. Μην το συμπεραίνεις μόνο από το serial.</p>
+          <label for="reviewer">Ψευδώνυμο ελεγκτή *</label><input id="reviewer" name="reviewer" maxlength="120" required autocomplete="off" placeholder="π.χ. reviewer-1">
+          <label for="evidence">Τεκμηρίωση / λόγος απόρριψης *</label><textarea id="evidence" name="evidence" maxlength="1500" rows="3" required placeholder="Τι διάβασες στην εικόνα; Ποια πηγή επιβεβαιώνει το set και την παραλλαγή;"></textarea>
+          <label class="check"><input id="verified" type="checkbox">Έλεγξα τα στοιχεία στις εικόνες ή σε αξιόπιστη πηγή.</label>
+          <div class="actions"><button id="approve" type="submit">Αποθήκευση &amp; έγκριση</button><button id="reject" type="button" class="danger">Απόρριψη</button></div>
+        </form>
+        <section class="usage">
+          <h3>Χρήση στο dataset</h3><p id="usage-status" class="muted"></p>
+          <details id="usage-details"><summary>Καταγραφή ολοκληρωμένου ελέγχου χρήσης</summary>
+            <p class="muted">Η έγκριση των στοιχείων δεν αρκεί. Κατέγραψε μόνο έλεγχο δικαιωμάτων και ορατού περιεχομένου που έχει ήδη ολοκληρωθεί.</p>
+            <label for="basis">Τεκμηρίωση δικαιώματος χρήσης</label><textarea id="basis" maxlength="1500" rows="3" placeholder="Πηγή / άδεια χρήσης και έλεγχος ορατού φόντου"></textarea>
+            <label><input type="checkbox" id="card-only-verified"> Έλεγξα όλες τις εικόνες: περιέχουν μόνο την κάρτα, χωρίς φόντο ή προσωπικά στοιχεία.</label>
+            <button id="clear-usage" class="secondary">Καταγραφή έγκρισης χρήσης</button>
+          </details>
+          <p class="hint">Αλλαγή ετικετών ακυρώνει την έγκριση χρήσης για επόμενα exports. Αν έχεις ήδη κατεβάσει αντίγραφα, πρέπει να τα ενημερώσεις ή να τα διαγράψεις χωριστά.</p>
+        </section>
+      </section>
+    </div>
+    <footer id="storage"></footer>
+  </main>
+  <dialog id="zoom"><div class="section-title"><h2 id="zoom-title">Φωτογραφία</h2><button id="close-zoom" class="secondary">Κλείσιμο</button></div><p class="muted">Κάνε scroll για να ελέγξεις τη λήψη στην πλήρη ανάλυση.</p><div class="zoom-scroll"><img id="zoom-image" alt=""></div></dialog>
+  <dialog id="export-dialog"><h2>Εξαγωγή ελεγμένου corpus</h2><p>Θα εξαχθούν όλα τα scans με εγκεκριμένα στοιχεία και έγκριση χρήσης, ανεξάρτητα από το φίλτρο της λίστας.</p><p>Το export δεν ξεκινά training. Απαιτεί ακόμη διαχωρισμό train / validation / test και έλεγχο διαρροής από το υπάρχον benchmark.</p><div class="actions"><button id="confirm-export">Δημιουργία export</button><button id="cancel-export" class="secondary">Άκυρο</button></div></dialog>
+</body>
+</html>

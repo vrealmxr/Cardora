@@ -1,5 +1,7 @@
 <?php
 
+require __DIR__.'/card_scans_api.php';
+
 use App\Http\Controllers\Api\AuctionBidController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AdminOrderPaymentController;

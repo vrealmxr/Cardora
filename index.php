@@ -106,7 +106,7 @@ if (str_starts_with($normalizedPath, '/index.php/')) {
     $normalizedPath = '/' . ltrim(substr($normalizedPath, strlen('/index.php/')), '/');
 }
 
-if (preg_match('#^/(api|sanctum|admin|livewire)(/|$)#', $normalizedPath) === 1) {
+if (preg_match('#^/(api|sanctum|admin|livewire|scanner)(/|$)#', $normalizedPath) === 1) {
     $_SERVER['REQUEST_URI'] = $normalizedPath . ((isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING'] !== '') ? ('?' . $_SERVER['QUERY_STRING']) : '');
     $_SERVER['SCRIPT_NAME'] = '/backend/public/index.php';
     $_SERVER['PHP_SELF'] = '/backend/public/index.php';
