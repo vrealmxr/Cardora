@@ -234,6 +234,9 @@ export const cardoraService = {
   // AI Scanner usage (the recognition itself lives elsewhere — this just meters it)
   getScannerUsage: async () => unwrapData(await apiClient.get('/scanner/usage')),
   recordScannerUsage: async () => unwrapData(await apiClient.post('/scanner/usage', {})),
+  // Market price estimate from live eBay listings (backend: EbayPriceService)
+  getScannerPrice: async (query) =>
+    unwrapData(await apiClient.get(`/scanner/price?q=${encodeURIComponent(query)}`)),
 
   // Binder PRO extras
   fetchBinderCardPriceHistory: async (cardId) =>

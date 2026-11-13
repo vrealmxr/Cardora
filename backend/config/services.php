@@ -57,6 +57,34 @@ return [
         'pro_trial_days' => (int) env('STRIPE_PRO_TRIAL_DAYS', 7),
     ],
 
+    /*
+    | eBay Browse API — market price estimates for the AI Scanner.
+    | EBAY_ENVIRONMENT=sandbox|production picks the keyset and hosts.
+    */
+    'ebay' => [
+        'enabled' => (bool) env('EBAY_API_ENABLED', false),
+        'environment' => env('EBAY_ENVIRONMENT', 'sandbox'),
+        'client_id' => env('EBAY_CLIENT_ID'),
+        'client_secret' => env('EBAY_CLIENT_SECRET'),
+        'dev_id' => env('EBAY_DEV_ID'),
+        'marketplace_id' => env('EBAY_MARKETPLACE_ID', 'EBAY_DE'),
+        'currency' => env('EBAY_CURRENCY', 'EUR'),
+        'scope' => env('EBAY_OAUTH_SCOPE', 'https://api.ebay.com/oauth/api_scope'),
+        // Comma-separated eBay category ids applied to every search unless overridden.
+        // 183454 = CCG Individual Cards, 261328 = Sports Trading Card Singles.
+        'default_category_ids' => env('EBAY_DEFAULT_CATEGORY_IDS', '183454,261328'),
+        'search_limit' => (int) env('EBAY_SEARCH_LIMIT', 50),
+        'cache_minutes' => (int) env('EBAY_PRICE_CACHE_MINUTES', 360),
+        'hosts' => [
+            'sandbox' => 'https://api.sandbox.ebay.com',
+            'production' => 'https://api.ebay.com',
+        ],
+        // Marketplace Account Deletion notifications (required before eBay
+        // activates a production keyset).
+        'deletion_verification_token' => env('EBAY_DELETION_VERIFICATION_TOKEN'),
+        'deletion_endpoint_url' => env('EBAY_DELETION_ENDPOINT_URL', rtrim((string) env('APP_URL', 'http://localhost'), '/').'/api/webhooks/ebay/account-deletion'),
+    ],
+
     'dhl' => [
         'enabled' => (bool) env('DHL_API_ENABLED', false),
         'use_test_environment' => (bool) env('DHL_API_USE_TEST_ENVIRONMENT', true),

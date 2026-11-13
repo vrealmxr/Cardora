@@ -1,4 +1,4 @@
-import { Camera, Crown, ImagePlus, Loader2, Search, X } from 'lucide-react'
+import { AlertCircle, Camera, Crown, ExternalLink, ImagePlus, Loader2, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BinderShell from '@/components/binder/BinderShell'
@@ -10,16 +10,16 @@ import { useI18n } from '@/hooks/useI18n'
 import { cardoraService } from '@/services/cardoraService'
 import { cn, localizePath } from '@/utils/helpers'
 
-const MOCK_SOURCES = ['Cardora Market', 'eBay', 'TCGplayer', 'Cardmarket']
-
-function fakeSearch(term) {
-  const seed = term.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) || 42
-  const base = 8 + (seed % 180)
-  return MOCK_SOURCES.map((source, i) => {
-    const variance = ((seed * (i + 3)) % 40) - 15
-    const price = Math.max(1, Math.round((base + variance) * 100) / 100)
-    return { source, price, listings: 3 + ((seed + i * 7) % 24) }
-  }).sort((a, b) => a.price - b.price)
+function formatPrice(value, currency, locale) {
+  if (value === null || value === undefined) return '—'
+  try {
+    return new Intl.NumberFormat(locale === 'en' ? 'en-IE' : 'el-GR', {
+      style: 'currency',
+      currency: currency || 'EUR',
+    }).format(value)
+  } catch {
+    return `${Number(value).toFixed(2)} ${currency ?? ''}`.trim()
+  }
 }
 
 function CardoraScannerPage() {
@@ -39,6 +39,7 @@ function CardoraScannerPage() {
   const [searchedTerm, setSearchedTerm] = useState('')
   const [usage, setUsage] = useState(null)
   const [usageError, setUsageError] = useState(null)
+  const [lookupError, setLookupError] = useState(null)
 
   useEffect(() => {
     document.title = 'Cardora Scanner'
@@ -63,7 +64,7 @@ function CardoraScannerPage() {
     ? {
         eyebrow: 'Instant price check',
         title: 'Cardora Scanner',
-        description: 'Search a card by name, or upload a photo — we\'ll estimate a market price from multiple sources.',
+        description: 'Search a card by name, or upload a photo — we\'ll estimate a market price from live eBay listings.',
         searchTab: 'Search by name',
         uploadTab: 'Upload a photo',
         searchPlaceholder: 'e.g. Charizard ex 199/165',
@@ -75,9 +76,19 @@ function CardoraScannerPage() {
         scanning: 'Scanning sources…',
         resultsTitle: 'Estimated prices',
         resultsFor: 'Results for',
-        suggested: 'Suggested average',
+        suggested: 'Suggested price (median)',
         listings: 'active listings',
-        disclaimer: 'Mock estimate for preview — live scraping connects once the backend is wired up.',
+        statLow: 'Lowest',
+        statMedian: 'Median',
+        statAverage: 'Average',
+        statHigh: 'Highest',
+        basedOn: (used, total) => `Based on ${used} of ${total} active eBay listings`,
+        sampleListings: 'Sample listings',
+        viewOnEbay: 'View on eBay',
+        noResults: 'No eBay listings found for this search. Try the card name with its number, e.g. “Pikachu 025/165”.',
+        lookupFailed: 'We could not fetch prices right now. Please try again in a moment.',
+        sandboxNote: 'Test mode: eBay sandbox data, not real market prices.',
+        disclaimer: 'Estimates from current asking prices on active eBay listings, with outliers removed. Not a guaranteed sale price.',
         scansLeft: 'scans left this month',
         unlimitedScans: 'Unlimited scans (PRO)',
         limitReached: "You've used all your free scans this month. Upgrade to Cardora PRO for unlimited AI Scanner.",
@@ -86,7 +97,7 @@ function CardoraScannerPage() {
     : {
         eyebrow: 'Άμεσος έλεγχος τιμής',
         title: 'Cardora Scanner',
-        description: 'Αναζήτησε μια κάρτα με το όνομά της, ή ανέβασε φωτογραφία — θα εκτιμήσουμε μια τιμή αγοράς από πολλαπλές πηγές.',
+        description: 'Αναζήτησε μια κάρτα με το όνομά της, ή ανέβασε φωτογραφία — θα εκτιμήσουμε την τιμή αγοράς από ενεργές καταχωρήσεις στο eBay.',
         searchTab: 'Αναζήτηση με όνομα',
         uploadTab: 'Ανέβασμα φωτογραφίας',
         searchPlaceholder: 'π.χ. Charizard ex 199/165',
@@ -98,9 +109,19 @@ function CardoraScannerPage() {
         scanning: 'Σάρωση πηγών…',
         resultsTitle: 'Εκτιμώμενες τιμές',
         resultsFor: 'Αποτελέσματα για',
-        suggested: 'Προτεινόμενος μέσος όρος',
+        suggested: 'Προτεινόμενη τιμή (διάμεσος)',
         listings: 'ενεργές καταχωρήσεις',
-        disclaimer: 'Mock εκτίμηση για preview — το πραγματικό scraping θα συνδεθεί με το backend.',
+        statLow: 'Χαμηλότερη',
+        statMedian: 'Διάμεσος',
+        statAverage: 'Μέσος όρος',
+        statHigh: 'Υψηλότερη',
+        basedOn: (used, total) => `Με βάση ${used} από ${total} ενεργές καταχωρήσεις στο eBay`,
+        sampleListings: 'Ενδεικτικές καταχωρήσεις',
+        viewOnEbay: 'Δες στο eBay',
+        noResults: 'Δεν βρέθηκαν καταχωρήσεις στο eBay. Δοκίμασε το όνομα της κάρτας μαζί με τον αριθμό της, π.χ. «Pikachu 025/165».',
+        lookupFailed: 'Δεν μπορέσαμε να φέρουμε τιμές αυτή τη στιγμή. Δοκίμασε ξανά σε λίγο.',
+        sandboxNote: 'Δοκιμαστική λειτουργία: δεδομένα eBay sandbox, όχι πραγματικές τιμές αγοράς.',
+        disclaimer: 'Εκτίμηση από τις τρέχουσες τιμές ενεργών καταχωρήσεων στο eBay, χωρίς τις ακραίες τιμές. Δεν είναι εγγυημένη τιμή πώλησης.',
         scansLeft: 'scans διαθέσιμα αυτόν τον μήνα',
         unlimitedScans: 'Απεριόριστα scans (PRO)',
         limitReached: 'Έχεις χρησιμοποιήσει όλα τα δωρεάν scans σου αυτόν τον μήνα. Αναβάθμισε σε Cardora PRO για απεριόριστο AI Scanner.',
@@ -130,11 +151,16 @@ function CardoraScannerPage() {
 
     setIsSearching(true)
     setResults(null)
+    setLookupError(null)
     setSearchedTerm(term.trim())
-    window.setTimeout(() => {
-      setResults(fakeSearch(term.trim()))
+
+    try {
+      setResults(await cardoraService.getScannerPrice(term.trim()))
+    } catch {
+      setLookupError(copy.lookupFailed)
+    } finally {
       setIsSearching(false)
-    }, 900)
+    }
   }
 
   const scanBlocked = Boolean(usage && !usage.unlimited && usage.remaining === 0)
@@ -146,8 +172,8 @@ function CardoraScannerPage() {
     setResults(null)
   }
 
-  const suggestedAverage =
-    results && results.length ? results.reduce((sum, r) => sum + r.price, 0) / results.length : null
+  const hasPrices = Boolean(results && results.used_for_stats > 0)
+  const price = (value) => formatPrice(value, results?.currency, locale)
 
   return (
     <BinderShell>
@@ -307,6 +333,13 @@ function CardoraScannerPage() {
         </div>
       ) : null}
 
+      {lookupError && !isSearching ? (
+        <div className="mt-8 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{lookupError}</span>
+        </div>
+      ) : null}
+
       {results && !isSearching ? (
         <div className="mt-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -316,32 +349,83 @@ function CardoraScannerPage() {
                 {copy.resultsFor} <span className="font-semibold text-slate-700">“{searchedTerm}”</span>
               </p>
             </div>
-            {suggestedAverage !== null ? (
+            {hasPrices ? (
               <div className="flex items-center gap-2 rounded-xl border border-[#eadab7] bg-[#fff8ec] px-4 py-2.5">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9d6a17]/80">{copy.suggested}</p>
-                  <p className="font-display text-lg font-bold text-[#6b4718]">€{suggestedAverage.toFixed(2)}</p>
+                  <p className="font-display text-lg font-bold text-[#6b4718]">{price(results.median)}</p>
                 </div>
               </div>
             ) : null}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {results.map((r) => (
-              <div
-                key={r.source}
-                className="flex items-center justify-between rounded-[16px] border border-[#ead9b1] bg-white px-4 py-3.5 shadow-glass"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-ink">{r.source}</p>
-                  <p className="text-[11px] text-slate-400">
-                    {r.listings} {copy.listings}
-                  </p>
-                </div>
-                <p className="font-display text-lg font-bold text-[#9d6a17]">€{r.price.toFixed(2)}</p>
+          {results.environment === 'sandbox' ? (
+            <p className="mb-4 rounded-lg border border-dashed border-[#eadab7] bg-[#fffaf0] px-3 py-2 text-[11px] font-medium text-[#9d6a17]">
+              {copy.sandboxNote}
+            </p>
+          ) : null}
+
+          {hasPrices ? (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  [copy.statLow, results.min],
+                  [copy.statMedian, results.median],
+                  [copy.statAverage, results.average],
+                  [copy.statHigh, results.max],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[16px] border border-[#ead9b1] bg-white px-4 py-3.5 shadow-glass">
+                    <p className="text-[11px] text-slate-400">{label}</p>
+                    <p className="font-display text-lg font-bold text-[#9d6a17]">{price(value)}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                {copy.basedOn(results.used_for_stats, results.total_matches)}
+              </p>
+
+              {results.items?.length ? (
+                <div className="mt-6">
+                  <h4 className="mb-3 text-sm font-semibold text-ink">{copy.sampleListings}</h4>
+                  <ul className="grid gap-3 sm:grid-cols-2">
+                    {results.items.slice(0, 6).map((item) => (
+                      <li key={item.item_id ?? item.url}>
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          className="flex items-center gap-3 rounded-[16px] border border-[#ead9b1] bg-white p-3 shadow-glass transition hover:border-[#d8b06a]"
+                        >
+                          {item.image_url ? (
+                            <img
+                              src={item.image_url}
+                              alt=""
+                              loading="lazy"
+                              className="h-14 w-11 shrink-0 rounded-md border border-[#f0e4c8] object-cover"
+                            />
+                          ) : null}
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-xs font-medium text-slate-700">{item.title}</p>
+                            <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
+                              {item.condition ? `${item.condition} · ` : ''}
+                              {copy.viewOnEbay} <ExternalLink className="h-3 w-3" />
+                            </p>
+                          </div>
+                          <p className="shrink-0 font-display text-sm font-bold text-[#9d6a17]">
+                            {formatPrice(item.price, item.currency, locale)}
+                          </p>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p className="rounded-[16px] border border-[#ead9b1] bg-white px-4 py-4 text-sm text-slate-500 shadow-glass">
+              {copy.noResults}
+            </p>
+          )}
 
           <p className="mt-4 text-[11px] text-slate-400">{copy.disclaimer}</p>
         </div>
