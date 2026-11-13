@@ -67,7 +67,7 @@ class EbayPriceService
         $category = $this->resolveCategory($query, (string) config('services.ebay.category_marketplace_id', 'EBAY_US'), $options);
 
         $marketKey = implode(',', array_map(fn ($m) => $m['marketplace'].':'.$m['country'], $markets));
-        $cacheKey = 'ebay:price:'.sha1(implode('|', [$this->environment(), $marketKey, $category['id'] ?? '', $limit, mb_strtolower($query)]));
+        $cacheKey = 'ebay:price:v2:'.sha1(implode('|', [$this->environment(), $marketKey, $category['id'] ?? '', $limit, mb_strtolower($query)]));
 
         if (! empty($options['fresh'])) {
             Cache::forget($cacheKey);
