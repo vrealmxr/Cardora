@@ -49,7 +49,7 @@ function TutorialsPage() {
   return (
     <div className="container pb-16">
       <PageSeo pageKey="tutorials" fallbackTitle={copy.seoTitle} fallbackDescription={copy.description} />
-      <SectionHeader eyebrow={copy.eyebrow} title={seo?.h1 || copy.title} description={copy.description} />
+      <SectionHeader as="h1" eyebrow={copy.eyebrow} title={seo?.h1 || copy.title} description={copy.description} />
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {tutorials.map((tutorial) => {

@@ -1,0 +1,8 @@
+{
+  "name": "cardora-session-test-runtime",
+  "private": true,
+  "dependencies": {
+    "frontend": "file:../..",
+    "jsdom": "26.1.0"
+  }
+}

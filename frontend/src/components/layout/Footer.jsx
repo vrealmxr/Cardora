@@ -3,13 +3,15 @@ import LanguageToggle from '@/components/ui/LanguageToggle'
 import PartnerLogos from '@/components/trust/PartnerLogos'
 import StripeTransparencyCard from '@/components/trust/StripeTransparencyCard'
 import { footerUsefulLinks, mainNavigation } from '@/data/siteNavigation'
-import { useMarketplace } from '@/hooks/useMarketplace'
+import { marketplaceTrust } from '@/data/marketplaceTrust'
 import { useI18n } from '@/hooks/useI18n'
 import { localizePath } from '@/utils/helpers'
+import { openCookieSettings } from '@/utils/cookieConsent'
 
 function Footer() {
   const { t, locale } = useI18n()
-  const { trustHighlights } = useMarketplace()
+  const trust = marketplaceTrust[locale]
+  const trustHighlights = trust.highlights
 
   return (
     <footer className="mt-20 border-t border-[#ecdcb9] bg-[rgba(255,252,246,0.96)]">
@@ -23,7 +25,7 @@ function Footer() {
               height="150"
               className="h-14 w-auto object-contain"
             />
-            <p className="max-w-md text-sm leading-7 text-mist">{t('footer.description')}</p>
+            <p className="max-w-md text-sm leading-7 text-mist">{trust.description}</p>
             <StripeTransparencyCard compact />
             <LanguageToggle className="!inline-flex" />
             <div className="grid gap-3 sm:grid-cols-2">
@@ -62,13 +64,19 @@ function Footer() {
                   to={localizePath(item.href, locale)}
                   className="block text-sm text-mist transition hover:text-gold-100"
                 >
-                  {t(`footer.${item.key}`, item.key)}
+                  {t(`footer.${item.key}`, t(`common.${item.key}`, item.key))}
                 </Link>
               ))}
+              <a href={`/${locale === 'en' ? 'en' : 'el'}/oroi-giveaway-dekemvrios-2026`} hrefLang={locale === 'en' ? 'en' : 'el'} className="block text-sm text-mist underline underline-offset-4 hover:text-gold-700">
+                {locale === 'en' ? 'Giveaway terms' : 'Όροι giveaway'}
+              </a>
             </div>
 
             <h3 className="mt-8 font-display text-2xl text-slate-900">{t('footer.categories')}</h3>
             <div className="mt-4 space-y-3 text-sm text-mist">
+              <Link to={localizePath('/syllektika', locale)} className="block transition hover:text-gold-100">{locale === 'en' ? 'All collectibles' : 'Όλα τα συλλεκτικά'}</Link>
+              <Link to={localizePath('/odigos-polisis', locale)} className="block transition hover:text-gold-100">{locale === 'en' ? 'Selling guide and fees' : 'Οδηγός πώλησης και χρεώσεις'}</Link>
+              <Link to={localizePath('/katastasi-kai-grading', locale)} className="block transition hover:text-gold-100">{locale === 'en' ? 'Condition and grading' : 'Κατάσταση και grading'}</Link>
               <Link to={localizePath('/kartes', locale)} className="block transition hover:text-gold-100">
                 {t('footer.cardsCategory')}
               </Link>
@@ -99,8 +107,9 @@ function Footer() {
               <Link to={localizePath('/epikoinonia', locale)} className="block transition hover:text-gold-100">
                 {t('common.contact')}
               </Link>
-              <p>support@cardora.gr</p>
+              <a className="block underline" href="mailto:support@cardora.gr">support@cardora.gr</a>
               <p>{t('footer.location')}</p>
+              <p>VRealm Ι.Κ.Ε. · {locale === 'en' ? 'VAT' : 'Α.Φ.Μ.'} 802264482</p>
             </div>
           </div>
         </div>
@@ -110,6 +119,9 @@ function Footer() {
         <div className="mt-6 flex flex-col gap-4 border-t border-[#ecdcb9] pt-5 text-sm text-mist md:flex-row md:items-center md:justify-between">
           <p>{t('footer.copyright')}</p>
           <div className="flex flex-wrap gap-4">
+            <button type="button" onClick={openCookieSettings} className="transition hover:text-gold-100">
+              {locale === 'en' ? 'Cookie settings' : 'Ρυθμίσεις cookies'}
+            </button>
             <a href="https://www.instagram.com/cardora.gr" target="_blank" rel="noreferrer" className="transition hover:text-gold-100">
               Instagram
             </a>

@@ -10,6 +10,7 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
+import { localizePath } from '@/utils/helpers'
 
 const ALL_CATEGORY = '__all__'
 
@@ -108,10 +109,10 @@ function BlogPage() {
             ) : null}
             <p className="mt-4 max-w-3xl text-sm leading-7 text-mist">{copy.description}</p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Button as={Link} to="/dimiourgia-aggelias">
+              <Button as={Link} to={localizePath('/dimiourgia-aggelias', locale)}>
                 {copy.listItem}
               </Button>
-              <Button as={Link} to="/cardora" variant="secondary">
+              <Button as={Link} to={localizePath('/cardora', locale)} variant="secondary">
                 {copy.learnMore}
               </Button>
             </div>

@@ -1,7 +1,13 @@
-﻿import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { marketplaceGateMessage } from '@/utils/marketplaceAccess'
+import { normalizeAuction, normalizeLot } from '@/utils/listingPresentation'
+import { categoriesWithCatalogMetrics } from '@/utils/catalogMetrics'
+import { catalogValueLabel } from '@/utils/catalogLabels'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthContext } from '@/context/AuthContext'
 import { useI18nContext } from '@/context/I18nContext'
 import { cardoraService } from '@/services/cardoraService'
+import { startTransition } from 'react'
+import { mergeEditorialGuides } from '@/data/editorialGuideIndex'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 import { calculateLowValueFee } from '@/utils/fees'
 import { priceInRange, toSlug } from '@/utils/helpers'
@@ -83,58 +89,6 @@ const normalizeUser = (user, profileConfig) => ({
   purchaseCount: Number(user.purchaseCount ?? user.purchase_count ?? 0),
   responseTime: user.responseTime ?? '',
 })
-
-const normalizeAuction = (auction) => {
-  if (!auction) return null
-
-  const currentBid = Number(auction.currentBid ?? auction.startingBid ?? 0)
-  const bidIncrement = Number(auction.bidIncrement ?? 1)
-  const reservePrice = Number(auction.reservePrice ?? 0)
-
-  return {
-    ...auction,
-    startingBid: Number(auction.startingBid ?? 0),
-    currentBid,
-    reservePrice,
-    bidIncrement,
-    bidCount: Number(auction.bidCount ?? 0),
-    watchers: Number(auction.watchers ?? 0),
-    buyoutPrice: auction.buyoutPrice ? Number(auction.buyoutPrice) : null,
-    reserveMet: reservePrice > 0 ? currentBid >= reservePrice : true,
-  }
-}
-
-const normalizeLot = (lot) => {
-  if (!lot) return null
-
-  const previewCards = Array.isArray(lot.previewCards) ? lot.previewCards.filter(Boolean) : []
-  const totalCards = Number(lot.totalCards ?? previewCards.length ?? 0)
-  const individualCards = Array.isArray(lot.individualCards)
-    ? lot.individualCards
-        .map((card) => ({
-          id: String(card?.id ?? '').trim(),
-          title: String(card?.title ?? '').trim(),
-          price: roundMoney(card?.price ?? 0),
-        }))
-        .filter((card) => card.id && card.title && card.price > 0)
-    : []
-
-  return {
-    ...lot,
-    totalCards,
-    guaranteedHits: Number(lot.guaranteedHits ?? 0),
-    previewCards,
-    themes: Array.isArray(lot.themes) ? lot.themes.filter(Boolean) : [],
-    overflowCount: Math.max(totalCards - previewCards.length, 0),
-    allowsIndividualPurchase: Boolean(lot.allowsIndividualPurchase),
-    wholeLotPurchaseAvailable:
-      lot.wholeLotPurchaseAvailable == null ? true : Boolean(lot.wholeLotPurchaseAvailable),
-    individualCards,
-    availableIndividualCardsCount: Number(
-      lot.availableIndividualCardsCount ?? individualCards.length,
-    ),
-  }
-}
 
 const normalizeCollectionEntry = (entry) => {
   if (!entry) return null
@@ -444,11 +398,25 @@ const getGradedFilterLabel = (value, locale) => {
   return value
 }
 
-export function MarketplaceProvider({ children }) {
+// An account change starts a fresh store. Late requests from an unmounted
+// session cannot repopulate orders, messages or cart data after logout.
+export function MarketplaceSession({ children, initialPublicData }) {
+  const { currentUser } = useAuthContext()
+  const { locale } = useI18nContext()
+  const initialLocale = useRef(locale)
+  const seed = !currentUser && initialLocale.current === locale ? initialPublicData : undefined
+  return <MarketplaceProvider key={currentUser ? `user:${currentUser.id}` : 'guest'} initialPublicData={seed}>{children}</MarketplaceProvider>
+}
+
+export function MarketplaceProvider({ children, initialPublicData }) {
   const { currentUser, isAuthReady } = useAuthContext()
   const { locale } = useI18nContext()
-  const [state, setState] = useState(initialState)
+  const [state, setState] = useState(() => initialPublicData
+    ? { ...initialState, ...initialPublicData, isReady: true }
+    : initialState)
   const bootstrapRequestRef = useRef(null)
+  const bootstrapLocaleRef = useRef(locale)
+  bootstrapLocaleRef.current = locale
 
   const commitBootstrapPayload = (payload) => {
     const normalizedPayload = {
@@ -456,32 +424,35 @@ export function MarketplaceProvider({ children }) {
       accountVerification: normalizeAccountVerification(payload.accountVerification),
     }
 
-    setState((previous) => ({
+    startTransition(() => setState((previous) => ({
       ...previous,
       ...normalizedPayload,
       isReady: true,
-    }))
+    })))
 
     return normalizedPayload
   }
 
   const fetchBootstrap = async ({ silent = false } = {}) => {
-    if (bootstrapRequestRef.current) {
-      return bootstrapRequestRef.current
+    if (bootstrapRequestRef.current?.locale === locale) {
+      return bootstrapRequestRef.current.promise
     }
 
-    const request = cardoraService.getBootstrap()
+    const request = { locale, promise: currentUser
+      ? cardoraService.getBootstrap(locale)
+      : cardoraService.getPublicBootstrap(locale) }
     bootstrapRequestRef.current = request
 
     try {
-      const payload = await request
+      const payload = await request.promise
+      if (bootstrapRequestRef.current !== request || bootstrapLocaleRef.current !== locale) return payload
       return commitBootstrapPayload(payload)
     } catch (error) {
-      if (!silent) {
-        setState((previous) => ({
+      if (!silent && bootstrapRequestRef.current === request && bootstrapLocaleRef.current === locale) {
+        startTransition(() => setState((previous) => ({
           ...previous,
           isReady: true,
-        }))
+        })))
       }
 
       throw error
@@ -606,8 +577,17 @@ export function MarketplaceProvider({ children }) {
     [mergedUsers, state.categories, state.products],
   )
 
-  const searchIndexByProductId = useMemo(() => {
-    return new Map(
+  const catalogCategories = useMemo(
+    () => categoriesWithCatalogMetrics(state.categories, productsWithSellers),
+    [state.categories, productsWithSellers],
+  )
+
+  // Most pages never search. Build this catalog index only on the first nonempty query.
+  const getSearchIndexByProductId = useMemo(() => {
+    let cachedIndex
+    return () => {
+      if (cachedIndex) return cachedIndex
+      cachedIndex = new Map(
       productsWithSellers.map((product) => {
         const sellerName = product.seller?.displayName ?? product.seller?.name ?? ''
         const searchableChunks = [
@@ -617,6 +597,8 @@ export function MarketplaceProvider({ children }) {
           product.series,
           product.brand,
           product.typeLabel,
+          ...['typeLabel', 'franchise', 'brand', 'rarity', 'language'].flatMap(field =>
+            ['el', 'en'].map(language => catalogValueLabel(field, product[field], language))),
           product.setName,
           product.cardNumber,
           product.description,
@@ -659,7 +641,9 @@ export function MarketplaceProvider({ children }) {
           },
         ]
       }),
-    )
+      )
+      return cachedIndex
+    }
   }, [productsWithSellers])
 
   const drawCampaignsDetailed = useMemo(
@@ -839,10 +823,19 @@ export function MarketplaceProvider({ children }) {
     state.recentlyViewedIds,
   ])
 
-  const getPersonalizationScore = useCallback(
-    (product) => scoreProductAgainstInterestProfile(product, userInterestProfile),
-    [userInterestProfile],
-  )
+  const getPersonalizationScore = useMemo(() => {
+    // Public visitors have no interests. Sorting must not normalize every field
+    // of every listing just to look up values in six empty maps.
+    if (!Object.values(userInterestProfile).some((bucket) => bucket.size)) return () => 0
+    // Sorting compares the same products repeatedly. Cache within this profile
+    // only; a changed account, catalog or interests creates a fresh scorer.
+    const scores = new WeakMap()
+    return (product) => {
+      if (!product) return 0
+      if (!scores.has(product)) scores.set(product, scoreProductAgainstInterestProfile(product, userInterestProfile))
+      return scores.get(product)
+    }
+  }, [userInterestProfile])
 
   const recentProducts = useMemo(
     () => {
@@ -894,8 +887,8 @@ export function MarketplaceProvider({ children }) {
 
   const latestBlogPosts = useMemo(
     () =>
-      [...state.blogPosts].sort((a, b) => new Date(b.publishedAt ?? 0) - new Date(a.publishedAt ?? 0)),
-    [state.blogPosts],
+      mergeEditorialGuides(state.blogPosts, locale).sort((a, b) => new Date(b.publishedAt ?? 0) - new Date(a.publishedAt ?? 0)),
+    [state.blogPosts, locale],
   )
 
   const featuredBlogPosts = useMemo(
@@ -1028,33 +1021,7 @@ export function MarketplaceProvider({ children }) {
 
   const getMarketplaceGateMessage = useCallback(
     (mode = 'trade') => {
-      if (!currentUser) return null
-      if (!marketplaceAccess || marketplaceAccess.is_marketplace_ready) return null
-
-      const defaultMessage =
-        locale === 'en'
-          ? 'Complete identity verification through Didit and Stripe Connect before using the marketplace.'
-          : 'Ολοκλήρωσε επαλήθευση ταυτότητας μέσω Didit και Stripe Connected Account πριν χρησιμοποιήσεις το marketplace.'
-
-      if (mode === 'buy') {
-        return (
-          marketplaceAccess.blocking_message ??
-          (locale === 'en'
-            ? 'You must complete verification and Stripe Connect before buying on Cardora.'
-            : 'Πρέπει πρώτα να ολοκληρώσεις verification και Stripe Connect για να αγοράσεις στην Cardora.')
-        )
-      }
-
-      if (mode === 'sell') {
-        return (
-          marketplaceAccess.blocking_message ??
-          (locale === 'en'
-            ? 'You must complete verification and Stripe Connect before selling on Cardora.'
-            : 'Πρέπει πρώτα να ολοκληρώσεις verification και Stripe Connect για να πουλήσεις στην Cardora.')
-        )
-      }
-
-      return marketplaceAccess.blocking_message ?? defaultMessage
+      return marketplaceGateMessage(currentUser, marketplaceAccess, mode, locale)
     },
     [currentUser, locale, marketplaceAccess],
   )
@@ -1147,13 +1114,6 @@ export function MarketplaceProvider({ children }) {
       return {
         success: false,
         message: locale === 'en' ? 'This listing is no longer available.' : 'Η αγγελία δεν είναι πλέον διαθέσιμη.',
-      }
-    }
-
-    if (product.saleFormat === 'auction') {
-      return {
-        success: false,
-        message: locale === 'en' ? 'Auction listings cannot be added to the cart.' : 'Οι δημοπρασίες δεν μπαίνουν στο καλάθι.',
       }
     }
 
@@ -1262,6 +1222,10 @@ export function MarketplaceProvider({ children }) {
     const currentQuantity = Number(existingItem?.quantity ?? 0)
     const availableStock = Number(product.stock ?? 0)
 
+    if (existingItem && product.saleFormat === 'auction') {
+      return { success: true, message: locale === 'en' ? 'Your winning bid is already in the cart.' : 'Η δημοπρασία που κέρδισες είναι ήδη στο καλάθι.' }
+    }
+
     if (availableStock > 0 && currentQuantity >= availableStock) {
       return {
         success: false,
@@ -1298,7 +1262,7 @@ export function MarketplaceProvider({ children }) {
   const addDrawToCart = async (drawId, entries = 1) => {
     if (!currentUser || entries < 1) return null
 
-    const gateMessage = getMarketplaceGateMessage('buy')
+    const gateMessage = getMarketplaceGateMessage('draw')
     if (gateMessage) {
       return {
         success: false,
@@ -1441,11 +1405,11 @@ export function MarketplaceProvider({ children }) {
     })
   }, [])
 
-  const toggleProfileLike = async (profileUserId) => {
+  const toggleProfileLike = async (profileUserId, publicProfile) => {
     if (!currentUser) return { success: false, message: 'Authentication required.' }
     if (currentUser.id === profileUserId) return { success: false, message: 'Invalid action.' }
 
-    const profile = collectorProfilesDetailed.find((item) => item.userId === profileUserId)
+    const profile = publicProfile?.userId === profileUserId ? publicProfile : collectorProfilesDetailed.find((item) => item.userId === profileUserId)
     if (!profile?.handle) return { success: false, message: 'Profile not found.' }
 
     if (profile.likedByCurrentUser) {
@@ -1459,11 +1423,11 @@ export function MarketplaceProvider({ children }) {
     return { success: true, liked: !profile.likedByCurrentUser }
   }
 
-  const toggleProfileFollow = async (profileUserId) => {
+  const toggleProfileFollow = async (profileUserId, publicProfile) => {
     if (!currentUser) return { success: false, message: 'Authentication required.' }
     if (currentUser.id === profileUserId) return { success: false, message: 'Invalid action.' }
 
-    const profile = collectorProfilesDetailed.find((item) => item.userId === profileUserId)
+    const profile = publicProfile?.userId === profileUserId ? publicProfile : collectorProfilesDetailed.find((item) => item.userId === profileUserId)
     if (!profile?.handle) return { success: false, message: 'Profile not found.' }
 
     if (profile.followedByCurrentUser) {
@@ -1499,7 +1463,14 @@ export function MarketplaceProvider({ children }) {
   }
 
   const startConversationForOrder = async (order, initialMessage = '') => {
-    if (!currentUser || !order?.productId) return null
+    if (!currentUser || !order) return null
+
+    const orderId = Number(order.databaseId ?? order.id)
+    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+      throw new Error(locale === 'en'
+        ? 'Please refresh the page and try opening the conversation again.'
+        : 'Ανανέωσε τη σελίδα και δοκίμασε ξανά να ανοίξεις τη συνομιλία.')
+    }
 
     const existingConversation = state.conversations.find((conversation) => {
       const sameListing =
@@ -1516,7 +1487,7 @@ export function MarketplaceProvider({ children }) {
     }
 
     const conversation = await cardoraService.createConversation({
-      listing_id: Number(order.productId),
+      order_id: orderId,
       ...(initialMessage.trim() ? { initial_message: initialMessage.trim() } : {}),
     })
 
@@ -1638,7 +1609,7 @@ export function MarketplaceProvider({ children }) {
   const placeAuctionBid = async (productId, amountInput) => {
     if (!currentUser) return { success: false, message: 'Authentication required.' }
 
-    const gateMessage = getMarketplaceGateMessage('buy')
+    const gateMessage = getMarketplaceGateMessage('bid')
     if (gateMessage) {
       return {
         success: false,
@@ -2370,7 +2341,7 @@ export function MarketplaceProvider({ children }) {
       campaign_type: 'community_raffle',
       title: payload.title,
       slug: toSlug(payload.title),
-      subtitle: `${formatNumber(targetEntries)} x ${formatCurrency(entryPrice)}`,
+      subtitle: `${formatNumber(targetEntries, locale)} x ${formatCurrency(entryPrice, locale)}`,
       description: payload.description,
       prize_title: payload.prizeTitle,
       prize_category: payload.prizeCategory,
@@ -2501,7 +2472,7 @@ export function MarketplaceProvider({ children }) {
     return true
   }
 
-  const getBlogPostBySlug = (slug) => state.blogPosts.find((post) => post.slug === slug) ?? null
+  const getBlogPostBySlug = (slug) => latestBlogPosts.find((post) => post.slug === slug) ?? null
 
   const getCollectorProfileByHandle = (handle) =>
     collectorProfilesDetailed.find((profile) => profile.handle === handle) ?? null
@@ -2519,7 +2490,7 @@ export function MarketplaceProvider({ children }) {
     if (!normalizedQuery) return 0
 
     const queryTokens = tokenizeSearchText(query)
-    const index = searchIndexByProductId.get(product.id)
+    const index = getSearchIndexByProductId().get(product.id)
     if (!index) return 0
 
     let score = 0
@@ -2749,14 +2720,14 @@ export function MarketplaceProvider({ children }) {
           .sort((left, right) => {
             const countDelta = right[1] - left[1]
             if (countDelta !== 0) return countDelta
-            return String(left[0]).localeCompare(String(right[0]))
+            return String(left[0]).localeCompare(String(right[0]), locale === 'en' ? 'en-US' : 'el-GR')
           })
           .map(([value, count]) => {
             if (key === 'graded') {
               return buildOption(value, count, selectedValue, getGradedFilterLabel(value, locale))
             }
 
-            return buildOption(value, count, selectedValue)
+            return buildOption(value, count, selectedValue, catalogValueLabel(key, value, locale))
           })
           .filter((option) => option.count > 0 || option.selected),
       ]
@@ -2764,7 +2735,7 @@ export function MarketplaceProvider({ children }) {
       if (key === 'graded') {
         options = ensureSelectedOption(options, selectedValue, getGradedFilterLabel(selectedValue, locale))
       } else {
-        options = ensureSelectedOption(options, selectedValue)
+        options = ensureSelectedOption(options, selectedValue, catalogValueLabel(key, selectedValue, locale))
       }
 
       return {
@@ -2812,7 +2783,7 @@ export function MarketplaceProvider({ children }) {
           categoryId: product.categoryId,
           categoryName: product.category?.name,
           franchise: product.franchise,
-          mediaUrl: previewMedia?.url ?? null,
+          mediaUrl: previewMedia?.thumbUrl ?? previewMedia?.url ?? null,
         }
       })
 
@@ -2832,6 +2803,9 @@ export function MarketplaceProvider({ children }) {
     <MarketplaceContext.Provider
       value={{
         ...state,
+        categories: catalogCategories,
+        blogPosts: latestBlogPosts,
+        blogCategories: [...new Set(latestBlogPosts.map(post => post.category).filter(Boolean))],
         users: mergedUsers,
         productsWithSellers,
         cartDetailed,
@@ -2863,7 +2837,7 @@ export function MarketplaceProvider({ children }) {
           totalQuantity: cartTotalQuantity,
           containsPhysicalItems: cartContainsPhysicalItems,
           containsDrawEntries: cartContainsDrawEntries,
-          totalLabel: formatCurrency(cartTotal),
+          totalLabel: formatCurrency(cartTotal, locale),
         },
         refreshBootstrap,
         toggleFavorite,
@@ -2922,6 +2896,9 @@ export function MarketplaceProvider({ children }) {
         getPersonalizationScore,
         defaultSearchFilters: DEFAULT_SEARCH_FILTERS,
         allFilterValue: ALL_FILTER_VALUE,
+        hasPublicSnapshot: Boolean(initialPublicData),
+        initialPublicProfile: initialPublicData?.publicProfile,
+        initialPublicListing: initialPublicData?.publicListing,
       }}
     >
       {children}

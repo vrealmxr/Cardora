@@ -1,6 +1,6 @@
 import { Filter } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useCatalogQuery } from '@/hooks/useCatalogQuery'
 import FilterSidebar from '@/components/catalog/FilterSidebar'
 import ProductCard from '@/components/catalog/ProductCard'
 import SearchBar from '@/components/catalog/SearchBar'
@@ -11,6 +11,8 @@ import Pagination from '@/components/ui/Pagination'
 import SectionHeader from '@/components/ui/SectionHeader'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
+import PageSeo from '@/components/PageSeo'
+import NotFoundPage from '@/pages/NotFoundPage'
 
 const ALL_CATEGORY_VALUE = 'all'
 
@@ -22,27 +24,11 @@ function SearchResultsPage() {
     getDynamicFacets,
     defaultSearchFilters,
     allFilterValue,
+    isReady,
   } = useMarketplace()
-  const [searchParams, setSearchParams] = useSearchParams()
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const [page, setPage] = useState(1)
-  const [sort, setSort] = useState(searchParams.get('sort') ?? 'newest')
-  const [selectedCategory, setSelectedCategory] = useState(
-    searchParams.get('category') ?? ALL_CATEGORY_VALUE,
-  )
-  const [filters, setFilters] = useState(() => ({
-    ...defaultSearchFilters,
-    search: searchParams.get('q') ?? searchParams.get('search') ?? '',
-    price: searchParams.get('price') ?? defaultSearchFilters.price,
-    condition: searchParams.get('condition') ?? defaultSearchFilters.condition,
-    rarity: searchParams.get('rarity') ?? defaultSearchFilters.rarity,
-    franchise: searchParams.get('franchise') ?? defaultSearchFilters.franchise,
-    brand: searchParams.get('brand') ?? defaultSearchFilters.brand,
-    productType: searchParams.get('productType') ?? defaultSearchFilters.productType,
-    graded: searchParams.get('graded') ?? defaultSearchFilters.graded,
-    availability: searchParams.get('availability') ?? defaultSearchFilters.availability,
-    sellerRating: searchParams.get('sellerRating') ?? defaultSearchFilters.sellerRating,
-  }))
+  const { page, sort, filters, category: selectedCategory, setSort, setFilters, pageHref } =
+    useCatalogQuery(defaultSearchFilters, allFilterValue)
 
   const selectedCategoryId =
     selectedCategory === ALL_CATEGORY_VALUE ? undefined : selectedCategory
@@ -54,7 +40,7 @@ function SearchResultsPage() {
           eyebrow: 'Smart Search',
           title: 'Search results',
           description: (count) =>
-            `${count} listings matched your query with dynamic, relevance-aware filtering.`,
+            `${count} listings match your search. Use the filters to narrow your results.`,
           filters: 'Filters',
           sortNewest: 'Newest first',
           sortPriceAsc: 'Price: low to high',
@@ -68,74 +54,22 @@ function SearchResultsPage() {
           eyebrow: '\u0388\u03be\u03c5\u03c0\u03bd\u03b7 \u0391\u03bd\u03b1\u03b6\u03ae\u03c4\u03b7\u03c3\u03b7',
           title: '\u0391\u03c0\u03bf\u03c4\u03b5\u03bb\u03ad\u03c3\u03bc\u03b1\u03c4\u03b1 \u03b1\u03bd\u03b1\u03b6\u03ae\u03c4\u03b7\u03c3\u03b7\u03c2',
           description: (count) =>
-            `${count} \u03b1\u03b3\u03b3\u03b5\u03bb\u03af\u03b5\u03c2 \u03bc\u03b5 relevance ranking \u03ba\u03b1\u03b9 \u03b4\u03c5\u03bd\u03b1\u03bc\u03b9\u03ba\u03ac \u03c6\u03af\u03bb\u03c4\u03c1\u03b1.`,
+            `${count} αγγελίες ταιριάζουν στην αναζήτησή σου. Χρησιμοποίησε τα φίλτρα για πιο συγκεκριμένα αποτελέσματα.`,
           filters: '\u03a6\u03af\u03bb\u03c4\u03c1\u03b1',
           sortNewest: '\u039d\u03b5\u03cc\u03c4\u03b5\u03c1\u03b1 \u03c0\u03c1\u03ce\u03c4\u03b1',
           sortPriceAsc: '\u03a4\u03b9\u03bc\u03ae: \u03c7\u03b1\u03bc\u03b7\u03bb\u03ae \u03c3\u03b5 \u03c5\u03c8\u03b7\u03bb\u03ae',
           sortPriceDesc: '\u03a4\u03b9\u03bc\u03ae: \u03c5\u03c8\u03b7\u03bb\u03ae \u03c3\u03b5 \u03c7\u03b1\u03bc\u03b7\u03bb\u03ae',
-          sortRating: 'Seller rating',
+          sortRating: 'Βαθμολογία πωλητή',
           emptyTitle:
             '\u0394\u03b5\u03bd \u03b2\u03c1\u03ad\u03b8\u03b7\u03ba\u03b1\u03bd \u03b1\u03b3\u03b3\u03b5\u03bb\u03af\u03b5\u03c2',
           emptyDescription:
-            '\u0394\u03bf\u03ba\u03af\u03bc\u03b1\u03c3\u03b5 \u03c0\u03b9\u03bf \u03b3\u03b5\u03bd\u03b9\u03ba\u03ac \u03c6\u03af\u03bb\u03c4\u03c1\u03b1 \u03ae \u03bd\u03ad\u03bf query.',
+            'Δοκίμασε διαφορετική λέξη, άλλη κατηγορία ή λιγότερα φίλτρα.',
           clearFilters: '\u039a\u03b1\u03b8\u03b1\u03c1\u03b9\u03c3\u03bc\u03cc\u03c2 \u03c6\u03af\u03bb\u03c4\u03c1\u03c9\u03bd',
         }
 
   useEffect(() => {
-    setPage(1)
-  }, [filters, selectedCategory, sort])
-
-  useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [page])
-
-  useEffect(() => {
-    setSort(searchParams.get('sort') ?? 'newest')
-    setSelectedCategory(searchParams.get('category') ?? ALL_CATEGORY_VALUE)
-    setFilters({
-      ...defaultSearchFilters,
-      search: searchParams.get('q') ?? searchParams.get('search') ?? '',
-      price: searchParams.get('price') ?? defaultSearchFilters.price,
-      condition: searchParams.get('condition') ?? defaultSearchFilters.condition,
-      rarity: searchParams.get('rarity') ?? defaultSearchFilters.rarity,
-      franchise: searchParams.get('franchise') ?? defaultSearchFilters.franchise,
-      brand: searchParams.get('brand') ?? defaultSearchFilters.brand,
-      productType: searchParams.get('productType') ?? defaultSearchFilters.productType,
-      graded: searchParams.get('graded') ?? defaultSearchFilters.graded,
-      availability: searchParams.get('availability') ?? defaultSearchFilters.availability,
-      sellerRating: searchParams.get('sellerRating') ?? defaultSearchFilters.sellerRating,
-    })
-  }, [defaultSearchFilters, searchParams])
-
-  useEffect(() => {
-    const params = new URLSearchParams()
-
-    if (filters.search?.trim()) params.set('q', filters.search.trim())
-    if (selectedCategory && selectedCategory !== ALL_CATEGORY_VALUE) {
-      params.set('category', selectedCategory)
-    }
-
-    Object.entries(filters).forEach(([key, value]) => {
-      if (key === 'search' || value == null) return
-      if (String(value) === String(allFilterValue)) return
-      params.set(key, value)
-    })
-
-    if (sort !== 'newest') {
-      params.set('sort', sort)
-    }
-
-    if (params.toString() !== searchParams.toString()) {
-      setSearchParams(params, { replace: true })
-    }
-  }, [
-    allFilterValue,
-    filters,
-    searchParams,
-    selectedCategory,
-    setSearchParams,
-    sort,
-  ])
 
   const results = searchProducts({
     categoryId: selectedCategoryId,
@@ -169,13 +103,11 @@ function SearchResultsPage() {
 
   const perPage = 20
   const totalPages = Math.max(1, Math.ceil(sorted.length / perPage))
+  if (isReady && page > totalPages) return <NotFoundPage />
   const paginated = sorted.slice((page - 1) * perPage, page * perPage)
 
   const updateFilter = (key, value) => {
-    setFilters((previous) => ({
-      ...previous,
-      [key]: previous[key] === value ? allFilterValue : value,
-    }))
+    setFilters({ [key]: filters[key] === value ? allFilterValue : value })
   }
 
   const resetFilters = () => {
@@ -187,6 +119,7 @@ function SearchResultsPage() {
 
   return (
     <div className="container pb-14">
+      <PageSeo pageKey="search" fallbackTitle={`${copy.title} | Cardora`} fallbackDescription={copy.description(sorted.length)} noIndex />
       <SearchBar
         initialValues={{
           query: filters.search,
@@ -211,6 +144,7 @@ function SearchResultsPage() {
         <div>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <SectionHeader
+              as="h1"
               className="mb-0"
               eyebrow={copy.eyebrow}
               title={copy.title}
@@ -229,6 +163,7 @@ function SearchResultsPage() {
               </Button>
 
               <select
+                aria-label={locale === 'en' ? 'Sort results' : 'Ταξινόμηση αποτελεσμάτων'}
                 value={sort}
                 onChange={(event) => setSort(event.target.value)}
                 className="rounded-xl border border-[#eadab7] bg-white px-3.5 py-2.5 text-[13px] text-slate-700"
@@ -248,7 +183,7 @@ function SearchResultsPage() {
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              <Pagination page={page} totalPages={totalPages} getPageHref={pageHref} />
             </>
           ) : (
             <EmptyState

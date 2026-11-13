@@ -1,13 +1,12 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { translations } from '@/i18n/translations'
 import {
   DEFAULT_LOCALE,
   getLocaleFromPathname,
   isValidLocale,
-  localizePath,
-  stripLocaleFromPathname,
 } from '@/utils/helpers'
+import { DEFAULT_SHARE_IMAGE, getSeoUrls } from '@/utils/seoUrls'
 import { normalizePotentialMojibake } from '@/utils/textEncoding'
 
 const STORAGE_KEY = 'cardora-locale'
@@ -33,29 +32,23 @@ function resolveMessage(locale, key) {
 
 export function I18nProvider({ children }) {
   const location = useLocation()
-  const [locale, setLocale] = useState(() => {
-    const pathnameLocale = getLocaleFromPathname(window.location.pathname)
-    const storedLocale = window.localStorage.getItem(STORAGE_KEY)
-
-    if (pathnameLocale) {
-      return pathnameLocale
+  const [preferredLocale, setLocale] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const storedLocale = window.localStorage.getItem(STORAGE_KEY)
+        if (isValidLocale(storedLocale)) return storedLocale
+      } catch {
+        // Browsing remains available when storage is disabled.
+      }
     }
-
-    return isValidLocale(storedLocale) ? storedLocale : DEFAULT_LOCALE
+    return DEFAULT_LOCALE
   })
-
-  useEffect(() => {
-    const pathnameLocale = getLocaleFromPathname(location.pathname)
-
-    if (pathnameLocale && pathnameLocale !== locale) {
-      setLocale(pathnameLocale)
-    }
-  }, [locale, location.pathname])
+  const locale = getLocaleFromPathname(location.pathname) || preferredLocale
 
   useEffect(() => {
     document.documentElement.lang = locale
-    window.localStorage.setItem(STORAGE_KEY, locale)
-  }, [locale])
+    try { window.localStorage.setItem(STORAGE_KEY, locale) } catch { /* Optional preference storage. */ }
+  }, [locale, location.pathname])
 
   // Layout effect (not a regular effect): this sets the generic per-locale
   // default title/meta *before* any page's <PageSeo> override effect runs.
@@ -91,15 +84,14 @@ export function I18nProvider({ children }) {
     upsertMeta('meta[property="og:locale"]', { property: 'og:locale', content: seo.ogLocale })
     upsertMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: seo.title })
     upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: seo.description })
-  }, [locale])
+    upsertMeta('meta[property="og:image"]', { property: 'og:image', content: DEFAULT_SHARE_IMAGE })
+    upsertMeta('meta[property="og:type"]', { property: 'og:type', content: 'website' })
+    upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: DEFAULT_SHARE_IMAGE })
+    upsertMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary_large_image' })
+  }, [locale, location.pathname])
 
-  useEffect(() => {
-    const canonicalPath = localizePath(stripLocaleFromPathname(location.pathname), locale)
-    const canonicalUrl = `${window.location.origin}${canonicalPath}${location.search}`
-    const alternatePaths = {
-      el: `${window.location.origin}${localizePath(stripLocaleFromPathname(location.pathname), 'el')}${location.search}`,
-      en: `${window.location.origin}${localizePath(stripLocaleFromPathname(location.pathname), 'en')}${location.search}`,
-    }
+  useLayoutEffect(() => {
+    const urls = getSeoUrls(location.pathname, location.search, locale)
 
     const upsertLink = (selector, attributes) => {
       let link = document.head.querySelector(selector)
@@ -114,28 +106,26 @@ export function I18nProvider({ children }) {
       })
     }
 
-    upsertLink('link[rel="canonical"]', { rel: 'canonical', href: canonicalUrl })
-    upsertLink('link[rel="alternate"][hreflang="el"]', {
-      rel: 'alternate',
-      hreflang: 'el',
-      href: alternatePaths.el,
+    upsertLink('link[rel="canonical"]', { rel: 'canonical', href: urls.canonical })
+    document.head.querySelectorAll('link[rel="alternate"][hreflang]').forEach((link) => link.remove())
+    Object.entries(urls.alternates).forEach(([hreflang, href]) => {
+      upsertLink(`link[rel="alternate"][hreflang="${hreflang}"]`, { rel: 'alternate', hreflang, href })
     })
-    upsertLink('link[rel="alternate"][hreflang="en"]', {
-      rel: 'alternate',
-      hreflang: 'en',
-      href: alternatePaths.en,
-    })
-    upsertLink('link[rel="alternate"][hreflang="x-default"]', {
-      rel: 'alternate',
-      hreflang: 'x-default',
-      href: alternatePaths.el,
-    })
+    for (const [attribute, key, content] of [['name', 'robots', urls.robots], ['property', 'og:url', urls.canonical]]) {
+      let meta = document.head.querySelector(`meta[${attribute}="${key}"]`)
+      if (!meta) {
+        meta = document.createElement('meta')
+        meta.setAttribute(attribute, key)
+        document.head.appendChild(meta)
+      }
+      meta.content = content
+    }
   }, [locale, location.pathname, location.search])
 
-  const t = (key, fallback = key) => {
+  const t = useCallback((key, fallback = key) => {
     const message = resolveMessage(locale, key) ?? fallback
     return typeof message === 'string' ? normalizePotentialMojibake(message) : message
-  }
+  }, [locale])
 
   const value = useMemo(
     () => ({
@@ -143,7 +133,7 @@ export function I18nProvider({ children }) {
       setLocale,
       t,
     }),
-    [locale],
+    [locale, t],
   )
 
   return (

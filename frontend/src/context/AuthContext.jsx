@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { cardoraService } from '@/services/cardoraService'
+import { startTransition } from 'react'
 import {
   AUTH_EXPIRED_EVENT,
   clearStoredAuthToken,
@@ -94,23 +95,25 @@ export function AuthProvider({ children }) {
       const token = getStoredAuthToken()
 
       if (!token) {
-        setIsAuthReady(true)
+        startTransition(() => setIsAuthReady(true))
         return
       }
 
-      setIsAuthenticating(true)
+      startTransition(() => setIsAuthenticating(true))
 
       try {
         const user = await cardoraService.me()
-        setCurrentUser(hydrateAuthUser(user))
+        startTransition(() => setCurrentUser(hydrateAuthUser(user)))
       } catch (error) {
         if (isInvalidTokenError(error)) {
           clearStoredAuthToken()
-          setCurrentUser(null)
+          startTransition(() => setCurrentUser(null))
         }
       } finally {
-        setIsAuthenticating(false)
-        setIsAuthReady(true)
+        startTransition(() => {
+          setIsAuthenticating(false)
+          setIsAuthReady(true)
+        })
       }
     }
 

@@ -11,12 +11,12 @@ const createToken = (prefix = 'page') =>
 export function PageLoaderProvider({ children }) {
   const location = useLocation()
   const { isAuthReady, isAuthenticating } = useAuthContext()
-  const { isReady } = useMarketplaceContext()
+  const { isReady, hasPublicSnapshot } = useMarketplaceContext()
   const [pendingTokens, setPendingTokens] = useState([])
   const hasCompletedFirstBootRef = useRef(false)
   const previousPathRef = useRef(location.pathname)
 
-  const bootLoading = !isAuthReady || !isReady || isAuthenticating
+  const bootLoading = (!isAuthReady && !hasPublicSnapshot) || !isReady || isAuthenticating
 
   useEffect(() => {
     if (!bootLoading) {

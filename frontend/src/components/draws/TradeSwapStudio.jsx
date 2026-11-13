@@ -4,8 +4,9 @@ import UserAvatar from '@/components/people/UserAvatar'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import { Input } from '@/components/ui/Input'
-import { formatCurrency } from '@/utils/formatters'
+import { useFormatters } from '@/hooks/useFormatters'
 import { normalizeTextTree } from '@/utils/textEncoding'
+import { catalogValueLabel } from '@/utils/catalogLabels'
 
 const listingIdOf = (item) => Number(item?.listingId ?? item?.databaseId ?? item?.id ?? 0)
 const listingMediaOf = (item) => (Array.isArray(item?.media) ? item.media.filter((entry) => entry?.url) : [])
@@ -28,6 +29,7 @@ function TradeSwapStudio({
   onSubmit,
   pendingAdd = null,
 }) {
+  const { formatCurrency } = useFormatters()
   const isEnglish = locale === 'en'
   const copy = useMemo(
     () =>
@@ -381,7 +383,7 @@ function TradeSwapStudio({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
-          <span className="rounded-full border border-[#eadab7] bg-[#fffaf2] px-2 py-0.5">{listingRarityOf(item)}</span>
+          <span className="rounded-full border border-[#eadab7] bg-[#fffaf2] px-2 py-0.5">{catalogValueLabel('rarity', listingRarityOf(item), locale)}</span>
           <span className="rounded-full border border-[#eadab7] bg-[#fffaf2] px-2 py-0.5">{listingConditionOf(item)}</span>
           {isSelected ? (
             <span className="rounded-full border border-[#d4b074] bg-[#f6ead0] px-2 py-0.5 text-gold-700">

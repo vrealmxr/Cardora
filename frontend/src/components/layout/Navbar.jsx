@@ -86,21 +86,21 @@ function Navbar() {
   const activationBannerCopy =
     locale === 'en'
       ? {
-          title: 'Action required: complete your account details before using Cardora fully.',
+          title: 'Want to sell? Complete your seller setup.',
           description:
             sellerShippingRequirement?.ready === false
-              ? 'Your private shipping details stay private and secure, but they must be completed before listings can stay visible and parcel shipping can be processed safely.'
-              : 'You still have required account steps open. Complete them now so marketplace actions can unlock properly.',
+              ? 'You can buy now. To sell, complete verification, Stripe payouts and your private shipping details.'
+              : 'You can buy now. Complete the remaining checks when you want to sell.',
           profile: 'Complete shipping details',
           verification: 'Verification center',
           dashboard: 'Stripe setup',
         }
       : {
-          title: 'Απαιτείται ενέργεια: συμπλήρωσε τα στοιχεία του λογαριασμού σου για να χρησιμοποιήσεις πλήρως την Cardora.',
+          title: 'Θέλεις να πουλήσεις; Ολοκλήρωσε τα στοιχεία πωλητή.',
           description:
             sellerShippingRequirement?.ready === false
-              ? 'Τα ιδιωτικά στοιχεία αποστολής σου παραμένουν private και ασφαλή, αλλά πρέπει να συμπληρωθούν πριν μπορούν να παραμένουν ορατές οι αγγελίες σου και να εκτελείται σωστά η αποστολή δεμάτων.'
-              : 'Υπάρχουν ακόμη υποχρεωτικά βήματα λογαριασμού ανοιχτά. Ολοκλήρωσέ τα τώρα για να ξεκλειδώσουν σωστά οι marketplace ενέργειες.',
+              ? 'Μπορείς ήδη να αγοράσεις. Για να πουλήσεις, ολοκλήρωσε την επαλήθευση, τις πληρωμές Stripe και τα ιδιωτικά στοιχεία αποστολής.'
+              : 'Μπορείς ήδη να αγοράσεις. Ολοκλήρωσε τους υπόλοιπους ελέγχους όταν θελήσεις να πουλήσεις.',
           profile: 'Στοιχεία αποστολής',
           verification: 'Verification center',
           dashboard: 'Stripe setup',

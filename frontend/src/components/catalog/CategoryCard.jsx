@@ -1,28 +1,19 @@
+import { catalogCopy } from '@/data/catalogCopy'
 import { ArrowUpRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import CardSurface from '@/components/ui/CardSurface'
 import { useI18n } from '@/hooks/useI18n'
-import { formatNumber } from '@/utils/formatters'
+import { localizePath } from '@/utils/helpers'
+import { useFormatters } from '@/hooks/useFormatters'
 
 function CategoryCard({ category }) {
+  const { formatNumber } = useFormatters()
   const { locale } = useI18n()
-  const categoryKey = String(category.id ?? category.slug ?? '').toLowerCase()
-  const greekDescriptionOverrides = {
-    cards: 'Pokémon, Yu-Gi-Oh!, Magic, One Piece και sports cards — με verified πωλητές και ασφαλή πληρωμή.',
-    kartes: 'Pokémon, Yu-Gi-Oh!, Magic, One Piece και sports cards — με verified πωλητές και ασφαλή πληρωμή.',
-    figures: 'Anime statues, Funko Pop και premium display pieces — με verified πωλητές και ασφαλή πληρωμή',
-    figoures: 'Anime statues, Funko Pop και premium display pieces — με verified πωλητές και ασφαλή πληρωμή',
-    comics: 'Κόμικς, manga, graphic novels και συλλεκτικές εκδόσεις — με verified πωλητές και ασφαλή πληρωμή',
-    'komik-vivlia': 'Κόμικς, manga, graphic novels και συλλεκτικές εκδόσεις — με verified πωλητές και ασφαλή πληρωμή',
-    misc: 'Για σπάνια συλλεκτικά που δεν ανήκουν σε μία μόνο κατηγορία',
-    diafora: 'Για σπάνια συλλεκτικά που δεν ανήκουν σε μία μόνο κατηγορία',
-  }
-  const resolvedDescription =
-    locale === 'en' ? category.description : greekDescriptionOverrides[categoryKey] ?? category.description
+  const resolvedDescription = catalogCopy[locale]?.[category.slug]?.short || category.description
 
   return (
     <CardSurface className="h-full overflow-hidden p-0">
-      <Link to={`/${category.slug}`} className="block h-full p-5">
+      <Link to={localizePath(`/${category.slug}`, locale)} className="block h-full p-5">
         <div
           className="relative flex h-full min-h-[240px] flex-col justify-between overflow-hidden rounded-[22px] border border-[#eadab7] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(249,240,220,0.9)_58%,rgba(232,205,150,0.32))] p-5"
         >
@@ -46,7 +37,7 @@ function CategoryCard({ category }) {
             <div className="grid grid-cols-3 gap-1.5">
               <div className="min-w-0 rounded-xl border border-[#eadab7] bg-white px-2 py-2">
                 <p className="min-h-[22px] break-words text-[8px] uppercase leading-3 tracking-[0.12em] text-[#968565] sm:text-[9px]">
-                  Listings
+                  {locale === 'en' ? 'Listings' : 'Αγγελίες'}
                 </p>
                 <p className="mt-1 text-[15px] font-semibold text-ink">
                   {formatNumber(category.metrics.listings)}
@@ -55,7 +46,7 @@ function CategoryCard({ category }) {
 
               <div className="min-w-0 rounded-xl border border-[#eadab7] bg-white px-2 py-2">
                 <p className="min-h-[22px] break-words text-[8px] uppercase leading-3 tracking-[0.12em] text-[#968565] sm:text-[9px]">
-                  Πωλήσεις
+                  {locale === 'en' ? 'Orders' : 'Παραγγελίες'}
                 </p>
                 <p className="mt-1 text-[15px] font-semibold text-ink">
                   {formatNumber(category.metrics.sold)}
@@ -64,7 +55,7 @@ function CategoryCard({ category }) {
 
               <div className="min-w-0 rounded-xl border border-[#eadab7] bg-white px-2 py-2">
                 <p className="min-h-[22px] break-words text-[8px] uppercase leading-3 tracking-[0.12em] text-[#968565] sm:text-[9px]">
-                  Verified
+                  {locale === 'en' ? 'Verified sellers' : 'Επαληθευμένοι πωλητές'}
                 </p>
                 <p className="mt-1 text-[15px] font-semibold text-ink">
                   {formatNumber(category.metrics.verified)}

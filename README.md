@@ -1,5 +1,17 @@
 # Cardora
 
+## Live scanner integration — 2026-10-20
+
+Canonical public scanner: https://cardora.gr/el/cardora-scanner (also `/en/cardora-scanner`). The existing `CardoraScannerPage` now uses the deployed `/index.php/api/card-scans` backend for uploads, polling, results, opt-in training collection and owner deletion. It reuses `BinderShell`, `Button`, `CardSurface` and `Select`; existing white/gold colors, global CSS, logo, navigation and other pages were preserved. Placeholder generated prices were removed; pricing is explicitly coming later. `/scanner` redirects to the canonical Greek URL.
+
+This worktree, `D:\CardoraGit\Cardora-scanner-live`, branch `codex/cardora-scanner-live`, is the current frontend integration source. Base commit `97347f3` reproduces the previous live JavaScript/CSS byte-for-byte; the previous deployment's Git metadata incorrectly reflected the preceding commit with dirty files. Only `frontend/src/pages/CardoraScannerPage.jsx` changed in the frontend. Do not rebuild the live frontend from the older checkout at `D:\CardoraGit\Cardora`.
+
+The new Laravel scanner/backend feature source remains in `D:\CardoraGit\Cardora`; its README documents private storage, admin review, server environment, quotas, retention and rollback. Do not deploy this worktree's older backend wholesale. Admin review is still https://cardora.gr/admin/dataset-review, protected by existing admin login. RunPod configuration was not changed and no inference requests were made for this UI change.
+
+Cloudflare Pages project: `cardora-frontend`. Verified preview: `8e8ac3c6.cardora-frontend.pages.dev`; production deployment: `0b6b488d.cardora-frontend.pages.dev`. Previous production rollback ID: `432ed9f9-d4b0-499e-a3f5-95288926701c`. Deploy only the built frontend with the project's existing Wrangler configuration. The private Hostinger backup for the old `/scanner` route is `/home/u912666299/cardora-private/deploy-public-scans-20261020/card_scans_web.before-canonical-redirect.php`.
+
+Validation: page ESLint, Vite production build, live Greek/English routes, original-URL redirect, unchanged admin login protection, visual preview/live comparison. A loopback-only browser fixture verified front/back NBA upload, explicit opt-in, one POST, result polling with unresolved parallel, and deletion; it did not call RunPod. Evidence: `D:\Cardora\RuntimeValidation\scanner-existing-page-20261020`. Temporary fixture server was stopped. Live signed-in browser scanning was not repeated, to avoid another paid inference.
+
 Cardora is a collector-focused marketplace with protected checkout flows, seller onboarding, auctions, draws, private offers, and profile/community features.
 
 This repository contains the full stack:
