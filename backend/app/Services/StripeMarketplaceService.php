@@ -176,7 +176,7 @@ class StripeMarketplaceService
         }
 
         $orders = $this->findOrdersByStripeMetadata(
-            (array) ($session->metadata ?? []),
+            $this->stripeMetadataArray($session->metadata ?? null),
             $session->payment_intent ?? null,
             $session->id ?? null
         );
@@ -531,6 +531,13 @@ class StripeMarketplaceService
             return $order->fresh(['items', 'buyer', 'seller']);
         }
 
+        // A declined card is retryable in the same Checkout Session. Only a
+        // confirmed session expiry closes the order and releases its inventory.
+        if (($context['reason'] ?? null) !== 'checkout_session_expired') {
+            Log::info('Stripe payment attempt failed; order remains pending for retry.', ['order_id' => $order->getKey()]);
+            return $order->fresh(['items', 'buyer', 'seller']);
+        }
+
         return $this->checkoutService->cancelPendingOrder($order, [
             'payment_failure' => $context,
         ]);
@@ -545,7 +552,7 @@ class StripeMarketplaceService
             return collect();
         }
 
-        $orders = $this->findOrdersByStripeMetadata((array) ($session->metadata ?? []), $session->payment_intent ?? null, $session->id ?? null);
+        $orders = $this->findOrdersByStripeMetadata($this->stripeMetadataArray($session->metadata ?? null), $session->payment_intent ?? null, $session->id ?? null);
 
         if ($orders->isEmpty()) {
             Log::warning('Stripe checkout.session.completed received without a matching order.', [
@@ -569,7 +576,7 @@ class StripeMarketplaceService
      */
     public function handlePaymentIntentSucceeded(object $paymentIntent): Collection
     {
-        $orders = $this->findOrdersByStripeMetadata((array) ($paymentIntent->metadata ?? []), $paymentIntent->id ?? null);
+        $orders = $this->findOrdersByStripeMetadata($this->stripeMetadataArray($paymentIntent->metadata ?? null), $paymentIntent->id ?? null);
 
         if ($orders->isEmpty()) {
             Log::warning('Stripe payment_intent.succeeded received without a matching order.', [
@@ -703,34 +710,77 @@ class StripeMarketplaceService
      *
      * @return Collection<int, Order>
      */
+    public function stripeMetadataArray(mixed $metadata): array
+    {
+        // Casting StripeObject to array exposes its internal fields, not metadata.
+        return $metadata instanceof \Stripe\StripeObject
+            ? $metadata->toArray()
+            : (is_array($metadata) ? $metadata : (is_object($metadata) ? get_object_vars($metadata) : []));
+    }
+
     public function findOrdersByStripeMetadata(array $metadata, ?string $paymentIntentId = null, ?string $sessionId = null): Collection
     {
         $batchId = $metadata['checkout_batch_id'] ?? null;
-
         if ($batchId) {
-            $orders = Order::query()->where('checkout_batch_id', $batchId)->get();
+            $orders = Order::query()->where('checkout_batch_id', $batchId)->orderBy('id')->get();
+        } elseif ($paymentIntentId || $sessionId) {
+            $orders = Order::query()->where(function ($query) use ($paymentIntentId, $sessionId) {
+                if ($paymentIntentId) $query->where('stripe_payment_intent_id', $paymentIntentId);
+                if ($sessionId) $query->{$paymentIntentId ? 'orWhere' : 'where'}('stripe_checkout_session_id', $sessionId);
+            })->orderBy('id')->get();
+        } else {
+            $orders = collect();
+        }
 
-            if ($orders->isNotEmpty()) {
-                return $orders;
+        $expectedIds = array_values(array_unique(array_filter(array_map('intval', explode(',', (string) ($metadata['order_ids'] ?? ''))))));
+        $actualIds = $orders->pluck('id')->all();
+        sort($expectedIds); sort($actualIds);
+        if ($expectedIds !== [] && $expectedIds !== $actualIds) {
+            // Do not acknowledge a partially missing paid batch as fulfilled.
+            throw new RuntimeException('Stripe checkout batch is incomplete; expected orders '.implode(',', $expectedIds).', found '.implode(',', $actualIds));
+        }
+        if (!empty($metadata['buyer_id']) && $orders->contains(fn (Order $o) => (int) $o->buyer_id !== (int) $metadata['buyer_id'])) {
+            throw new RuntimeException('Stripe checkout buyer does not match its orders.');
+        }
+
+        return $orders;
+    }
+
+    public function cancelCheckoutForOrder(Order $order): Collection
+    {
+        $order->refresh();
+        $deny = fn () => throw ValidationException::withMessages([
+            'order' => [app()->getLocale() === 'el'
+                ? 'Η πληρωμή έχει ολοκληρωθεί ή βρίσκεται σε εξέλιξη. Η παραγγελία δεν μπορεί να ακυρωθεί από εδώ.'
+                : 'Payment is complete or still in progress. This order cannot be cancelled here.'],
+        ]);
+        if (!in_array($order->status, ['pending_payment', 'cancelled'], true)) $deny();
+
+        if ($order->stripe_checkout_session_id) {
+            // Network errors fail closed: no stock restoration or record deletion.
+            $session = $this->stripe()->checkout->sessions->retrieve($order->stripe_checkout_session_id);
+            if (($session->payment_status ?? null) !== 'unpaid') $deny();
+            if (($session->status ?? null) === 'open') {
+                // If payment wins the race Stripe rejects expiration; keep local records.
+                $session = $this->stripe()->checkout->sessions->expire($session->id);
             }
+            if (($session->status ?? null) !== 'expired' || ($session->payment_status ?? null) !== 'unpaid') $deny();
+            $this->findOrdersByStripeMetadata($this->stripeMetadataArray($session->metadata ?? null), $session->payment_intent ?? null, $session->id);
+        } elseif ($order->stripe_payment_intent_id || $order->stripe_charge_id) {
+            $deny();
         }
 
-        if (! $paymentIntentId && ! $sessionId) {
-            return collect();
-        }
+        return DB::transaction(function () use ($order, $deny) {
+            $query = Order::query()->orderBy('id')->lockForUpdate();
+            $orders = $order->checkout_batch_id
+                ? $query->where('checkout_batch_id', $order->checkout_batch_id)->get()
+                : $query->whereKey($order->getKey())->get();
+            if ($orders->contains(fn (Order $o) => !in_array($o->status, ['pending_payment', 'cancelled'], true)
+                || (int) $o->buyer_id !== (int) $order->buyer_id
+                || $o->stripe_checkout_session_id !== $order->stripe_checkout_session_id)) $deny();
 
-        return Order::query()
-            ->where(function ($query) use ($paymentIntentId, $sessionId) {
-                if ($paymentIntentId) {
-                    $query->where('stripe_payment_intent_id', $paymentIntentId);
-                }
-
-                if ($sessionId) {
-                    $method = $paymentIntentId ? 'orWhere' : 'where';
-                    $query->{$method}('stripe_checkout_session_id', $sessionId);
-                }
-            })
-            ->get();
+            return $orders->map(fn (Order $o) => $this->checkoutService->cancelPendingOrder($o, ['cancellation_source' => 'checkout_return']))->values();
+        });
     }
 
     protected function transferGroup(Order $order): string

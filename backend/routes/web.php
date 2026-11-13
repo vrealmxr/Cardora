@@ -24,6 +24,11 @@ Route::get('/stripe/connect/success/{account}', [StripeConnectRedirectController
 Route::get('/email/verify/{id}/{hash}', EmailVerificationRedirectController::class)
     ->name('verification.verify');
 
+require __DIR__.'/card_scans_web.php';
+
+Route::get('/admin/private-verification-document/{document}', \App\Http\Controllers\Web\LegacyVerificationDocumentController::class)
+    ->whereNumber('document')->name('legacy-verification.download');
+
 Route::fallback(function () {
     if (
         request()->is('api/*') ||

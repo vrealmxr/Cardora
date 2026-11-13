@@ -32,6 +32,11 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
+            ->navigationItems([
+                \Filament\Navigation\NavigationItem::make('Dataset Review')
+                    ->url('/admin/dataset-review')
+                    ->icon('heroicon-o-camera')->group('Cardora-1'),
+            ])
             ->login()
             ->brandName('Cardora Admin')
             ->defaultThemeMode(ThemeMode::Light)

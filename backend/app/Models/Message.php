@@ -37,6 +37,21 @@ class Message extends Model
         'read_at' => 'datetime',
     ];
 
+    // Older versions of the admin tag editor sometimes persisted CSV inside JSON.
+    public function getModerationFlagsAttribute($raw): array
+    {
+        $value = $raw;
+        for ($depth = 0; $depth < 2 && is_string($value); $depth++) {
+            $decoded = json_decode($value, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $value = explode(',', $value);
+                break;
+            }
+            $value = $decoded;
+        }
+        return array_values(array_filter(array_map('trim', array_filter((array) $value, 'is_string')), fn ($flag) => $flag !== ''));
+    }
+
     public function conversation(): BelongsTo
     {
         return $this->belongsTo(Conversation::class);

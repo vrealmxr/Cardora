@@ -21,7 +21,7 @@ class OrderController extends Controller
         $userId = $request->user()->getKey();
         $scope = $request->string('scope')->toString();
 
-        $orders = Order::query()
+        $orders = Order::query()->placedSales()
             ->with($this->orderRelations())
             ->when(
                 $scope === 'buyer',
@@ -124,37 +124,12 @@ class OrderController extends Controller
         ]);
     }
 
-    public function destroy(Request $request, Order $order)
+    public function destroy(Request $request, Order $order, \App\Services\StripeMarketplaceService $marketplaceService)
     {
-        $this->ensureParticipant($request, $order);
-
-        if (! in_array($order->status, ['pending_payment', 'cancelled'], true)) {
-            throw ValidationException::withMessages([
-                'order' => [__('api.errors.forbidden')],
-            ]);
-        }
-
-        DB::transaction(function () use ($order) {
-            $order->load('items.listing');
-
-            foreach ($order->items as $item) {
-                if (! $item->listing) {
-                    continue;
-                }
-
-                $currentAvailable = (int) ($item->listing->available_quantity ?? 0);
-                $restoredQuantity = $currentAvailable + (int) $item->quantity;
-
-                $item->listing->update([
-                    'available_quantity' => $restoredQuantity,
-                    'status' => 'active',
-                    'availability' => 'available',
-                ]);
-            }
-
-            $order->escrowTransaction()?->delete();
-            $order->delete();
-        });
+        abort_unless((int) $request->user()->getKey() === (int) $order->buyer_id, 403, __('api.errors.forbidden'));
+        // A return from Checkout is not evidence that payment failed. Keep the
+        // complete batch and its audit trail; expire the Stripe session first.
+        $marketplaceService->cancelCheckoutForOrder($order);
 
         return response()->noContent();
     }

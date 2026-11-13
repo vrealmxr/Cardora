@@ -17,6 +17,11 @@ class CartSanitizerService
 
     public function purgeInvalidItems(User $user): int
     {
+        return \Illuminate\Support\Facades\DB::transaction(fn () => $this->purgeUnreservedInvalidItems($user), 3);
+    }
+
+    protected function purgeUnreservedInvalidItems(User $user): int
+    {
         $invalidIds = $user->cartItems()
             ->with(['listing', 'drawCampaign'])
             ->get()
@@ -25,6 +30,16 @@ class CartSanitizerService
             ->map(fn ($id) => (int) $id)
             ->values();
 
+        if ($invalidIds->isEmpty()) {
+            return 0;
+        }
+
+        // Checkout has already reserved inventory. A bootstrap/cart read must not
+        // remove this buyer's own cart line just because its remaining stock is zero.
+        $reservedIds = \App\Models\OrderItem::query()
+            ->whereHas('order', fn ($q) => $q->where('buyer_id', $user->getKey())->where('status', 'pending_payment'))
+            ->get(['metadata'])->pluck('metadata.cart_item_id')->filter();
+        $invalidIds = $invalidIds->diff($reservedIds);
         if ($invalidIds->isEmpty()) {
             return 0;
         }
@@ -59,7 +74,12 @@ class CartSanitizerService
         }
 
         if (($listing->sale_format ?? 'fixed_price') === 'auction') {
-            return false;
+            try {
+                app(AuctionPurchaseService::class)->assertWinnerCanPurchase($listing, $user, (int) $item->quantity);
+                return true;
+            } catch (ValidationException) {
+                return false;
+            }
         }
 
         if (($item->metadata['item_mode'] ?? null) === LotCardSelectionService::ITEM_MODE) {

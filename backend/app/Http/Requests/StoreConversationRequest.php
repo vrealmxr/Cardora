@@ -14,7 +14,8 @@ class StoreConversationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'listing_id' => ['required', 'exists:listings,id'],
+            'listing_id' => ['required_without:order_id', 'nullable', 'integer', 'exists:listings,id'],
+            'order_id' => ['nullable', 'integer', 'exists:orders,id'],
             'initial_message' => ['nullable', 'string', 'max:3000'],
             'metadata' => ['nullable', 'array'],
         ];

@@ -39,6 +39,6 @@ class VerificationDocument extends Model
             return null;
         }
 
-        return Storage::disk($this->storage_disk)->url($this->storage_path);
+        return route('legacy-verification.download', ['document' => $this->id]);
     }
 }

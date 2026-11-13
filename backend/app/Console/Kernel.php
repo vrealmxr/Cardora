@@ -12,6 +12,7 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command('cardora:process-scans --prune-only')->hourly()->withoutOverlapping();
         $schedule->command('didit:expire')->everyMinute()->withoutOverlapping();
         $schedule->command('didit:expire --delete')->hourly()->withoutOverlapping();
         $schedule->command('didit:reconcile')->everyTenMinutes()->withoutOverlapping();

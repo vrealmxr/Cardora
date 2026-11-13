@@ -29,6 +29,12 @@ return [
     */
 
     'disks' => [
+        'legacy_verification' => [
+            'driver' => 'local',
+            'root' => '/home/u912666299/cardora-private/legacy-verification',
+            'visibility' => 'private',
+            'throw' => true,
+        ],
 
         'local' => [
             'driver' => 'local',

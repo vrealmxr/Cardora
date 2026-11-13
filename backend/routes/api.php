@@ -1,5 +1,7 @@
 <?php
 
+require __DIR__.'/card_scans_api.php';
+
 use App\Http\Controllers\Api\AuctionBidController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AdminOrderPaymentController;
@@ -45,8 +47,12 @@ use App\Http\Controllers\Api\UploadController;
 use App\Http\Controllers\Api\VerificationController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\DiditController;
+use App\Http\Controllers\Api\EbayAccountDeletionController;
+use App\Http\Controllers\Api\EbayPriceController;
 
 Route::post('/webhooks/didit', [DiditController::class, 'webhook']);
+Route::get('/webhooks/ebay/account-deletion', [EbayAccountDeletionController::class, 'challenge']);
+Route::post('/webhooks/ebay/account-deletion', [EbayAccountDeletionController::class, 'notify']);
 Route::post('/stripe/webhooks', [StripeWebhookController::class, 'handle']);
 Route::post('/webhooks/boxnow', [BoxNowWebhookController::class, 'handle']);
 
@@ -316,5 +322,8 @@ Route::middleware(['auth:sanctum', 'set.locale'])->group(function (): void {
     Route::prefix('scanner')->group(function (): void {
         Route::get('/usage', [ScannerUsageController::class, 'show']);
         Route::post('/usage', [ScannerUsageController::class, 'store']);
+        Route::get('/price', [EbayPriceController::class, 'show'])->middleware('throttle:30,1');
     });
 });
+
+require __DIR__.'/public_pages_api.php';

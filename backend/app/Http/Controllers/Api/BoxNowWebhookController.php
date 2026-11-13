@@ -44,15 +44,16 @@ class BoxNowWebhookController extends Controller
             return response()->json(['message' => 'Missing parcelId/event, ignored.']);
         }
 
-        $order = Order::query()
+        $orders = Order::query()
             ->where('shipping_carrier', 'boxnow')
             ->where(function ($query) use ($parcelId) {
                 $query->where('shipment_tracking_number', $parcelId)
                     ->orWhere('tracking_number', $parcelId);
             })
-            ->first();
+            ->orderBy('id')
+            ->get();
 
-        if (! $order) {
+        if ($orders->isEmpty()) {
             // Acknowledge anyway — an unknown parcel isn't a delivery failure on our side, and
             // returning non-200 here would just make BoxNow retry it for 24h for nothing.
             Log::info('boxnow.webhook.unknown_parcel', ['parcelId' => $parcelId, 'event' => $event]);
@@ -60,16 +61,20 @@ class BoxNowWebhookController extends Controller
             return response()->json(['message' => 'Order not found, acknowledged.']);
         }
 
-        try {
-            $workflow->applyWebhookEvent($order, $event, $eventAt, $payload);
-        } catch (Throwable $exception) {
-            Log::error('boxnow.webhook.apply_failed', [
-                'order_id' => $order->getKey(),
-                'event' => $event,
-                'error' => $exception->getMessage(),
-            ]);
+        // A parcel may explicitly be shared by multiple orders. Update every matching
+        // order so delivery and the release window remain consistent for that parcel.
+        foreach ($orders as $order) {
+            try {
+                $workflow->applyWebhookEvent($order, $event, $eventAt, $payload);
+            } catch (Throwable $exception) {
+                Log::error('boxnow.webhook.apply_failed', [
+                    'order_id' => $order->getKey(),
+                    'event' => $event,
+                    'error' => $exception->getMessage(),
+                ]);
 
-            return response()->json(['message' => 'Failed to process.'], 500);
+                return response()->json(['message' => 'Failed to process.'], 500);
+            }
         }
 
         return response()->json(['message' => 'ok']);

@@ -203,7 +203,7 @@ class MarketplaceBootstrapService
                     ->whereIn('status', ['active', 'published'])
                     ->count();
 
-                $soldCount = Order::query()
+                $soldCount = Order::query()->placedSales()
                     ->whereHas('items.listing', fn ($query) => $query->where('category_id', $category->getKey()))
                     ->count();
 
@@ -366,6 +366,8 @@ class MarketplaceBootstrapService
                 'watchers' => (int) ($listing->favorites_count ?? $listing->favorites->count()),
                 'buyoutPrice' => $listing->buyout_price ? (float) $listing->buyout_price : null,
                 'endsAt' => optional($listing->auction_ends_at)->toIso8601String(),
+                'winningBidderId' => $listing->winning_bidder_id ? (int) $listing->winning_bidder_id : null,
+                'startsAt' => optional($listing->auction_starts_at)->toIso8601String(),
             ] : null,
             'lot' => $lot,
         ];
@@ -602,19 +604,52 @@ class MarketplaceBootstrapService
             ],
             [
                 'label' => $locale === 'en' ? 'Completed transactions' : 'ÎŸÎ»Î¿ÎºÎ»Î·ÏÏ‰Î¼Î­Î½ÎµÏ‚ ÏƒÏ…Î½Î±Î»Î»Î±Î³Î­Ï‚',
-                'value' => Order::query()->where('status', 'completed')->count(),
+                'value' => Order::query()->placedSales()->where('status', 'completed')->count(),
                 'format' => 'number',
             ],
             [
                 'label' => $locale === 'en' ? 'Protected order value' : 'Î ÏÎ¿ÏƒÏ„Î±Ï„ÎµÏ…Î¼Î­Î½Î· Î±Î¾Î¯Î± Ï€Î±ÏÎ±Î³Î³ÎµÎ»Î¹ÏŽÎ½',
-                'value' => (float) Order::query()->sum('total'),
+                'value' => (float) Order::query()->placedSales()->sum('total'),
                 'format' => 'currency',
             ],
         ];
     }
+    // Participant-only context: do not depend on the active public catalogue after a sale.
+    protected function privateListingContext(?Listing $listing): ?array
+    {
+        if (! $listing) {
+            return null;
+        }
+        $product = $listing->product;
+        $media = collect($product?->media ?? [])
+            ->map(fn ($item, $index) => $this->normalizeMediaItem($item, $index))
+            ->filter()->values()->all();
+
+        return [
+            'id' => (int) $listing->getKey(),
+            'listingId' => (int) $listing->getKey(),
+            'sellerId' => (int) $listing->seller_id,
+            'title' => $listing->title_snapshot ?: $product?->title,
+            'subtitle' => $product?->subtitle ?: $product?->set_name ?: $product?->series,
+            'description' => $product?->description,
+            'condition' => $listing->condition,
+            'franchise' => $product?->franchise,
+            'brand' => $product?->brand,
+            'year' => $product?->year,
+            'language' => $product?->language,
+            'setName' => $product?->set_name,
+            'itemNumber' => $product?->item_number,
+            'media' => $media,
+            'price' => (float) $listing->price,
+            'saleFormat' => $listing->sale_format,
+            'status' => $listing->status,
+            'acceptOffers' => in_array($listing->status, ['active', 'published'], true) && (bool) $listing->accept_offers,
+        ];
+    }
+
     protected function buildOrders(User $authUser, string $locale): array
     {
-        return Order::query()
+        return Order::query()->placedSales()
             ->with(['items.listing.product', 'items.drawCampaign', 'buyer', 'seller'])
             ->where(function ($query) use ($authUser) {
                 $query
@@ -644,6 +679,18 @@ class MarketplaceBootstrapService
                     'drawId' => $primaryItem?->draw_campaign_id,
                     'itemType' => $primaryType,
                     'title' => $primaryTitle,
+                    'items' => $order->items->map(function ($item) {
+                        $context = $this->privateListingContext($item->listing);
+                        return array_merge($context ?? [], [
+                            'id' => (int) $item->getKey(),
+                            'listingId' => $item->listing_id ? (int) $item->listing_id : null,
+                            'title' => $item->title_snapshot ?: ($context['title'] ?? $item->drawCampaign?->title),
+                            'condition' => $item->condition_snapshot ?: ($context['condition'] ?? null),
+                            'quantity' => (int) $item->quantity,
+                            'unitPrice' => (float) $item->unit_price,
+                            'lineTotal' => round((float) $item->unit_price * (int) $item->quantity, 2),
+                        ]);
+                    })->values()->all(),
                     'sellerId' => (int) $order->seller_id,
                     'buyerId' => (int) $order->buyer_id,
                     'amount' => (float) $order->subtotal,
@@ -827,7 +874,7 @@ class MarketplaceBootstrapService
     protected function buildConversations(User $authUser, string $locale): array
     {
         return Conversation::query()
-            ->with(['messages.sender', 'offers'])
+            ->with(['messages.sender', 'offers', 'listing.product'])
             ->where(function ($query) use ($authUser) {
                 $query
                     ->where('buyer_id', $authUser->getKey())
@@ -843,6 +890,7 @@ class MarketplaceBootstrapService
                 return [
                     'id' => (int) $conversation->getKey(),
                     'productId' => (int) $conversation->listing_id,
+                    'product' => $this->privateListingContext($conversation->listing),
                     'sellerId' => (int) $conversation->seller_id,
                     'buyerId' => (int) $conversation->buyer_id,
                     'updatedAt' => optional($conversation->last_message_at ?: $conversation->updated_at)->toIso8601String(),
@@ -1202,7 +1250,7 @@ class MarketplaceBootstrapService
             ]
         );
 
-        $sellerOrders = Order::query()
+        $sellerOrders = Order::query()->placedSales()
             ->where('seller_id', $authUser->getKey())
             ->get();
 
