@@ -1,5 +1,17 @@
 # Didit rollout and annual lifecycle
 
+## Active organization switch — 11 November 2026
+
+New sessions now use workflow `ab007d91-e9ed-4d63-af3d-88e0a135068d` (published v1) and the owner's new API key. Credentials remain private. The active destination at `https://api.cardora.gr/index.php/api/webhooks/didit` is enabled for `status.updated` and `data.updated`; its exact destination secret was compared successfully before activation. The separate application-default webhook secret differs and must not replace the destination secret. The new organization's API reports twelve-month retention and delete-with-session face retention. No provider settings were changed.
+
+`DIDIT_WORKFLOW_ID` is now configurable. `DiditCredentials` selects credentials by workflow: new creation uses the active configuration; old session reconciliation, signed webhooks and expiry deletion use preserved `DIDIT_LEGACY_*` credentials. Unknown workflows fail closed, and cannot produce a false successful deletion from a wrong-organization 404. Do not remove legacy keys while sessions from that organization still need reconciliation or retention handling. Existing approvals and the database were not migrated or reset.
+
+Validation: 18 isolated in-memory SQLite checks passed with all provider HTTP mocked and stray requests blocked. They cover new creation, preservation of legacy approvals, separate webhook secrets, cross-workflow rejection and legacy deletion routing. Public unauthenticated status and unsigned new-workflow webhook requests both return JSON 401. A fresh production process confirms the new cached configuration and preserved legacy credentials. Session counts remain eight total/four approved. No real session or biometric check was created by this deployment; the owner must still test the authenticated redirect.
+
+Scope: five backend files, no frontend/RunPod changes. Evidence and installer: `D:/Cardora/RuntimeValidation/didit-org-switch-20261111`. Private server stage/backups: `/home/u912666299/cardora-private/didit-org-switch-20261111`. Installer verifies before/after source hashes, lints PHP, checks the provider workflow/destination, saves private environment/config backups, switches scoped files and rebuilds configuration cache; failures restore the prior files/environment/cache. For any later rollback, verify current hashes and retain legacy handling for sessions created after this switch rather than blindly restoring the old single-organization implementation.
+
+The earlier rollout details below are historical and describe the previous active organization.
+
 Status: deployed and enabled in production on 2026-09-27. Automatic hosting scheduler execution was confirmed through advancing `didit:last_expiry_check` cache heartbeats at 02:19:02 and 02:20:02 UTC, independently of a prior manual scheduler test at 02:16:31. On the same date, after explicit user confirmation, the Didit application below was saved with `1 year` retention and `Delete with session` for biometric templates; both persisted after reload. A consented real camera/document verification remains to be completed by a test participant.
 
 Didit console scope: VRealm, My Application / Live, application `af6e0c45-ca9d-47e9-8712-9f3ee1416de6`, organization `4fc34dcb-e795-42d5-93d4-abccb2efb9a7`. Model-training preferences were not changed. No DPA was signed or accepted by this implementation.

@@ -1,0 +1,6 @@
+Options -Indexes
+DirectoryIndex index.php
+RewriteEngine On
+RewriteRule ^\.well-known/acme-challenge/ - [L]
+RewriteRule ^index\.php(?:/api/public-html/[a-f0-9]{64})?$ - [L]
+RewriteRule ^ - [F,L]
