@@ -1,4 +1,4 @@
-import { Camera, ImagePlus, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { Camera, ExternalLink, ImagePlus, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import BinderShell from '@/components/binder/BinderShell'
@@ -39,6 +39,72 @@ function PhotoField({ role, label, file, required, disabled, onChange, english }
         onClick={() => { onChange(null); if (input.current) input.current.value = '' }}>
         {english ? 'Remove photo' : 'Αφαίρεση φωτογραφίας'}
       </button>}
+    </div>
+  )
+}
+
+function formatMoney(value, currency, english) {
+  if (value === null || value === undefined) return '—'
+  try {
+    return new Intl.NumberFormat(english ? 'en-IE' : 'el-GR', { style: 'currency', currency: currency || 'EUR' }).format(value)
+  } catch {
+    return `${Number(value).toFixed(2)} ${currency || ''}`.trim()
+  }
+}
+
+// eBay estimate the backend attaches to a completed scan (result.market_price).
+function MarketPrice({ price, english }) {
+  const t = (el, en) => english ? en : el
+  if (!price?.estimated_sale) {
+    return <p className="mt-2 rounded-xl border border-[#eadab7] bg-[#fffaf0] px-4 py-3 text-sm text-slate-600">
+      {t('Δεν βρέθηκαν αρκετές αγγελίες στο eBay για να εκτιμηθεί τιμή για αυτή την κάρτα.', 'Not enough eBay listings were found to estimate a price for this card.')}
+    </p>
+  }
+  const estimate = price.estimated_sale
+  const money = value => formatMoney(value, price.currency, english)
+  const confidence = {
+    high: [t('Υψηλή αξιοπιστία', 'High confidence'), 'text-emerald-700'],
+    medium: [t('Μέτρια αξιοπιστία', 'Medium confidence'), 'text-[#9d6a17]'],
+    low: [t('Χαμηλή αξιοπιστία', 'Low confidence'), 'text-rose-700'],
+  }[estimate.confidence] || [estimate.confidence, 'text-slate-500']
+  return (
+    <div className="mt-2 rounded-[18px] border border-[#eadab7] bg-[#fff8ec] p-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9d6a17]/80">{t('Εκτιμώμενη τιμή πώλησης', 'Estimated sale price')}</p>
+          <p className="font-display text-3xl font-bold text-[#6b4718]">{money(estimate.price)}</p>
+          <p className={`mt-0.5 text-xs font-medium ${confidence[1]}`}>{confidence[0]}</p>
+        </div>
+        {price.median_asking !== null && price.median_asking !== undefined && <div className="text-right text-xs text-slate-500">
+          <p>{t('Διάμεσος ζητούμενων τιμών', 'Median asking price')}</p>
+          <p className="font-display text-lg font-semibold text-[#9d6a17]">{money(price.median_asking)}</p>
+        </div>}
+      </div>
+      <p className="mt-3 text-[11px] leading-5 text-slate-500">
+        {t(`Με βάση ${price.used_for_stats} ενεργές αγγελίες στο eBay παγκοσμίως`, `Based on ${price.used_for_stats} active eBay listings worldwide`)}
+        {price.condition_filter === 'graded' ? t(' (βαθμολογημένες κάρτες)', ' (graded cards)') : t(' (χωρίς βαθμολογημένες κάρτες)', ' (graded slabs excluded)')}
+        {' · '}{t('αναζήτηση', 'search')}: “{price.query}”
+      </p>
+      {price.match === 'name_only' && <p className="mt-1 text-[11px] text-[#9d6a17]">{t(
+        'Η αναζήτηση έγινε μόνο με το όνομα της κάρτας, οπότε η τιμή μπορεί να περιλαμβάνει και άλλες εκδόσεις της.',
+        'Searched by card name only, so the price may include other printings of this card.',
+      )}</p>}
+      {price.items?.length > 0 && <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+        {price.items.slice(0, 3).map((item, index) => <li key={item.url || index}>
+          <a href={item.url} target="_blank" rel="noopener noreferrer nofollow"
+            className="flex h-full items-center gap-2 rounded-xl border border-[#ead9b1] bg-white p-2 text-xs text-slate-600 transition hover:border-[#d8b06a]">
+            {item.image_url && <img src={item.image_url} alt="" loading="lazy" className="h-12 w-9 shrink-0 rounded object-cover" />}
+            <span className="min-w-0 flex-1">
+              <span className="line-clamp-2">{item.title}</span>
+              <span className="mt-0.5 flex items-center gap-1 font-semibold text-[#9d6a17]">{money(item.price)} <ExternalLink className="h-3 w-3" /></span>
+            </span>
+          </a>
+        </li>)}
+      </ul>}
+      <p className="mt-3 text-[10px] leading-4 text-slate-400">{t(
+        'Εκτίμηση από τη φθηνότερη πλευρά των τρεχουσών τιμών στο eBay, όπου πουλιούνται συνήθως οι κάρτες, σε ευρώ. Λιγότερο αξιόπιστη για πολύ φθηνές και vintage κάρτες. Δεν είναι εγγυημένη τιμή πώλησης.',
+        'Estimated from the cheaper end of current eBay asking prices, where cards usually sell, in euro. Less reliable for very cheap and vintage cards. Not a guaranteed sale price.',
+      )}</p>
     </div>
   )
 }
@@ -170,8 +236,8 @@ export default function CardoraScannerPage() {
           <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">Cardora-1 · Beta</p>
           <h2 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">Cardora Scanner</h2>
           <p className="mt-2 text-sm leading-6 text-mist">{t(
-            'Ποια κάρτα έχεις; Ανέβασε μια καθαρή φωτογραφία και ανακάλυψε τη συλλογή, τον αριθμό και την έκδοσή της.',
-            'Which card do you have? Upload a clear photo to discover its set, number and edition.',
+            'Ποια κάρτα έχεις; Ανέβασε μια καθαρή φωτογραφία και ανακάλυψε τη συλλογή, τον αριθμό, την έκδοση και την εκτιμώμενη τιμή της.',
+            'Which card do you have? Upload a clear photo to discover its set, number, edition and estimated price.',
           )}</p>
         </div>
         {config && <div className="rounded-xl border border-[#eee2c4] bg-white px-4 py-2.5 text-xs font-medium text-slate-500">
@@ -245,6 +311,9 @@ export default function CardoraScannerPage() {
           <dt>Parallel</dt><dd>{confirmed ? scan.result.parallel || t('Δεν δηλώθηκε', 'Not specified') : t('Δεν επιβεβαιώθηκε', 'Unconfirmed')}</dd>
           <dt>Finish</dt><dd>{confirmed ? scan.result.finish || t('Δεν δηλώθηκε', 'Not specified') : t('Δεν επιβεβαιώθηκε', 'Unconfirmed')}</dd>
         </dl>}
+        {scan.state === 'completed' && identity?.name && <div className="mb-5">
+          <MarketPrice price={scan.result.market_price} english={english} />
+        </div>}
         <div className="flex flex-wrap gap-3">
           <Button variant="secondary" size="sm" disabled={busy} onClick={() => apiClient.get('/card-scans/' + scan.id).then(updateScan).catch(e => setError(e.message))}>
             <RefreshCw className="h-3.5 w-3.5" />{t('Ανανέωση', 'Refresh')}
