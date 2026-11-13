@@ -10,7 +10,7 @@ class EbayPriceLookup extends Command
 {
     protected $signature = 'ebay:price
         {query : Card search, e.g. "Charizard ex 199/165"}
-        {--categories= : Comma-separated eBay category ids (empty string = no category filter)}
+        {--categories= : eBay category id(s) to use instead of the automatic one (empty string = no category filter)}
         {--limit= : Listings to fetch (1-200)}
         {--fresh : Bypass the price cache}
         {--token : Only check that an OAuth application token can be minted}';
@@ -47,6 +47,7 @@ class EbayPriceLookup extends Command
 
         $this->table(['metric', 'value'], [
             ['marketplace', $result['marketplace_id']],
+            ['category', trim(($result['category']['id'] ?? '-').' '.($result['category']['name'] ?? '')).' ('.($result['category']['source'] ?? 'none').')'],
             ['total matches', $result['total_matches']],
             ['sample / used', $result['sample_size'].' / '.$result['used_for_stats']],
             ['min', $result['min']],

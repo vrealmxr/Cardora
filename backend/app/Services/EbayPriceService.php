@@ -6,6 +6,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -49,12 +50,10 @@ class EbayPriceService
         }
 
         $marketplace = $options['marketplace_id'] ?? config('services.ebay.marketplace_id');
-        $categoryIds = array_key_exists('category_ids', $options)
-            ? $options['category_ids']
-            : config('services.ebay.default_category_ids');
         $limit = max(1, min(200, (int) ($options['limit'] ?? config('services.ebay.search_limit', 50))));
+        $category = $this->resolveCategory($query, $marketplace, $options);
 
-        $cacheKey = 'ebay:price:'.sha1(implode('|', [$this->environment(), $marketplace, $categoryIds, $limit, mb_strtolower($query)]));
+        $cacheKey = 'ebay:price:'.sha1(implode('|', [$this->environment(), $marketplace, $category['id'] ?? '', $limit, mb_strtolower($query)]));
 
         if (! empty($options['fresh'])) {
             Cache::forget($cacheKey);
@@ -63,16 +62,121 @@ class EbayPriceService
         return Cache::remember(
             $cacheKey,
             now()->addMinutes((int) config('services.ebay.cache_minutes', 360)),
-            fn () => $this->summarize($query, $marketplace, $this->search($query, $marketplace, $categoryIds, $limit))
+            fn () => $this->summarize($query, $marketplace, $category, $this->search($query, $marketplace, $category['id'], $limit))
         );
     }
 
-    public function search(string $query, string $marketplace, ?string $categoryIds, int $limit): array
+    /**
+     * Pick the one eBay category to search in (Browse accepts at most one).
+     *
+     * - category_ids given with one id: use it as-is.
+     * - category_ids given with several ids: the query's best Taxonomy
+     *   suggestion among them, otherwise the first one.
+     * - category_ids given but empty: no category filter.
+     * - no category_ids: eBay's top Taxonomy suggestion for the query, so a
+     *   Pokémon card lands in TCG singles and a LeBron rookie in sports
+     *   singles. If eBay suggests nothing (or the lookup fails) the search
+     *   runs without a category filter instead of failing.
+     *
+     * @return array{id: ?string, name: ?string, source: string}
+     */
+    public function resolveCategory(string $query, string $marketplace, array $options = []): array
+    {
+        $none = ['id' => null, 'name' => null, 'source' => 'none'];
+        $fresh = ! empty($options['fresh']);
+
+        if (array_key_exists('category_ids', $options)) {
+            $requested = array_values(array_filter(array_map('trim', explode(',', (string) $options['category_ids'])), 'strlen'));
+
+            if ($requested === []) {
+                return $none;
+            }
+
+            if (count($requested) > 1) {
+                foreach ($this->suggestCategories($query, $marketplace, $fresh) as $suggestion) {
+                    if (in_array($suggestion['id'], $requested, true)) {
+                        return ['source' => 'request'] + $suggestion;
+                    }
+                }
+            }
+
+            return ['id' => $requested[0], 'name' => null, 'source' => 'request'];
+        }
+
+        return $this->suggestCategories($query, $marketplace, $fresh)[0] ?? $none;
+    }
+
+    /**
+     * Leaf categories eBay's Taxonomy API suggests for a query, best first.
+     * Successful lookups are cached; failures are logged and not cached.
+     *
+     * @return list<array{id: string, name: ?string, source: string}>
+     */
+    public function suggestCategories(string $query, string $marketplace, bool $fresh = false): array
+    {
+        $cacheKey = 'ebay:category:'.sha1(implode('|', [$this->environment(), $marketplace, mb_strtolower($query)]));
+
+        if (! $fresh && is_array($cached = Cache::get($cacheKey))) {
+            return $cached;
+        }
+
+        try {
+            $treeId = $this->categoryTreeId($marketplace);
+            $payload = $this->request($marketplace)
+                ->get("/commerce/taxonomy/v1/category_tree/{$treeId}/get_category_suggestions", ['q' => mb_substr($query, 0, 350)])
+                ->throw()
+                ->json() ?? [];
+        } catch (RequestException|RuntimeException $exception) {
+            if ($exception instanceof RequestException && $exception->response?->status() === 401) {
+                Cache::forget($this->tokenCacheKey());
+            }
+
+            Log::warning('eBay category suggestion failed; searching without a category', [
+                'query' => $query,
+                'marketplace' => $marketplace,
+                'error' => mb_substr($exception->getMessage(), 0, 500),
+            ]);
+
+            return [];
+        }
+
+        $suggestions = [];
+
+        foreach ($payload['categorySuggestions'] ?? [] as $suggestion) {
+            $id = (string) ($suggestion['category']['categoryId'] ?? '');
+
+            if ($id !== '') {
+                $suggestions[] = ['id' => $id, 'name' => $suggestion['category']['categoryName'] ?? null, 'source' => 'taxonomy'];
+            }
+        }
+
+        Cache::put($cacheKey, $suggestions, now()->addMinutes((int) config('services.ebay.category_cache_minutes', 10080)));
+
+        return $suggestions;
+    }
+
+    private function categoryTreeId(string $marketplace): string
+    {
+        return Cache::remember('ebay:category-tree:'.$this->environment().':'.$marketplace, now()->addDays(30), function () use ($marketplace) {
+            $treeId = (string) ($this->request($marketplace)
+                ->get('/commerce/taxonomy/v1/get_default_category_tree_id', ['marketplace_id' => $marketplace])
+                ->throw()
+                ->json('categoryTreeId') ?? '');
+
+            if ($treeId === '') {
+                throw new RuntimeException("eBay returned no category tree for {$marketplace}.");
+            }
+
+            return $treeId;
+        });
+    }
+
+    public function search(string $query, string $marketplace, ?string $categoryId, int $limit): array
     {
         $params = array_filter([
             'q' => $query,
             'limit' => $limit,
-            'category_ids' => filled($categoryIds) ? $categoryIds : null,
+            'category_ids' => filled($categoryId) ? $categoryId : null,
             'filter' => 'buyingOptions:{FIXED_PRICE|AUCTION}',
         ], fn ($value) => $value !== null);
 
@@ -160,7 +264,7 @@ class EbayPriceService
      * graded slabs mixed into raw searches) are trimmed with Tukey fences
      * before the average and median are taken.
      */
-    private function summarize(string $query, string $marketplace, array $payload): array
+    private function summarize(string $query, string $marketplace, array $category, array $payload): array
     {
         $currency = config('services.ebay.currency', 'EUR');
         $items = [];
@@ -207,6 +311,7 @@ class EbayPriceService
             'environment' => $this->environment(),
             'marketplace_id' => $marketplace,
             'query' => $query,
+            'category' => $category,
             'currency' => $mainCurrency,
             'total_matches' => (int) ($payload['total'] ?? count($items)),
             'sample_size' => count($prices),

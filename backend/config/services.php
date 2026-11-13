@@ -70,9 +70,9 @@ return [
         'marketplace_id' => env('EBAY_MARKETPLACE_ID', 'EBAY_DE'),
         'currency' => env('EBAY_CURRENCY', 'EUR'),
         'scope' => env('EBAY_OAUTH_SCOPE', 'https://api.ebay.com/oauth/api_scope'),
-        // Comma-separated eBay category ids applied to every search unless overridden.
-        // 183454 = CCG Individual Cards, 261328 = Sports Trading Card Singles.
-        'default_category_ids' => env('EBAY_DEFAULT_CATEGORY_IDS', '183454,261328'),
+        // The category for each search comes from eBay's Taxonomy API
+        // (get_category_suggestions), cached per query for this many minutes.
+        'category_cache_minutes' => (int) env('EBAY_CATEGORY_CACHE_MINUTES', 10080),
         'search_limit' => (int) env('EBAY_SEARCH_LIMIT', 50),
         'cache_minutes' => (int) env('EBAY_PRICE_CACHE_MINUTES', 360),
         'hosts' => [
