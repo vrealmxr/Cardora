@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 const VerificationResultPage = lazy(() => import('@/pages/VerificationResultPage'))
 import { Navigate, Route, Routes } from 'react-router-dom'
 import LocaleRedirect from '@/routes/LocaleRedirect'
+import { ROUTE_ALIASES } from '@/server/routePolicy'
 
 const MainLayout = lazy(() => import('@/layouts/MainLayout'))
 const AboutPage = lazy(() => import('@/pages/AboutPage'))
@@ -21,6 +22,9 @@ const BlogPage = lazy(() => import('@/pages/BlogPage'))
 const CardoraProSuccessPage = lazy(() => import('@/pages/CardoraProSuccessPage'))
 const CartPage = lazy(() => import('@/pages/CartPage'))
 const CategoryPage = lazy(() => import('@/pages/CategoryPage'))
+const CollectiblesPage = lazy(() => import('@/pages/CollectiblesPage'))
+const SellingGuidePage = lazy(() => import('@/pages/SellingGuidePage'))
+const ConditionGuidePage = lazy(() => import('@/pages/ConditionGuidePage'))
 const CheckoutPage = lazy(() => import('@/pages/CheckoutPage'))
 const CheckoutSuccessPage = lazy(() => import('@/pages/CheckoutSuccessPage'))
 const CollectorProfilePage = lazy(() => import('@/pages/CollectorProfilePage'))
@@ -78,25 +82,14 @@ function RouteFallback() {
 }
 
 function AppRoutes() {
-  const localizedAliases = [
-    ['koinotikes-kliroseis', '/kliroseis'],
-    ['verify-email', '/epivevaiosi-email'],
-    ['email-verification', '/epivevaiosi-email'],
-    ['email/verification', '/epivevaiosi-email'],
-    ['login', '/eisodos'],
-    ['register', '/eggrafi'],
-    ['search', '/anazitisi'],
-    ['terms', '/oroi-xrisis'],
-    ['privacy', '/politiki-aporritou'],
-    ['cookies', '/politiki-cookies'],
-    ['notice-and-action', '/dsa-notice-action'],
-    ['refunds', '/epistrofes-kai-diafores'],
-    ['prohibited-items', '/apagorevmena-antikeimena'],
-  ]
+  const localizedAliases = Object.entries(ROUTE_ALIASES).map(([source, target]) => [source, `/${target}`])
 
   const renderLocalizedRoutes = (locale) => (
     <Route path={`/${locale}`} element={<MainLayout />}>
       <Route index element={<HomePage />} />
+      <Route path="syllektika" element={<CollectiblesPage />} />
+      <Route path="odigos-polisis" element={<SellingGuidePage />} />
+      <Route path="katastasi-kai-grading" element={<ConditionGuidePage />} />
       <Route path="kartes" element={<CategoryPage categorySlug="kartes" />} />
       <Route path="figoures" element={<CategoryPage categorySlug="figoures" />} />
       <Route path="komik-vivlia" element={<CategoryPage categorySlug="komik-vivlia" />} />

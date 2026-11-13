@@ -1,6 +1,6 @@
 ﻿import { Home, Package, ShieldCheck, Ticket } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import PickupPointPicker from '@/components/checkout/PickupPointPicker'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
@@ -9,6 +9,7 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
+import { localizePath } from '@/utils/helpers'
 import { calculateLowValueFee } from '@/utils/fees'
 import { formatCurrency } from '@/utils/formatters'
 import { normalizeTextTree } from '@/utils/textEncoding'
@@ -39,6 +40,7 @@ function CheckoutPage() {
   // choice: { [cartItemId]: { carrier, deliveryType, point } }.
   const [itemShipping, setItemShipping] = useState({})
   const [countryCode, setCountryCode] = useState('GR')
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const acceptedOfferId = Number(searchParams.get('offer') ?? 0) || null
   const acceptedOffer = acceptedOfferId
@@ -423,7 +425,15 @@ function CheckoutPage() {
         throw new Error(copy.missingUrl)
       }
 
-      window.location.href = checkout.checkout_url
+      // Native Back from the hosted checkout must reach the same guarded return as Stripe's Back link.
+      const attemptId = checkout.orders?.[0]?.id
+      if (attemptId) {
+        const returnUrl = new URL(window.location.href)
+        returnUrl.searchParams.set('cancelled', '1')
+        returnUrl.searchParams.set('order_id', String(attemptId))
+        window.history.replaceState(window.history.state, '', returnUrl)
+      }
+      window.location.assign(checkout.checkout_url)
     } catch (error) {
       setSubmitError(error.message)
       setIsSubmitting(false)
@@ -441,8 +451,24 @@ function CheckoutPage() {
 
     cancelledCleanupRef.current = true
 
-    cancelPendingOrder(cancelledOrderId).catch(() => {})
-  }, [cancelPendingOrder, cancelledOrderId, checkoutCancelled, currentUser, isAuthReady])
+    cancelPendingOrder(cancelledOrderId).then((cancelled) => {
+      if (cancelled && new URLSearchParams(window.location.search).get('order_id') === cancelledOrderId) {
+        navigate(localizePath('/kalathi', locale), { replace: true, state: { checkoutCancelled: true } })
+      }
+    }).catch(() => setSubmitError(locale === 'en'
+      ? 'We could not confirm the payment status. Check your orders before trying again.'
+      : 'Δεν μπορέσαμε να επιβεβαιώσουμε την κατάσταση της πληρωμής. Έλεγξε τις παραγγελίες σου πριν δοκιμάσεις ξανά.'))
+  }, [cancelPendingOrder, cancelledOrderId, checkoutCancelled, currentUser, isAuthReady, locale, navigate])
+
+  useEffect(() => {
+    const onRestore = (event) => {
+      if (event.persisted && new URLSearchParams(window.location.search).get('cancelled') === '1') {
+        window.location.reload()
+      }
+    }
+    window.addEventListener('pageshow', onRestore)
+    return () => window.removeEventListener('pageshow', onRestore)
+  }, [])
 
   const offerItemAmount = Number(acceptedOffer?.itemAmount ?? 0)
   const offerShippingAmount = Number(acceptedOffer?.shippingAmount ?? 0)
@@ -484,6 +510,13 @@ function CheckoutPage() {
   const summaryTotal = isPrivateOfferCheckout
     ? roundMoney(offerItemAmount + offerShippingAmount + offerBuyerFeeAmount)
     : roundMoney(cartItemBreakdown.reduce((sum, row) => sum + row.subtotal + row.shipping + row.lowValueFee, 0))
+
+  if (checkoutCancelled && cancelledOrderId) {
+    return <div className="container pb-16"><CardSurface>
+      <p role="status">{submitError || (locale === 'en' ? 'Checking your payment…' : 'Ελέγχουμε την πληρωμή σου…')}</p>
+      {submitError && <Link to={localizePath('/paraggelies', locale)}>{locale === 'en' ? 'My orders' : 'Οι παραγγελίες μου'}</Link>}
+    </CardSurface></div>
+  }
 
   return (
     <div className="container pb-16">

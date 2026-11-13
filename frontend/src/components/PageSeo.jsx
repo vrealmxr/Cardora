@@ -1,5 +1,9 @@
 import { useEffect } from 'react'
-import { useSeo } from '@/context/SeoContext'
+import { useLocation } from 'react-router-dom'
+import { useSeo, useServerHead } from '@/context/SeoContext'
+import { getSeoUrls, shareImageUrl } from '@/utils/seoUrls'
+import { useI18n } from '@/hooks/useI18n'
+import { publishPageMetadata } from '@/utils/analytics'
 
 function upsertMeta(selector, attributes) {
   let meta = document.head.querySelector(selector)
@@ -20,10 +24,23 @@ function upsertMeta(selector, attributes) {
  * page's existing hardcoded copy until an admin sets an override for pageKey via the
  * "SEO Pages" Filament resource.
  */
-function PageSeo({ pageKey, fallbackTitle, fallbackDescription }) {
+function PageSeo({ pageKey, fallbackTitle, fallbackDescription, image, type = 'website', status = 200, noIndex = false }) {
+  const { key, pathname, search } = useLocation()
+  const { locale } = useI18n()
   const seo = useSeo(pageKey)
   const title = seo?.metaTitle || fallbackTitle
   const description = seo?.metaDescription || fallbackDescription
+  const imageUrl = shareImageUrl(image)
+  const robots = noIndex || status >= 400 ? 'noindex, follow' : getSeoUrls(pathname, search, locale).robots
+  const serverHead = useServerHead()
+  if (serverHead) {
+    if (title) serverHead.title = title
+    if (description) serverHead.description = description
+    serverHead.image = imageUrl
+    serverHead.type = type
+    serverHead.status = status
+    serverHead.robots = robots
+  }
 
   useEffect(() => {
     if (title) {
@@ -37,7 +54,13 @@ function PageSeo({ pageKey, fallbackTitle, fallbackDescription }) {
       upsertMeta('meta[property="og:description"]', { property: 'og:description', content: description })
       upsertMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: description })
     }
-  }, [title, description])
+    upsertMeta('meta[property="og:image"]', { property: 'og:image', content: imageUrl })
+    upsertMeta('meta[property="og:type"]', { property: 'og:type', content: type })
+    upsertMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: imageUrl })
+    upsertMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary_large_image' })
+    upsertMeta('meta[name="robots"]', { name: 'robots', content: robots })
+    publishPageMetadata({ navigationId: key, pathname, search, title: title || document.title, status })
+  }, [title, description, key, pathname, search, imageUrl, type, robots, status])
 
   return null
 }

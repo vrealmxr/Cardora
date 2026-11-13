@@ -4,12 +4,14 @@ import UserAvatar from '@/components/people/UserAvatar'
 import Badge from '@/components/ui/Badge'
 import CardSurface from '@/components/ui/CardSurface'
 import { useI18n } from '@/hooks/useI18n'
-import { formatNumber } from '@/utils/formatters'
+import { useFormatters } from '@/hooks/useFormatters'
 import { getCollectorProfileRoute, getUserDisplayName } from '@/utils/helpers'
 
 function SellerCard({ seller, hover = true }) {
+  const { formatNumber } = useFormatters()
   const { locale } = useI18n()
-  const collectorRoute = getCollectorProfileRoute(seller.handle)
+  if (!seller) return <CardSurface hover={false}><p className="text-sm text-mist">{locale === 'en' ? 'Seller details are currently unavailable.' : 'Τα στοιχεία του πωλητή δεν είναι διαθέσιμα αυτή τη στιγμή.'}</p></CardSurface>
+  const collectorRoute = getCollectorProfileRoute(seller.handle, locale)
   const copy =
     locale === 'en'
       ? {

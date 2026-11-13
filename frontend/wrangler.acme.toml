@@ -1,0 +1,10 @@
+name = "cardora-acme-validation"
+main = "src/server/acmeValidation.js"
+account_id = "2ce033ffbe534cc5be6e033df3431eb8"
+compatibility_date = "2026-10-24"
+workers_dev = false
+preview_urls = false
+routes = [
+  { pattern = "cardora.gr/.well-known/acme-challenge/*", zone_id = "6923566bd873f280be6f7c4f788fd9b6" },
+  { pattern = "www.cardora.gr/.well-known/acme-challenge/*", zone_id = "6923566bd873f280be6f7c4f788fd9b6" },
+]

@@ -22,7 +22,7 @@ export const translations = {
       supportCenter: '\u039a\u03ad\u03bd\u03c4\u03c1\u03bf \u03a5\u03c0\u03bf\u03c3\u03c4\u03ae\u03c1\u03b9\u03be\u03b7\u03c2',
       faq: 'FAQ / \u0392\u03bf\u03ae\u03b8\u03b5\u03b9\u03b1',
       contact: '\u0395\u03c0\u03b9\u03ba\u03bf\u03b9\u03bd\u03c9\u03bd\u03af\u03b1',
-      verificationCenter: 'Verification Center',
+      verificationCenter: 'Επαλήθευση λογαριασμού',
       notificationSettings:
         '\u03a1\u03c5\u03b8\u03bc\u03af\u03c3\u03b5\u03b9\u03c2 \u03b5\u03b9\u03b4\u03bf\u03c0\u03bf\u03b9\u03ae\u03c3\u03b5\u03c9\u03bd',
       accountSettings:
@@ -45,7 +45,7 @@ export const translations = {
       navigation: '\u03a0\u03bb\u03bf\u03ae\u03b3\u03b7\u03c3\u03b7',
       useful: '\u03a7\u03c1\u03ae\u03c3\u03b9\u03bc\u03bf\u03b9 \u03c3\u03cd\u03bd\u03b4\u03b5\u03c3\u03bc\u03bf\u03b9',
       categories: '\u039a\u03b1\u03c4\u03b7\u03b3\u03bf\u03c1\u03af\u03b5\u03c2',
-      supportTrust: '\u03a5\u03c0\u03bf\u03c3\u03c4\u03ae\u03c1\u03b9\u03be\u03b7 \u0026 trust',
+      supportTrust: 'Υποστήριξη και ασφάλεια',
       howCardoraWorks: '\u03a0\u03ce\u03c2 \u03bb\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03b5\u03af \u03c4\u03bf Cardora',
       terms: '\u038c\u03c1\u03bf\u03b9 \u03a7\u03c1\u03ae\u03c3\u03b7\u03c2',
       privacy: '\u03a0\u03bf\u03bb\u03b9\u03c4\u03b9\u03ba\u03ae \u0391\u03c0\u03bf\u03c1\u03c1\u03ae\u03c4\u03bf\u03c5',
@@ -57,13 +57,13 @@ export const translations = {
       prohibitedItems:
         '\u0391\u03c0\u03b1\u03b3\u03bf\u03c1\u03b5\u03c5\u03bc\u03ad\u03bd\u03b1 \u0391\u03bd\u03c4\u03b9\u03ba\u03b5\u03af\u03bc\u03b5\u03bd\u03b1',
       cardoraDraws: 'Trades',
-      tutorials: 'Tutorials',
+      tutorials: 'Οδηγίες χρήσης',
       collectorsBlog: 'Blog \u03c3\u03c5\u03bb\u03bb\u03b5\u03ba\u03c4\u03ce\u03bd',
       cardsCategory: 'Pokemon, Yu-Gi-Oh!, Magic, One Piece',
-      figuresCategory: 'Funko Pop, Hot Toys, anime figures',
-      comicsCategory: 'CGC comics, manga, collector books',
-      miscCategory: 'Pins, amiibo, memorabilia, accessories',
-      copyright: '\u00a9 2026 Cardora. Trusted collector-to-collector marketplace.',
+      figuresCategory: 'Funko Pop, Hot Toys, φιγούρες anime',
+      comicsCategory: 'Κόμικς, manga, συλλεκτικά βιβλία',
+      miscCategory: 'Καρφίτσες, amiibo, αναμνηστικά, αξεσουάρ',
+      copyright: '© 2026 Cardora. Από συλλέκτες, για συλλέκτες.',
       location: '\u0391\u03b8\u03ae\u03bd\u03b1, \u0395\u03bb\u03bb\u03ac\u03b4\u03b1',
     },
     search: {

@@ -7,7 +7,9 @@ import {
   defaultCookieConsent,
   readCookieConsent,
   writeCookieConsent,
+  COOKIE_SETTINGS_EVENT,
 } from '@/utils/cookieConsent'
+import { localizePath } from '@/utils/helpers'
 
 function CookieToggle({ title, description, checked, disabled, onToggle }) {
   return (
@@ -27,6 +29,7 @@ function CookieToggle({ title, description, checked, disabled, onToggle }) {
               : 'border-white/10 bg-white/8'
           } ${disabled ? 'cursor-not-allowed opacity-70' : ''}`}
           aria-pressed={checked}
+          aria-label={title}
         >
           <span
             className={`inline-block h-5 w-5 rounded-full transition ${
@@ -57,13 +60,23 @@ function CookieBanner() {
     setOpen(true)
   }, [])
 
+  useEffect(() => {
+    const showSettings = () => {
+      setConsent(readCookieConsent() || defaultCookieConsent)
+      setExpanded(true)
+      setOpen(true)
+    }
+    window.addEventListener(COOKIE_SETTINGS_EVENT, showSettings)
+    return () => window.removeEventListener(COOKIE_SETTINGS_EVENT, showSettings)
+  }, [])
+
   const copy = useMemo(
     () =>
       locale === 'en'
         ? {
-            title: 'Cardora uses cookies and similar storage for a safer marketplace experience',
+            title: 'Your cookie choices',
             text:
-              'We use essential technologies for sign-in, cart, language, security and protected checkout flows. You can also allow preference and analytics cookies.',
+              'Essential cookies keep sign-in, your cart and checkout working. You choose whether to allow optional preferences and usage statistics. You can change your choices in the footer.',
             more: 'Adjust settings',
             less: 'Hide settings',
             acceptAll: 'Accept all',
@@ -81,9 +94,9 @@ function CookieBanner() {
               'Used to understand how pages perform and how users navigate the product, only if enabled.',
           }
         : {
-            title: 'Η Cardora χρησιμοποιεί cookies και παρόμοια αποθήκευση για πιο ασφαλή εμπειρία marketplace',
+            title: 'Οι επιλογές σου για τα cookies',
             text:
-              'Χρησιμοποιούμε απαραίτητες τεχνολογίες για σύνδεση, καλάθι, γλώσσα, ασφάλεια και protected checkout flows. Μπορείς επίσης να επιλέξεις αν θέλεις preference και analytics cookies.',
+              'Τα απαραίτητα cookies βοηθούν στη σύνδεση, στο καλάθι και στην ολοκλήρωση της αγοράς. Εσύ επιλέγεις αν θέλεις επιπλέον προτιμήσεις και στατιστικά χρήσης. Μπορείς να αλλάξεις την επιλογή σου από το κάτω μέρος της σελίδας.',
             more: 'Ρυθμίσεις',
             less: 'Απόκρυψη ρυθμίσεων',
             acceptAll: 'Αποδοχή όλων',
@@ -92,7 +105,7 @@ function CookieBanner() {
             policy: 'Πολιτική Cookies',
             necessaryTitle: 'Απαραίτητα',
             necessaryText:
-              'Χρειάζονται για σύνδεση, sessions, καλάθι, γλώσσα, ασφάλεια και βασικά marketplace flows.',
+              'Χρειάζονται για τη σύνδεση, το καλάθι, τη γλώσσα και την ασφαλή λειτουργία της εφαρμογής.',
             preferencesTitle: 'Προτιμήσεις',
             preferencesText:
               'Θυμούνται μη απαραίτητες επιλογές εμφάνισης ή εμπειρίας ώστε η επόμενη επίσκεψη να είναι πιο άνετη.',
@@ -181,14 +194,14 @@ function CookieBanner() {
                     <Button size="sm" onClick={() => closeWithConsent(consent)}>
                       {copy.save}
                     </Button>
-                    <Button as={Link} to="/politiki-cookies" size="sm" variant="secondary">
+                    <Button as={Link} to={localizePath('/politiki-cookies', locale)} size="sm" variant="secondary">
                       {copy.policy}
                     </Button>
                   </div>
                 </div>
               ) : (
                 <div className="mt-4 rounded-2xl border border-white/8 bg-[#0c1628]/90 px-4 py-3 text-sm leading-7 text-white/74">
-                  <Link to="/politiki-cookies" className="font-semibold text-gold-100 hover:text-gold-50">
+                  <Link to={localizePath('/politiki-cookies', locale)} className="font-semibold text-gold-100 hover:text-gold-50">
                     {copy.policy}
                   </Link>
                 </div>

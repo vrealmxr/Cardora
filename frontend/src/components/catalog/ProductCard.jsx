@@ -1,3 +1,4 @@
+import { catalogValueLabel } from '@/utils/catalogLabels'
 import { Gavel, Heart, ShoppingBag, Star } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import ProductVisual from '@/components/catalog/ProductVisual'
@@ -5,13 +6,16 @@ import UserAvatar from '@/components/people/UserAvatar'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
+import { useI18n } from '@/hooks/useI18n'
 import { useAuth } from '@/hooks/useAuth'
 import { useMarketplace } from '@/hooks/useMarketplace'
-import { formatCurrency } from '@/utils/formatters'
+import { useFormatters } from '@/hooks/useFormatters'
 import { normalizeTextTree } from '@/utils/textEncoding'
-import { cn, getCollectorProfileRoute, getUserDisplayName } from '@/utils/helpers'
+import { cn, getCollectorProfileRoute, getUserDisplayName, localizePath } from '@/utils/helpers'
 
 function ProductCard({ product, className, renderFooter }) {
+  const { formatCurrency } = useFormatters()
+  const { locale } = useI18n()
   const { currentUser } = useAuth()
   const { addToCart, favoriteProductIds, getMarketplaceGateMessage, marketplaceAccess, toggleFavorite } =
     useMarketplace()
@@ -19,7 +23,7 @@ function ProductCard({ product, className, renderFooter }) {
   const isAuction = product.saleFormat === 'auction'
   const isTrade = product.saleFormat === 'trade'
   const lot = product.lot
-  const collectorRoute = getCollectorProfileRoute(product.seller?.handle ?? '')
+  const collectorRoute = getCollectorProfileRoute(product.seller?.handle ?? '', locale)
   const isOwnListing = Number(product.sellerId ?? product.seller?.id ?? 0) === Number(currentUser?.id ?? 0)
   const buyBlocked = Boolean(currentUser && marketplaceAccess && !marketplaceAccess.can_buy)
   const buyBlockedMessage = getMarketplaceGateMessage('buy')
@@ -27,8 +31,8 @@ function ProductCard({ product, className, renderFooter }) {
     lot?.allowsIndividualPurchase && lot?.wholeLotPurchaseAvailable === false,
   )
 
-  const ownListingLabel = 'Your listing'
-  const copy = normalizeTextTree({
+  const ownListingLabel = locale === 'en' ? 'Your listing' : 'Η αγγελία σου'
+  const copy = normalizeTextTree(locale === 'en' ? {
     auction: 'Auction',
     trade: 'Trade',
     lot: 'Card lot',
@@ -45,9 +49,20 @@ function ProductCard({ product, className, renderFooter }) {
     blocked: 'Complete activation',
     openLot: 'Open lot',
     individualPurchase: 'Single-card purchase enabled',
-    individualShipping: 'Shipping + insurance start at €2.50',
+    individualShipping: 'Shipping is shown before payment',
     featured: 'Featured',
     availableCards: 'available cards',
+    favoriteAdd: 'Add to favorites',
+    favoriteRemove: 'Remove from favorites',
+  } : {
+    auction: 'Δημοπρασία', trade: 'Ανταλλαγή', lot: 'Lot καρτών', cards: 'κάρτες', hits: 'hits', more: 'ακόμη',
+    currentBid: 'Τρέχουσα προσφορά', price: 'Τιμή', step: 'βήμα', bid: 'Κάνε προσφορά',
+    tradeRequest: 'Αίτημα ανταλλαγής', cart: 'Προσθήκη στο καλάθι', bids: 'προσφορές',
+    blocked: 'Ολοκλήρωσε την ενεργοποίηση', openLot: 'Δες το lot',
+    individualPurchase: 'Διαθέσιμη αγορά μεμονωμένων καρτών',
+    individualShipping: 'Τα μεταφορικά εμφανίζονται πριν πληρώσεις',
+    featured: 'Προτεινόμενο', availableCards: 'διαθέσιμες κάρτες',
+    favoriteAdd: 'Προσθήκη στα αγαπημένα', favoriteRemove: 'Αφαίρεση από τα αγαπημένα',
   })
 
   const cartButtonLabel = wholeLotUnavailable
@@ -64,7 +79,7 @@ function ProductCard({ product, className, renderFooter }) {
       className={cn('group listing-hover-glow p-3.5', product.featured && 'featured-glow', className)}
     >
       <div className="relative">
-        <Link to={`/proion/${product.slug}`} className="block">
+        <Link to={localizePath(`/proion/${product.slug}`, locale)} className="block">
           <ProductVisual product={product} className="min-h-[220px]" hoverSwap />
         </Link>
         <button
@@ -84,8 +99,8 @@ function ProductCard({ product, className, renderFooter }) {
               ? 'border-gold-300/45 bg-gold-300/22 text-gold-100'
               : 'border-[#e4d2ab] bg-white/88 text-ink hover:border-gold-300/45 hover:bg-[#fff8ea] hover:text-gold-600',
           )}
-          aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          aria-label={isFavorite ? copy.favoriteRemove : copy.favoriteAdd}
+          title={isFavorite ? copy.favoriteRemove : copy.favoriteAdd}
         >
           <Heart className={cn('h-4 w-4', isFavorite && 'fill-current')} />
         </button>
@@ -93,7 +108,7 @@ function ProductCard({ product, className, renderFooter }) {
 
       <div className="mt-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="gold">{product.rarity}</Badge>
+          <Badge tone="gold">{catalogValueLabel('rarity', product.rarity, locale)}</Badge>
           <Badge tone={product.condition === 'Sealed' ? 'success' : 'muted'}>{product.condition}</Badge>
           {isAuction ? <Badge tone="warning">{copy.auction}</Badge> : null}
           {isTrade ? <Badge tone="info">{copy.trade}</Badge> : null}
@@ -103,12 +118,12 @@ function ProductCard({ product, className, renderFooter }) {
 
         <div>
           <Link
-            to={`/proion/${product.slug}`}
+            to={localizePath(`/proion/${product.slug}`, locale)}
             className="text-balance text-[1.05rem] font-semibold text-ink transition group-hover:text-gold-600"
           >
             {product.title}
           </Link>
-          <p className="mt-1 text-sm text-mist">{[product.subtitle, product.franchise].filter(Boolean).join(' • ')}</p>
+          <p className="mt-1 text-sm text-mist">{[product.subtitle, catalogValueLabel('franchise', product.franchise, locale)].filter(Boolean).join(' • ')}</p>
         </div>
 
         {lot ? (
@@ -156,17 +171,17 @@ function ProductCard({ product, className, renderFooter }) {
           </div>
 
           {isAuction ? (
-            <Button as={Link} to={`/proion/${product.slug}`} size="sm" variant="secondary">
+            <Button as={Link} to={localizePath(`/proion/${product.slug}`, locale)} size="sm" variant="secondary">
               <Gavel className="h-4 w-4" />
               {copy.bid}
             </Button>
           ) : isTrade ? (
-            <Button as={Link} to={`/proion/${product.slug}`} size="sm" variant="secondary">
+            <Button as={Link} to={localizePath(`/proion/${product.slug}`, locale)} size="sm" variant="secondary">
               <ShoppingBag className="h-4 w-4" />
               {copy.tradeRequest}
             </Button>
           ) : wholeLotUnavailable ? (
-            <Button as={Link} to={`/proion/${product.slug}`} size="sm" variant="secondary">
+            <Button as={Link} to={localizePath(`/proion/${product.slug}`, locale)} size="sm" variant="secondary">
               <ShoppingBag className="h-4 w-4" />
               {copy.openLot}
             </Button>

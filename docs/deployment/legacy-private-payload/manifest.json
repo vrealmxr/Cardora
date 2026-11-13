@@ -1,0 +1,26 @@
+[
+  {
+    "source": "filesystems.php",
+    "target": "config/filesystems.php",
+    "before": "16c11e34d3544712e925282c70b6c3864dc4e6ca1dda9edeaaf4154a47c0f1bb",
+    "after": "eed6a603bffc510744b8e095ce7a4654385632062adf849c3f8f218c9eec76ff"
+  },
+  {
+    "source": "VerificationDocument.php",
+    "target": "app/Models/VerificationDocument.php",
+    "before": "cf16fb9297d7b782dfdcbf3b036d4373f999bd76b77ffbd97364201199257446",
+    "after": "52c3866c05b80e63a81e3e6e445933ddf9f0508ea97ee23f45c117461321745b"
+  },
+  {
+    "source": "web.php",
+    "target": "routes/web.php",
+    "before": "39aa517953837479d4b7e5ceca3b523a7b05035c30d970ed7aabd23ab1030332",
+    "after": "ae20bb4ebdf3bfc763fd87e346df622d72967956c5bdd77b90e32dad2d940436"
+  },
+  {
+    "source": "LegacyVerificationDocumentController.php",
+    "target": "app/Http/Controllers/Web/LegacyVerificationDocumentController.php",
+    "before": null,
+    "after": "82de831145c120b76da371fb10b8ba2cf15bb8ce20497ba00f7e42142b094227"
+  }
+]

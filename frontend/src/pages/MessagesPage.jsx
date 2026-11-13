@@ -26,7 +26,7 @@ function MessagesPage() {
             description:
               'Keep each order conversation, the item context and the next step together in one place.',
             listTitle: 'Conversations',
-            listDescription: 'Open a conversation directly from any order card.',
+            listDescription: 'Open a conversation from your orders.',
             empty: 'You do not have any conversations yet.',
             emptyHint: 'A new thread appears automatically as soon as you message from an order.',
             orderContext: 'Order item',
@@ -39,7 +39,7 @@ function MessagesPage() {
             description:
               'Κράτησε τη συζήτηση, το αντικείμενο και το επόμενο βήμα κάθε παραγγελίας στο ίδιο σημείο.',
             listTitle: 'Συνομιλίες',
-            listDescription: 'Μπορείς να ανοίξεις νέα συζήτηση κατευθείαν από κάθε order card.',
+            listDescription: 'Άνοιξε μια συνομιλία μέσα από τις παραγγελίες σου.',
             empty: 'Δεν υπάρχουν ακόμη συνομιλίες.',
             emptyHint: 'Μόλις στείλεις μήνυμα από μία παραγγελία, θα εμφανιστεί εδώ αυτόματα.',
             orderContext: 'Αντικείμενο παραγγελίας',
@@ -85,7 +85,7 @@ function MessagesPage() {
             <div className="mt-4 space-y-2">
               {conversations.map((conversation) => {
                 const listingId = Number(conversation.productId ?? conversation.listing_id)
-                const product = productsWithSellers.find((item) => Number(item.id) === listingId)
+                const product = conversation.product ?? productsWithSellers.find((item) => Number(item.id) === listingId)
                 const buyer = users.find(
                   (user) => Number(user.id) === Number(conversation.buyerId ?? conversation.buyer_id),
                 )

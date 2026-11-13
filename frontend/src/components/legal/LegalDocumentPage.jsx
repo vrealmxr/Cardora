@@ -22,6 +22,7 @@ import CardSurface from '@/components/ui/CardSurface'
 import SectionHeader from '@/components/ui/SectionHeader'
 import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
+import { localizePath } from '@/utils/helpers'
 
 const ICONS = {
   general: ScrollText,
@@ -47,10 +48,9 @@ function LegalDocumentPage({ document, pageKey }) {
 
   return (
     <div className="container pb-16">
-      {pageKey ? (
-        <PageSeo pageKey={pageKey} fallbackTitle={copy.title} fallbackDescription={copy.description} />
-      ) : null}
+      <PageSeo pageKey={pageKey} fallbackTitle={copy.title} fallbackDescription={copy.description} />
       <SectionHeader
+        as="h1"
         eyebrow={copy.eyebrow}
         title={seo?.h1 || copy.title}
         description={copy.description}
@@ -146,7 +146,7 @@ function LegalDocumentPage({ document, pageKey }) {
                 <Badge tone="gold">{item.badge}</Badge>
                 <h3 className="mt-4 font-display text-3xl text-ink">{item.title}</h3>
                 <p className="mt-3 text-sm leading-7 text-mist">{item.text}</p>
-                <Button as={Link} to={item.to} variant="secondary" className="mt-5">
+                <Button as={Link} to={localizePath(item.to, locale)} variant="secondary" className="mt-5">
                   {item.cta}
                 </Button>
               </CardSurface>
@@ -163,8 +163,8 @@ function LegalDocumentPage({ document, pageKey }) {
             <p className="mt-4 max-w-3xl text-sm leading-8 text-mist">{copy.ctaText}</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button as={Link} to={copy.ctaPrimaryTo}>{copy.ctaPrimary}</Button>
-            <Button as={Link} to={copy.ctaSecondaryTo} variant="secondary">{copy.ctaSecondary}</Button>
+            <Button as={Link} to={localizePath(copy.ctaPrimaryTo, locale)}>{copy.ctaPrimary}</Button>
+            <Button as={Link} to={localizePath(copy.ctaSecondaryTo, locale)} variant="secondary">{copy.ctaSecondary}</Button>
           </div>
         </div>
       </CardSurface>

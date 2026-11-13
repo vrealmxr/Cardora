@@ -1,4 +1,6 @@
 import { useI18n } from '@/hooks/useI18n'
+import boxNowLogo from '@/assets/shipping/boxnow.svg'
+import dhlLogo from '@/assets/shipping/dhl.svg'
 
 const SANS = 'Helvetica Neue, Helvetica, Arial, sans-serif'
 
@@ -26,8 +28,8 @@ export function EbayLogo({ className = 'h-6' }) {
 }
 
 const COPY = {
-  en: { payments: 'Payments by', prices: 'Price estimates from eBay data' },
-  el: { payments: 'Πληρωμές μέσω', prices: 'Εκτιμήσεις τιμών με δεδομένα eBay' },
+  en: { payments: 'Payments by', prices: 'Price estimates from eBay data', shipping: 'Shipping with' },
+  el: { payments: 'Πληρωμές μέσω', prices: 'Εκτιμήσεις τιμών με δεδομένα eBay', shipping: 'Αποστολές με' },
 }
 
 function PartnerLogos({ className = '', size = 'md' }) {
@@ -35,17 +37,24 @@ function PartnerLogos({ className = '', size = 'md' }) {
   const copy = COPY[locale === 'en' ? 'en' : 'el']
   const logoClass = size === 'sm' ? 'h-5' : 'h-6'
   const labelClass =
-    'text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8d7a58] whitespace-nowrap'
+    'text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8d7a58]'
 
   return (
     <div className={`flex flex-wrap items-center gap-x-6 gap-y-3 ${className}`}>
-      <div className="flex items-center gap-2.5">
+      <div className="flex max-w-full flex-wrap items-center justify-center gap-2.5">
         <span className={labelClass}>{copy.payments}</span>
         <StripeLogo className={logoClass} />
       </div>
-      <div className="flex items-center gap-2.5">
+      <div className="flex max-w-full flex-wrap items-center justify-center gap-2.5">
         <span className={labelClass}>{copy.prices}</span>
         <EbayLogo className={logoClass} />
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+        <span className={labelClass}>{copy.shipping}</span>
+        <div className="flex shrink-0 items-center gap-4">
+          <img src={boxNowLogo} alt="BOX NOW" width="139" height="102" className={size === 'sm' ? 'h-8 w-auto' : 'h-9 w-auto'} />
+          <img src={dhlLogo} alt="DHL" width="143.5" height="20" className={size === 'sm' ? 'h-auto w-20' : 'h-auto w-24'} />
+        </div>
       </div>
     </div>
   )

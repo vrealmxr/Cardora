@@ -15,9 +15,12 @@ import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
 import { cardoraService } from '@/services/cardoraService'
-import { formatCurrency, formatNumber } from '@/utils/formatters'
+import { useFormatters } from '@/hooks/useFormatters'
+import { localizePath } from '@/utils/helpers'
+import { catalogValueLabel } from '@/utils/catalogLabels'
 
 function DrawsPage({ studioMode = false }) {
+  const { formatCurrency, formatNumber } = useFormatters()
   const { locale } = useI18n()
   const { currentUser, isAuthenticated } = useAuth()
   const {
@@ -658,7 +661,7 @@ function DrawsPage({ studioMode = false }) {
     const cardTitle = card?.title ?? `Listing #${card?.listing_id ?? '-'}`
     const cardImage = tradeCardPrimaryMedia(card)
     const cardCondition = card?.condition || '-'
-    const cardRarity = card?.rarity || '-'
+    const cardRarity = catalogValueLabel('rarity', card?.rarity, locale) || '-'
     const cardSeller = card?.seller_name || '-'
 
     return (
@@ -712,7 +715,7 @@ function DrawsPage({ studioMode = false }) {
         renderFooter={() => (
           <div className="flex flex-wrap gap-2">
             {!isAuthenticated ? (
-              <Button as={Link} to="/eisodos" size="sm" variant="secondary">
+              <Button as={Link} to={localizePath('/eisodos', locale)} size="sm" variant="secondary">
                 {copy.loginToTrade}
               </Button>
             ) : (
@@ -726,8 +729,8 @@ function DrawsPage({ studioMode = false }) {
                     : 'Πρόσθεσε στην πλευρά στόχου'}
               </Button>
             )}
-            <Button as={Link} to={`/proion/${listing.slug}`} size="sm" variant="ghost">
-              {locale === 'en' ? 'Open listing' : 'Άνοιγμα listing'}
+            <Button as={Link} to={localizePath(`/proion/${listing.slug}`, locale)} size="sm" variant="ghost">
+              {locale === 'en' ? 'Open listing' : 'Δες την αγγελία'}
             </Button>
             {!isOwnListing ? (
               <p className="w-full text-xs text-mist">
@@ -882,7 +885,7 @@ function DrawsPage({ studioMode = false }) {
                   {locale === 'en' ? 'All requests in one command center' : 'Όλα τα αιτήματα σε ένα command center'}
                 </h2>
               </div>
-              <Button as={Link} to="/kliroseis" size="sm" variant="secondary">
+              <Button as={Link} to={localizePath('/kliroseis', locale)} size="sm" variant="secondary">
                 {locale === 'en' ? 'Open trades page' : 'Μετάβαση στο trades page'}
               </Button>
             </div>

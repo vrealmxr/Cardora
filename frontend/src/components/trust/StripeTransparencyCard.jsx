@@ -1,3 +1,4 @@
+import { marketplaceTrust } from '@/data/marketplaceTrust'
 import { ArrowRightLeft, ShieldCheck, WalletCards } from 'lucide-react'
 import { useI18n } from '@/hooks/useI18n'
 
@@ -12,34 +13,13 @@ function StripeWordmark() {
 function StripeTransparencyCard({ compact = false, className = '' }) {
   const { locale } = useI18n()
 
-  const copy =
-    locale === 'en'
-      ? {
-          eyebrow: 'Powered by Stripe',
-          title: compact ? 'Transparent checkout and payouts' : 'Payments, holds and payouts run through Stripe',
-          description: compact
-            ? 'Buyer checkout, protected holds and seller payouts run through Stripe so each transaction stays clearer from payment to release.'
-            : 'Cardora uses Stripe for buyer checkout, protected holds until confirmation and seller payouts through connected accounts, so the flow stays transparent at every stage.',
-          points: [
-            { icon: WalletCards, label: 'Stripe Checkout' },
-            { icon: ShieldCheck, label: 'Protected hold until confirmation' },
-            { icon: ArrowRightLeft, label: 'Seller payouts to connected accounts' },
-          ],
-        }
-      : {
-          eyebrow: 'Powered by Stripe',
-          title: compact
-            ? 'Διαφανές checkout και αποδεσμεύσεις'
-            : 'Οι πληρωμές, τα holds και τα payouts περνούν μέσω Stripe',
-          description: compact
-            ? 'Το checkout του αγοραστή, το protected hold και οι αποδεσμεύσεις προς τον πωλητή περνούν μέσω Stripe ώστε κάθε συναλλαγή να μένει ξεκάθαρη από την πληρωμή μέχρι το release.'
-            : 'Η Cardora χρησιμοποιεί Stripe για το checkout του αγοραστή, για την προστατευμένη κράτηση του ποσού μέχρι την επιβεβαίωση και για τα payouts προς τους πωλητές μέσω connected accounts, ώστε η ροή να παραμένει καθαρή και διαφανής σε κάθε στάδιο.',
-          points: [
-            { icon: WalletCards, label: 'Checkout μέσω Stripe' },
-            { icon: ShieldCheck, label: 'Hold μέχρι επιβεβαίωση ή λήξη window' },
-            { icon: ArrowRightLeft, label: 'Payouts σε Stripe connected accounts' },
-          ],
-        }
+  const trust = marketplaceTrust[locale]
+  const copy = {
+    eyebrow: locale === 'en' ? 'Payments through Stripe' : 'Πληρωμές μέσω Stripe',
+    title: trust.title,
+    description: trust.payment,
+    points: [WalletCards, ShieldCheck, ArrowRightLeft].map((icon, index) => ({ icon, label: trust.paymentPoints[index] })),
+  }
 
   return (
     <div

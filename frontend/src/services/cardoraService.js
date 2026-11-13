@@ -3,7 +3,13 @@ import { apiClient } from '@/services/apiClient'
 const unwrapData = (payload) => payload?.data ?? payload ?? null
 
 export const cardoraService = {
-  getBootstrap: async () => unwrapData(await apiClient.get('/bootstrap')),
+  getPublicListing: async (slug, locale = 'el') => unwrapData(await apiClient.get(`/public-listings/${encodeURIComponent(slug)}?locale=${locale}`, {
+    anonymous: true, cache: 'no-store', headers: { 'X-Locale': locale },
+  })),
+  getBootstrap: async (locale = 'el') => unwrapData(await apiClient.get(`/bootstrap?locale=${locale}`, { headers: { 'X-Locale': locale } })),
+  getPublicBootstrap: async (locale = 'el') => unwrapData(await apiClient.get(`/public-page-data?locale=${locale}`, {
+    anonymous: true, headers: { 'X-Locale': locale },
+  })),
 
   // The locale query param exists purely so each locale gets its own browser
   // HTTP-cache entry keyed by URL -- relying on `Vary: X-Locale` alone let a
@@ -137,7 +143,7 @@ export const cardoraService = {
 
   createListing: async (payload) => unwrapData(await apiClient.post('/listings', payload)),
   getListing: async (listingId) => unwrapData(await apiClient.get(`/listings/${listingId}`)),
-  getPublicProfile: async (handle) => unwrapData(await apiClient.get(`/profiles/${handle}`)),
+  getPublicProfile: async (handle) => unwrapData(await apiClient.get(`/profiles/${encodeURIComponent(handle)}`)),
   updateListing: async (listingId, payload) =>
     unwrapData(await apiClient.put(`/listings/${listingId}`, payload)),
   deleteListing: async (listingId) => apiClient.delete(`/listings/${listingId}`),

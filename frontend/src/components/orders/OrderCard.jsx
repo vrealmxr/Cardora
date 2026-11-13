@@ -10,6 +10,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import OrderReviewComposer from '@/components/orders/OrderReviewComposer'
+import OrderItems from '@/components/orders/OrderItems'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
@@ -268,6 +269,8 @@ function OrderCard({ order }) {
           <Badge tone={stageToneMap[stage.key] ?? 'muted'}>{stage.label}</Badge>
         </div>
       </div>
+
+      <OrderItems order={order} />
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-2xl border border-white/8 bg-white/5 p-4">

@@ -47,19 +47,20 @@ export const resolveApiUrl = (endpoint = '') => {
 }
 
 const request = async (endpoint, options = {}) => {
-  const isFormData = options.body instanceof FormData
-  const token = getStoredAuthToken()
+  const { anonymous = false, ...requestOptions } = options
+  const isFormData = requestOptions.body instanceof FormData
+  const token = anonymous ? '' : getStoredAuthToken()
   const locale = getStoredLocale()
 
   const response = await fetch(resolveApiUrl(endpoint), {
-    ...options,
-    credentials: 'same-origin',
+    ...requestOptions,
+    credentials: anonymous ? 'omit' : 'same-origin',
     headers: {
       Accept: 'application/json',
       'X-Locale': locale,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(options.headers ?? {}),
+      ...(requestOptions.headers ?? {}),
     },
   })
 
@@ -75,7 +76,7 @@ const request = async (endpoint, options = {}) => {
   }
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && !anonymous && token === getStoredAuthToken()) {
       clearStoredAuthToken()
 
       if (typeof window !== 'undefined') {
@@ -99,7 +100,7 @@ const request = async (endpoint, options = {}) => {
 }
 
 export const apiClient = {
-  get: (endpoint) => request(endpoint),
+  get: (endpoint, options) => request(endpoint, options),
   post: (endpoint, body) =>
     request(endpoint, {
       method: 'POST',

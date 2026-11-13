@@ -1,4 +1,7 @@
-﻿import { ArrowRight, Check, ShieldCheck, Sparkles, Ticket, Trophy, WalletCards } from 'lucide-react'
+﻿import StructuredData from '@/components/StructuredData'
+import { siteStructuredData } from '@/utils/structuredData'
+import { marketplaceTrust } from '@/data/marketplaceTrust'
+import { ArrowRight, Check, ShieldCheck, Sparkles, Ticket, Trophy, WalletCards } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import CategoryCard from '@/components/catalog/CategoryCard'
 import DrawCard from '@/components/draws/DrawCard'
@@ -14,8 +17,10 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
-import { formatCurrency, formatNumber } from '@/utils/formatters'
+import { localizePath } from '@/utils/helpers'
+import { useFormatters } from '@/hooks/useFormatters'
 function HomePage() {
+  const { formatCurrency, formatNumber } = useFormatters()
   const { locale } = useI18n()
   const seo = useSeo('home')
   const seoH1 = seo?.h1
@@ -27,9 +32,6 @@ function HomePage() {
     recentProducts,
     topSellers,
     platformStats,
-    reviews,
-    trustHighlights,
-    howItWorksSteps,
   } = useMarketplace()
 
   const officialCampaigns = [...platformDraws]
@@ -57,30 +59,21 @@ function HomePage() {
     0,
   )
 
+  const trust = marketplaceTrust[locale]
+  const trustHighlights = trust.highlights
   const copy =
     locale === 'en'
       ? {
           heroBadge: 'Trusted collector marketplace',
           heroTitle: 'Buy, sell and trade collectibles with confidence.',
-          heroDescription:
-            'Cardora is the premium marketplace for cards, figures, comics, books and one-of-a-kind collectibles. Built for secure transactions, trusted sellers and 100% protected payments.',
+          heroDescription: trust.description,
           ctaBuy: 'Start browsing',
           ctaSell: 'List an item',
-          trustStrip:
-            'Funds stay with the platform and are released only after the buyer confirms everything arrived as described.',
+          trustStrip: trust.payment,
           rightCards: [
-            {
-              title: 'Protected payments',
-              text: 'The payment stays secured until the order is received and confirmed.',
-            },
-            {
-              title: 'Clear listings',
-              text: 'Condition, photos and key details are shown upfront so buyers know what they are getting.',
-            },
-            {
-              title: 'Verified members',
-              text: 'Ratings, verification status and account history help you judge each profile more easily.',
-            },
+            { title: trust.highlights[0], text: locale === 'en' ? 'Compare the exact edition and photographs of the item offered.' : 'Σύγκρινε την ακριβή έκδοση και φωτογραφίες του αντικειμένου που προσφέρεται.' },
+            { title: trust.title, text: trust.payment },
+            { title: locale === 'en' ? 'Account verification' : 'Επαλήθευση λογαριασμού', text: trust.verification },
           ],
           drawEyebrow: 'Cardora Campaigns',
           drawTitle: 'Official Cardora campaigns',
@@ -115,16 +108,8 @@ function HomePage() {
             'Cardora puts clarity before checkout so high-value trades can move forward with less risk and fewer surprises.',
           paymentTitle: 'Protected payment',
           paymentCards: [
-            {
-              title: 'Funds stay secured',
-              text: 'The seller is not paid the moment the checkout is completed. The release happens after delivery is confirmed.',
-              icon: WalletCards,
-            },
-            {
-              title: 'Support when something is wrong',
-              text: 'If the order does not match the listing, the Cardora team reviews the evidence before deciding the next step.',
-              icon: Sparkles,
-            },
+            { title: trust.title, text: trust.payment, icon: WalletCards },
+            { title: locale === 'en' ? 'Know what verification means' : 'Τι σημαίνει η επαλήθευση', text: trust.verification, icon: Sparkles },
           ],
           sellersEyebrow: 'Top Sellers',
           sellersTitle: 'Collectors with strong reputations',
@@ -170,25 +155,14 @@ function HomePage() {
       : {
           heroBadge: 'Ασφαλής αγορά συλλεκτικών',
           heroTitle: 'Αγόρασε, πούλησε και αντάλλαξε συλλεκτικά με ασφάλεια.',
-          heroDescription:
-            'Η Cardora είναι το premium marketplace για κάρτες, φιγούρες, κόμικς, βιβλία και μοναδικά συλλεκτικά. Σχεδιασμένο για ασφαλείς συναλλαγές, αξιόπιστους πωλητές και 100% προστατευμένες πληρωμές.',
+          heroDescription: trust.description,
           ctaBuy: 'Ξεκίνα τις αγορές',
           ctaSell: 'Δημιούργησε αγγελία',
-          trustStrip:
-            'Τα χρήματα παραμένουν προστατευμένα μέχρι να ολοκληρωθεί σωστά η παραγγελία και να επιβεβαιωθεί η παραλαβή.',
+          trustStrip: trust.payment,
           rightCards: [
-            {
-              title: 'Προστατευμένες πληρωμές',
-              text: 'Η πληρωμή μένει ασφαλής μέχρι να παραληφθεί και να επιβεβαιωθεί η παραγγελία.',
-            },
-            {
-              title: 'Καθαρές αγγελίες',
-              text: 'Κατάσταση, φωτογραφίες και βασικά στοιχεία εμφανίζονται ξεκάθαρα πριν από κάθε αγορά.',
-            },
-            {
-              title: 'Επαληθευμένα μέλη',
-              text: 'Αξιολογήσεις, verification status και ιστορικό λογαριασμού σε βοηθούν να κρίνεις πιο εύκολα κάθε προφίλ.',
-            },
+            { title: trust.highlights[0], text: locale === 'en' ? 'Compare the exact edition and photographs of the item offered.' : 'Σύγκρινε την ακριβή έκδοση και φωτογραφίες του αντικειμένου που προσφέρεται.' },
+            { title: trust.title, text: trust.payment },
+            { title: locale === 'en' ? 'Account verification' : 'Επαλήθευση λογαριασμού', text: trust.verification },
           ],
           drawEyebrow: 'Επίσημα Campaigns',
           drawTitle: 'Επίσημες καμπάνιες της Cardora',
@@ -222,16 +196,8 @@ function HomePage() {
             'Η Cardora βάζει τη διαφάνεια πριν από την πληρωμή, ώστε ακόμα και πιο ακριβά συλλεκτικά να αλλάζουν χέρια με λιγότερο άγχος και περισσότερη σιγουριά.',
           paymentTitle: 'Προστατευμένη πληρωμή',
           paymentCards: [
-            {
-              title: 'Τα χρήματα μένουν προστατευμένα',
-              text: 'Ο πωλητής δεν πληρώνεται αμέσως με το checkout. Η αποδέσμευση γίνεται μετά την παραλαβή και την επιβεβαίωση.',
-              icon: WalletCards,
-            },
-            {
-              title: 'Υποστήριξη όταν κάτι δεν πάει σωστά',
-              text: 'Αν το αντικείμενο δεν ταιριάζει με την αγγελία, η ομάδα της Cardora εξετάζει τα στοιχεία πριν προχωρήσει στο επόμενο βήμα.',
-              icon: Sparkles,
-            },
+            { title: trust.title, text: trust.payment, icon: WalletCards },
+            { title: locale === 'en' ? 'Know what verification means' : 'Τι σημαίνει η επαλήθευση', text: trust.verification, icon: Sparkles },
           ],
           sellersEyebrow: 'Top Sellers',
           sellersTitle: 'Συλλέκτες με δυνατή φήμη και σταθερή παρουσία',
@@ -288,51 +254,11 @@ function HomePage() {
           description: 'Στο κινητό βλέπεις άμεσα ενεργές αγγελίες.',
         }
 
-  const normalizedHowItWorksSteps = howItWorksSteps.map((step, index) => {
-    const isHold = step.id === 'hold' || index === 2
-    const isRelease = step.id === 'release' || index === 3
-
-    if (locale === 'en') {
-      if (isHold) {
-        return {
-          ...step,
-          title: 'The amount remains on hold',
-          text: 'The payment remains protected while the shipment is on the way and while the buyer checks the item.',
-        }
-      }
-
-      if (isRelease) {
-        return {
-          ...step,
-          title: 'Payment is released after confirmation',
-          text: 'Seller payout is completed after buyer confirmation or the end of the review period.',
-        }
-      }
-
-      return step
-    }
-
-    if (isHold) {
-      return {
-        ...step,
-        title: 'Το ποσό παραμένει δεσμευμένο',
-        text: 'Η πληρωμή παραμένει προστατευμένη όσο η αποστολή είναι καθοδόν και όσο ο αγοραστής ελέγχει το αντικείμενο.',
-      }
-    }
-
-    if (isRelease) {
-      return {
-        ...step,
-        title: 'Η πληρωμή αποδεσμεύεται μετά την επιβεβαίωση',
-        text: 'Η απόδοση στον πωλητή γίνεται μετά την επιβεβαίωση του αγοραστή ή τη λήξη της περιόδου ελέγχου.',
-      }
-    }
-
-    return step
-  })
+  const normalizedHowItWorksSteps = trust.steps
 
   return (
     <div className="pb-10 sm:pb-14">
+      <StructuredData value={siteStructuredData(locale)} />
       <PageSeo pageKey="home" fallbackTitle={copy.heroTitle} fallbackDescription={copy.heroDescription} />
       <section className="container">
         <div className="grid gap-4 lg:gap-6 xl:grid-cols-[1.2fr,0.8fr]">
@@ -350,11 +276,11 @@ function HomePage() {
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2.5 sm:mt-7">
-                <Button as={Link} to="/kartes" size="lg">
+                <Button as={Link} to={localizePath('/syllektika', locale)} size="lg">
                   {copy.ctaBuy}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
-                <Button as={Link} to="/dimiourgia-aggelias" variant="secondary" size="lg">
+                <Button as={Link} to={localizePath('/dimiourgia-aggelias', locale)} variant="secondary" size="lg">
                   {copy.ctaSell}
                 </Button>
               </div>
@@ -443,7 +369,7 @@ function HomePage() {
                 </li>
               ))}
             </ul>
-            <Button as={Link} to="/cardora-pro" className="mt-6 w-full justify-center">
+            <Button as={Link} to={localizePath('/cardora-pro', locale)} className="mt-6 w-full justify-center">
               {copy.pricingCta}
             </Button>
           </CardSurface>
@@ -653,23 +579,13 @@ function HomePage() {
       </section>
 
       <section className="container mt-16">
-        <SectionHeader
-          eyebrow={copy.reviewsEyebrow}
-          title={copy.reviewsTitle}
-          description={copy.reviewsDescription}
-          align="center"
-        />
+        <SectionHeader title={locale === 'en' ? 'Before you buy or sell' : 'Πριν αγοράσεις ή πουλήσεις'} />
         <div className="grid gap-5 lg:grid-cols-3">
-          {reviews.map((review) => (
-            <CardSurface key={review.id} className="h-full">
-              <p className="font-display text-2xl text-gold-200">&ldquo;</p>
-              <p className="mt-2.5 text-sm leading-7 text-[#5f6b7a]">{review.quote}</p>
-              <div className="mt-5">
-                <p className="font-semibold text-ink">{review.author}</p>
-                <p className="text-sm text-mist">{review.role}</p>
-              </div>
-            </CardSurface>
-          ))}
+          {[
+            ['/syllektika', locale === 'en' ? 'Explore collectibles and common questions' : 'Συλλεκτικά και συχνές ερωτήσεις'],
+            ['/odigos-polisis', locale === 'en' ? 'Prepare a listing and understand the fees' : 'Ετοίμασε την αγγελία σου και δες τις χρεώσεις'],
+            ['/katastasi-kai-grading', locale === 'en' ? 'Understand condition and grading' : 'Μάθε για την κατάσταση και το grading'],
+          ].map(([href, title]) => <CardSurface key={href}><Link className="font-display text-2xl text-ink underline" to={localizePath(href, locale)}>{title}</Link></CardSurface>)}
         </div>
       </section>
 

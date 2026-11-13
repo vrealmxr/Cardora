@@ -9,7 +9,8 @@
   Truck,
   WalletCards,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import PageSeo from '@/components/PageSeo'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -17,6 +18,7 @@ import CardSurface from '@/components/ui/CardSurface'
 import SectionHeader from '@/components/ui/SectionHeader'
 import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
+import { localizePath } from '@/utils/helpers'
 
 const ICONS = {
   general: FileCheck2,
@@ -34,7 +36,7 @@ const COPY = {
     title: 'Terms of Use for the Cardora marketplace',
     description:
       'These terms govern how Cardora operates as a collectibles marketplace, how protected payments and seller releases work, and what buyers and sellers must do regarding listings, shipping, disputes and moderation.',
-    updated: 'Last updated: 27 September 2026',
+    updated: 'Last updated: 21 October 2026',
     intro:
       'These terms apply to the Cardora marketplace operated by VRealm I.K.E. They cover user-to-user sales, official Cardora activities, protected payment flows, shipping, verification, moderation and dispute handling.',
     introSecondary:
@@ -68,6 +70,20 @@ const COPY = {
       },
     ],
     sections: [
+      {
+  "id": "cardora-scanner",
+  "icon": "general",
+  "title": "Cardora Scanner — card photos and model training",
+  "paragraphs": [
+    "By using Cardora Scanner and selecting “Identify card”, you accept these terms for card identification and use of card photos to improve and train Cardora-1. If you do not agree, do not submit photos to the Scanner.",
+    "The Scanner automatically finds and crops the card on your device, without asking you to select corners. Photo metadata is removed before upload. If the card boundary is uncertain, the photo is used only for identification and that submission is excluded from training collection. Those images are deleted after analysis; an unprocessed submission expires within 24 hours. Photograph one card at a time, without faces, addresses or other personal details.",
+    "You grant Cardora a non-exclusive licence to store, review and use card photos you have the right to provide to improve and train its model. This licence covers only rights you hold and does not transfer third-party rights in card artwork. Photos are not automatically published.",
+    "Automatically cropped submissions eligible for training review are stored privately for up to 30 days, then removed from the review collection. Only authorised administrators have access. Before an image can enter a training dataset, its crop, card labels and permitted use must be reviewed. Scanning does not automatically start training. A separate dataset requires its own documented use and retention review.",
+    "You can delete a submission and its photos from your recent scans. Contact Cardora support about copies already exported to an approved dataset or to exercise your rights. Deleting a submission does not by itself undo training that has already taken place.",
+    "Acceptance of these terms does not limit your personal-data rights and does not by itself constitute consent for any processing of personal data. Such processing is subject to the Privacy Policy and requires an appropriate lawful basis.",
+    "The Scanner is in beta. Identification may be wrong or may not confirm the exact variant. Check the card before relying on the result to buy or sell."
+  ]
+},
       {
         id: 'acceptance',
         icon: 'legal',
@@ -187,7 +203,7 @@ const COPY = {
     title: 'Όροι Χρήσης του marketplace Cardora',
     description:
       'Οι παρόντες όροι ρυθμίζουν τον τρόπο λειτουργίας της Cardora ως marketplace συλλεκτικών, τον τρόπο με τον οποίο λειτουργούν οι προστατευμένες πληρωμές και οι αποδεσμεύσεις, καθώς και τις υποχρεώσεις αγοραστών, πωλητών και χρηστών σε θέματα αγγελιών, αποστολών, διαφορών, moderation και ασφάλειας της πλατφόρμας.',
-    updated: 'Τελευταία ενημέρωση: 27 Σεπτεμβρίου 2026',
+    updated: 'Τελευταία ενημέρωση: 21 Οκτωβρίου 2026',
     intro:
       'Οι παρόντες Όροι Χρήσης διέπουν τη χρήση του marketplace Cardora που λειτουργεί η VRealm Ι.Κ.Ε. και καλύπτουν τις συναλλαγές μεταξύ χρηστών, τις επίσημες δραστηριότητες της Cardora, τα protected payment flows, τις αποστολές, τα disputes, τις επαληθεύσεις και τους μηχανισμούς ασφάλειας της πλατφόρμας.',
     introSecondary:
@@ -221,6 +237,20 @@ const COPY = {
       },
     ],
     sections: [
+      {
+  "id": "cardora-scanner",
+  "icon": "general",
+  "title": "Cardora Scanner — φωτογραφίες καρτών και εκπαίδευση μοντέλου",
+  "paragraphs": [
+    "Χρησιμοποιώντας το Cardora Scanner και επιλέγοντας «Αναγνώριση κάρτας», αποδέχεσαι τους παρόντες όρους για την αναγνώριση και την αξιοποίηση των φωτογραφιών της κάρτας στη βελτίωση και εκπαίδευση του Cardora-1. Αν δεν συμφωνείς, μην υποβάλεις φωτογραφίες στο Scanner.",
+    "Το Scanner εντοπίζει και περικόπτει αυτόματα την κάρτα στη συσκευή σου, χωρίς να χρειάζεται να ορίσεις γωνίες. Τα μεταδεδομένα αφαιρούνται πριν από την αποστολή. Αν τα όρια της κάρτας δεν είναι σαφή, η φωτογραφία χρησιμοποιείται μόνο για αναγνώριση και η υποβολή δεν διατηρείται στη συλλογή για training. Αυτές οι εικόνες διαγράφονται μετά την ανάλυση· μια υποβολή που δεν έχει επεξεργαστεί λήγει εντός 24 ωρών. Φωτογράφιζε μία κάρτα κάθε φορά, χωρίς πρόσωπα, διευθύνσεις ή άλλα προσωπικά στοιχεία.",
+    "Παρέχεις στην Cardora μη αποκλειστική άδεια να αποθηκεύει, να ελέγχει και να χρησιμοποιεί τις φωτογραφίες κάρτας που δικαιούσαι να διαθέσεις για τη βελτίωση και εκπαίδευση του μοντέλου της. Η άδεια αφορά μόνο δικαιώματα που σου ανήκουν και δεν μεταβιβάζει δικαιώματα τρίτων στα σχέδια των καρτών. Οι φωτογραφίες δεν δημοσιεύονται αυτόματα.",
+    "Οι αυτόματα περικομμένες υποβολές που είναι κατάλληλες για έλεγχο training φυλάσσονται ιδιωτικά για έως 30 ημέρες και στη συνέχεια διαγράφονται από τη συλλογή ελέγχου. Μόνο εξουσιοδοτημένοι διαχειριστές έχουν πρόσβαση. Πριν χρησιμοποιηθεί μια εικόνα σε dataset εκπαίδευσης, ελέγχονται η περικοπή, τα στοιχεία της κάρτας και η δυνατότητα χρήσης της. Δεν ξεκινά εκπαίδευση με κάθε scan. Τυχόν ξεχωριστό dataset χρειάζεται δικό του τεκμηριωμένο έλεγχο χρήσης και διατήρησης.",
+    "Μπορείς να διαγράψεις την υποβολή και τις φωτογραφίες της από τα πρόσφατα scans. Για αντίγραφα που έχουν ήδη εξαχθεί σε εγκεκριμένο dataset ή για την άσκηση δικαιωμάτων σου, επικοινώνησε με την υποστήριξη της Cardora. Η διαγραφή μιας υποβολής δεν αναιρεί από μόνη της εκπαίδευση που έχει ήδη ολοκληρωθεί.",
+    "Η αποδοχή των όρων δεν περιορίζει τα δικαιώματά σου ως προς τα προσωπικά δεδομένα και δεν αποτελεί από μόνη της συγκατάθεση για οποιαδήποτε επεξεργασία προσωπικών δεδομένων. Για αυτή ισχύει η Πολιτική Απορρήτου και απαιτείται κατάλληλη νόμιμη βάση.",
+    "Το Scanner βρίσκεται σε δοκιμαστική λειτουργία. Η αναγνώριση μπορεί να είναι λανθασμένη ή να μην επιβεβαιώνει την ακριβή παραλλαγή. Έλεγχε την κάρτα πριν βασιστείς στο αποτέλεσμα για αγορά ή πώληση."
+  ]
+},
       {
         id: 'acceptance',
         icon: 'legal',
@@ -444,7 +474,7 @@ function TermsSection({ section }) {
   const Icon = ICONS[section.icon] ?? ICONS.general
 
   return (
-    <CardSurface className="p-6 sm:p-8">
+    <CardSurface id={section.id} className="scroll-mt-24 p-6 sm:p-8">
       <div className="flex items-center gap-3">
         <Icon className="h-5 w-5 text-gold-100" />
         <h2 className="font-display text-3xl text-white">{section.title}</h2>
@@ -478,13 +508,19 @@ function TermsSection({ section }) {
 
 function TermsPage() {
   const { locale } = useI18n()
+  const { hash } = useLocation()
   const copy = COPY[locale] ?? COPY.el
   const seo = useSeo('terms')
+  useEffect(() => {
+    if (hash !== '#cardora-scanner') return
+    const frame = requestAnimationFrame(() => document.getElementById('cardora-scanner')?.scrollIntoView())
+    return () => cancelAnimationFrame(frame)
+  }, [hash])
 
   return (
     <div className="container pb-16">
       <PageSeo pageKey="terms" fallbackTitle={copy.title} fallbackDescription={copy.description} />
-      <SectionHeader eyebrow={copy.eyebrow} title={seo?.h1 || copy.title} description={copy.description} />
+      <SectionHeader as="h1" eyebrow={copy.eyebrow} title={seo?.h1 || copy.title} description={copy.description} />
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
         <CardSurface className="p-6 sm:p-8">
@@ -550,10 +586,10 @@ function TermsPage() {
           <h2 className="font-display text-4xl text-white">{copy.ctaTitle}</h2>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-mist">{copy.ctaText}</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button as={Link} to="/kentro-ypostiriksis">
+            <Button as={Link} to={localizePath('/kentro-ypostiriksis', locale)}>
               {copy.ctaPrimary}
             </Button>
-            <Button as={Link} to="/epikoinonia" variant="secondary">
+            <Button as={Link} to={localizePath('/epikoinonia', locale)} variant="secondary">
               {copy.ctaSecondary}
             </Button>
           </div>

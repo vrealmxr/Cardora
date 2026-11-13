@@ -1,0 +1,14 @@
+name = "cardora-legacy-verification-guard"
+main = "src/server/legacyVerificationGuard.js"
+account_id = "2ce033ffbe534cc5be6e033df3431eb8"
+compatibility_date = "2026-10-24"
+workers_dev = false
+preview_urls = false
+routes = [
+  { pattern = "cardora.gr/backend/*", zone_id = "6923566bd873f280be6f7c4f788fd9b6" },
+  { pattern = "www.cardora.gr/backend/*", zone_id = "6923566bd873f280be6f7c4f788fd9b6" },
+  { pattern = "api.cardora.gr/backend/*", zone_id = "6923566bd873f280be6f7c4f788fd9b6" },
+  { pattern = "cardora.gr/storage/uploads/verification-*", zone_id = "6923566bd873f280be6f7c4f788fd9b6" },
+  { pattern = "www.cardora.gr/storage/uploads/verification-*", zone_id = "6923566bd873f280be6f7c4f788fd9b6" },
+  { pattern = "api.cardora.gr/storage/uploads/verification-*", zone_id = "6923566bd873f280be6f7c4f788fd9b6" },
+]

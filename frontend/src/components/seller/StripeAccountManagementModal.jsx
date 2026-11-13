@@ -1,7 +1,7 @@
 import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { loadConnectAndInitialize } from '@stripe/connect-js'
+import { loadConnectAndInitialize } from '@stripe/connect-js/pure'
 import { ConnectAccountManagement, ConnectComponentsProvider, ConnectNotificationBanner, ConnectPayouts } from '@stripe/react-connect-js'
 import { useMarketplace } from '@/hooks/useMarketplace'
 
