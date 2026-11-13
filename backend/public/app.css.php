@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 $matches = glob(__DIR__ . '/static/index-*.css') ?: [];
+
+usort($matches, static fn (string $a, string $b): int => filemtime($b) <=> filemtime($a));
+
 $stylesheet = $matches[0] ?? null;
 
 if ($stylesheet === null || !is_file($stylesheet)) {

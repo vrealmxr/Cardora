@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 $matches = glob(__DIR__ . '/static/index-*.js') ?: [];
+
+usort($matches, static fn (string $a, string $b): int => filemtime($b) <=> filemtime($a));
+
 $bundle = $matches[0] ?? null;
 
 if ($bundle === null || !is_file($bundle)) {
