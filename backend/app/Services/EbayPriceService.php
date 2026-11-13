@@ -54,6 +54,10 @@ class EbayPriceService
      */
     public function estimate(string $query, array $options = []): array
     {
+        // In eBay search a leading "-" excludes the word that follows, so the
+        // dash in "Elsa - Spirit of Winter" would drop real matches. Keep
+        // hyphens inside codes such as "OP01-120".
+        $query = preg_replace('/(^|\s)-+(?=\S|\s|$)/u', '$1', $query);
         $query = trim(preg_replace('/\s+/', ' ', $query));
 
         if ($query === '') {
@@ -568,7 +572,13 @@ class EbayPriceService
         sort($all);
         $all = array_values(array_filter($all, fn ($price) => $price >= $low && $price <= $high));
 
-        if (count($us) >= 8) {
+        // A US low percentile above the median of all markets means the US
+        // listings are a different mix (e.g. mostly pricier parallels of a
+        // sports card), so they no longer represent the card being priced.
+        $usUnrepresentative = count($us) >= 8 && count($all) >= 3
+            && $this->percentile($us, 0.30) > $this->percentile($all, 0.5);
+
+        if (count($us) >= 8 && ! $usUnrepresentative) {
             [$sample, $percentile, $basis] = [$us, 0.30, 'us_p30'];
         } elseif (count($all) >= 3) {
             [$sample, $percentile, $basis] = [$all, 0.25, 'all_markets_p25'];
@@ -579,6 +589,10 @@ class EbayPriceService
         $price = round($this->percentile($sample, $percentile), 2);
         $levels = ['low', 'medium', 'high'];
         $level = count($sample) >= 15 ? 2 : (count($sample) >= 6 ? 1 : 0);
+
+        if ($usUnrepresentative) {
+            $level = max(0, $level - 1);
+        }
         $p25 = $this->percentile($sample, 0.25);
         $spread = $p25 > 0 ? $this->percentile($sample, 0.75) / $p25 : INF;
 

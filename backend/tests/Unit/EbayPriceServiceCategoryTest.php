@@ -24,6 +24,8 @@ class EbayPriceServiceCategoryTest extends TestCase
 
     private bool $ecbUp = true;
 
+    private array $searchedQueries = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -73,6 +75,7 @@ class EbayPriceServiceCategoryTest extends TestCase
                 $marketplace = $request->header('X-EBAY-C-MARKETPLACE-ID')[0] ?? '?';
                 preg_match('/itemLocationCountry:([A-Z]{2})/', $query['filter'] ?? '', $country);
                 $this->searches[] = [$marketplace, $country[1] ?? null, $query['category_ids'] ?? null];
+                $this->searchedQueries[] = $query['q'] ?? null;
 
                 if ($this->rejectCategoryFor !== null && isset($query['category_ids']) && $marketplace === 'EBAY_GB') {
                     return Http::response(['errors' => [['message' => 'bad category']]], $this->rejectCategoryFor);
@@ -293,6 +296,29 @@ class EbayPriceServiceCategoryTest extends TestCase
         $this->listings = ['EBAY_DE' => [['1', '10.00', 'EUR'], ['2', '12.00', 'EUR']]];
 
         $this->assertNull(app(EbayPriceService::class)->estimate('Rare thing', ['category_ids' => ''])['estimated_sale']);
+    }
+
+    public function test_dashes_that_would_exclude_words_are_removed_but_codes_are_kept(): void
+    {
+        app(EbayPriceService::class)->estimate('Elsa - Spirit of Winter -foil OP01-120', ['category_ids' => '']);
+
+        $this->assertSame(['Elsa Spirit of Winter foil OP01-120'], $this->searchedQueries);
+    }
+
+    public function test_us_listings_priced_above_the_overall_median_are_not_used(): void
+    {
+        config(['services.ebay.markets' => 'EBAY_US:US,EBAY_DE:DE']);
+        // US: 8 pricey parallels; everywhere else: 20 cheap base copies.
+        $this->listings = [
+            'EBAY_US' => array_map(fn ($i) => [(string) (100 + $i), (string) (40 + $i), 'USD'], range(0, 7)),
+            'EBAY_DE' => array_map(fn ($i) => [(string) (200 + $i), (string) (3 + $i * 0.1), 'EUR'], range(0, 19)),
+        ];
+
+        $estimate = app(EbayPriceService::class)->estimate('Stephen Curry 2025 Topps Chrome 201', ['category_ids' => ''])['estimated_sale'];
+
+        $this->assertSame('all_markets_p25', $estimate['basis']);
+        $this->assertLessThan(10, $estimate['price']);
+        $this->assertNotSame('high', $estimate['confidence']);
     }
 
     public function test_markets_spec_is_parsed_and_deduplicated(): void
