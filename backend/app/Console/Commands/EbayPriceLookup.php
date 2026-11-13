@@ -50,10 +50,14 @@ class EbayPriceLookup extends Command
         $this->table(['metric', 'value'], [
             ['markets', count($result['marketplaces']).' ('.collect($result['marketplaces'])->where('error', null)->count().' answered)'],
             ['category', trim(($result['category']['id'] ?? '-').' '.($result['category']['name'] ?? '')).' ('.($result['category']['source'] ?? 'none').')'],
+            ['ESTIMATED SALE', $result['estimated_sale']
+                ? $result['estimated_sale']['price'].' '.$result['currency'].' ('.$result['estimated_sale']['basis'].', n='.$result['estimated_sale']['sample_size'].', '.$result['estimated_sale']['confidence'].' confidence)'
+                : '-'],
+            ['condition', $result['condition_filter'].' ('.$result['excluded_listings'].' other listings left out)'],
             ['total matches', $result['total_matches']],
             ['sample / used', $result['sample_size'].' / '.$result['used_for_stats']],
             ['min', $result['min']],
-            ['median', $result['median']],
+            ['median (asking)', $result['median']],
             ['average', $result['average']],
             ['max', $result['max']],
             ['currency', $result['currency'].' (ECB '.($result['exchange_rates']['date'] ?? 'n/a').')'],

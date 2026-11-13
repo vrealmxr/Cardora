@@ -16,7 +16,7 @@ class EbayPriceServiceCategoryTest extends TestCase
     /** Suggestions the fake Taxonomy API returns, or an HTTP error status. */
     private array|int $suggestions = [];
 
-    /** Listings per marketplace header: [legacyItemId, price, currency]; an int is an HTTP error. */
+    /** Listings per marketplace header: [legacyItemId, price, currency, conditionId?, title?]; an int is an HTTP error. */
     private array $listings = [];
 
     /** HTTP status the fake Browse API returns when a category filter is sent (null = accept). */
@@ -85,8 +85,8 @@ class EbayPriceServiceCategoryTest extends TestCase
                 }
 
                 return Http::response(['total' => count($listings), 'itemSummaries' => array_map(fn ($l) => [
-                    'itemId' => 'v1|'.$l[0].'|0', 'legacyItemId' => $l[0], 'title' => 'Card '.$l[0],
-                    'price' => ['value' => $l[1], 'currency' => $l[2]],
+                    'itemId' => 'v1|'.$l[0].'|0', 'legacyItemId' => $l[0], 'title' => $l[4] ?? 'Card '.$l[0],
+                    'price' => ['value' => $l[1], 'currency' => $l[2]], 'conditionId' => $l[3] ?? '4000',
                 ], $listings)]);
             }
 
@@ -219,6 +219,80 @@ class EbayPriceServiceCategoryTest extends TestCase
         $this->assertSame(1, $result['sample_size']);
         $this->assertSame(15.0, $result['median']);
         $this->assertNull($result['exchange_rates']['date']);
+    }
+
+    public function test_graded_listings_are_left_out_of_a_raw_card_search(): void
+    {
+        $this->listings = ['EBAY_DE' => [
+            ['1', '10.00', 'EUR'], ['2', '12.00', 'EUR'],
+            ['3', '90.00', 'EUR', '2750'],                       // graded by condition
+            ['4', '80.00', 'EUR', '4000', 'Charizard PSA 10'],   // graded by title
+        ]];
+
+        $result = app(EbayPriceService::class)->estimate('Charizard', ['category_ids' => '']);
+
+        $this->assertSame('ungraded', $result['condition_filter']);
+        $this->assertSame(2, $result['excluded_listings']);
+        $this->assertSame(11.0, $result['median']);
+        $this->assertFalse(collect($result['items'])->contains('graded', true));
+    }
+
+    public function test_a_graded_search_is_priced_on_graded_listings(): void
+    {
+        $this->listings = ['EBAY_DE' => [['1', '10.00', 'EUR'], ['3', '90.00', 'EUR', '2750'], ['4', '80.00', 'EUR', '4000', 'Charizard PSA 10']]];
+
+        $result = app(EbayPriceService::class)->estimate('Charizard PSA 10', ['category_ids' => '']);
+
+        $this->assertSame('graded', $result['condition_filter']);
+        $this->assertSame(85.0, $result['median']);
+    }
+
+    public function test_tag_team_and_ace_spec_titles_are_not_mistaken_for_graded(): void
+    {
+        $this->listings = ['EBAY_DE' => [['1', '10.00', 'EUR', '4000', 'Pikachu & Zekrom GX Tag Team'], ['2', '12.00', 'EUR', '4000', 'Prime Catcher ACE SPEC']]];
+
+        $result = app(EbayPriceService::class)->estimate('Pikachu', ['category_ids' => '']);
+
+        $this->assertSame(0, $result['excluded_listings']);
+    }
+
+    public function test_sale_estimate_is_the_30th_percentile_of_us_listings_when_the_us_has_enough(): void
+    {
+        config(['services.ebay.markets' => 'EBAY_US:US,EBAY_DE:DE']);
+        // US: 10 listings at 100..190 USD (1 USD = 1 EUR in the fake); DE asks much more.
+        $this->listings = [
+            'EBAY_US' => array_map(fn ($i) => [(string) (100 + $i), (string) (100 + 10 * $i), 'USD'], range(0, 9)),
+            'EBAY_DE' => [['900', '400.00', 'EUR'], ['901', '420.00', 'EUR']],
+        ];
+
+        $result = app(EbayPriceService::class)->estimate('Charizard', ['category_ids' => '']);
+
+        // p30 of 100..190 = 127
+        $this->assertSame(['price' => 127.0, 'basis' => 'us_p30', 'sample_size' => 10, 'confidence' => 'medium'], $result['estimated_sale']);
+        // Listings shown first are the ones closest to the estimate.
+        $this->assertSame(130.0, $result['items'][0]['price']);
+    }
+
+    public function test_sale_estimate_falls_back_to_all_markets_and_flags_cheap_cards(): void
+    {
+        config(['services.ebay.markets' => 'EBAY_US:US,EBAY_DE:DE']);
+        $this->listings = [
+            'EBAY_US' => [['1', '2.00', 'USD'], ['2', '3.00', 'USD']],
+            'EBAY_DE' => [['3', '4.00', 'EUR'], ['4', '5.00', 'EUR'], ['5', '6.00', 'EUR']],
+        ];
+
+        $estimate = app(EbayPriceService::class)->estimate('Common card', ['category_ids' => ''])['estimated_sale'];
+
+        $this->assertSame('all_markets_p25', $estimate['basis']);
+        $this->assertSame(3.0, $estimate['price']);
+        $this->assertSame('low', $estimate['confidence']);
+    }
+
+    public function test_no_sale_estimate_with_too_few_listings(): void
+    {
+        $this->listings = ['EBAY_DE' => [['1', '10.00', 'EUR'], ['2', '12.00', 'EUR']]];
+
+        $this->assertNull(app(EbayPriceService::class)->estimate('Rare thing', ['category_ids' => ''])['estimated_sale']);
     }
 
     public function test_markets_spec_is_parsed_and_deduplicated(): void
