@@ -12,6 +12,7 @@ use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
 use App\Models\Listing;
 use App\Models\Message;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\MessageModerationService;
 use App\Services\MarketplaceNotificationService;
@@ -40,20 +41,32 @@ class MessageController extends Controller
         MarketplaceNotificationService $notifications,
         MessageModerationService $moderationService
     ) {
-        $buyer = $request->user();
-        $listing = Listing::query()->with('seller')->findOrFail($request->integer('listing_id'));
+        $sender = $request->user();
+        if ($request->filled('order_id')) {
+            $order = Order::query()->with('items')->findOrFail($request->integer('order_id'));
+            abort_unless(in_array((int) $sender->getKey(), [(int) $order->buyer_id, (int) $order->seller_id], true), 403, __('api.errors.forbidden'));
 
-        abort_unless(
-            $listing->seller_id !== $buyer->getKey(),
-            403,
-            __('api.errors.forbidden')
-        );
+            $listingIds = $order->items->pluck('listing_id')->filter()->unique()->values();
+            $listingId = $request->filled('listing_id') ? $request->integer('listing_id') : ($listingIds->count() === 1 ? $listingIds->first() : null);
+            abort_unless($listingId && $listingIds->contains(fn ($id) => (int) $id === (int) $listingId), 422, __('api.errors.forbidden'));
+            $listing = Listing::query()->with('seller')->findOrFail($listingId);
+            abort_unless((int) $listing->seller_id === (int) $order->seller_id, 403, __('api.errors.forbidden'));
+            $buyerId = $order->buyer_id;
+            $sellerId = $order->seller_id;
+        } else {
+            $listing = Listing::query()->with('seller')->findOrFail($request->integer('listing_id'));
+            abort_unless((int) $listing->seller_id !== (int) $sender->getKey(), 403, __('api.errors.forbidden'));
+            $buyerId = $sender->getKey();
+            $sellerId = $listing->seller_id;
+        }
+        $recipientId = (int) $sender->getKey() === (int) $buyerId ? $sellerId : $buyerId;
+        $recipient = User::findOrFail($recipientId);
 
         $conversation = Conversation::firstOrCreate(
             [
                 'listing_id' => $listing->getKey(),
-                'buyer_id' => $buyer->getKey(),
-                'seller_id' => $listing->seller_id,
+                'buyer_id' => $buyerId,
+                'seller_id' => $sellerId,
             ],
             [
                 'status' => 'active',
@@ -65,7 +78,8 @@ class MessageController extends Controller
         if ($request->filled('initial_message')) {
             DB::transaction(function () use (
                 $request,
-                $buyer,
+                $sender,
+                $recipient,
                 $listing,
                 $conversation,
                 $notifications,
@@ -73,7 +87,7 @@ class MessageController extends Controller
             ): void {
                 $message = $this->createModeratedMessage(
                     $conversation,
-                    $buyer->getKey(),
+                    $sender->getKey(),
                     $request->string('initial_message')->toString(),
                     [],
                     null,
@@ -84,11 +98,11 @@ class MessageController extends Controller
                 $conversation->update(['last_message_at' => now()]);
 
                 $notifications->createForUser(
-                    $listing->seller_id,
+                    $recipient->getKey(),
                     'message_received',
                     __('api.notifications.message_received_title'),
                     __('api.notifications.message_received_body', [
-                        'sender' => $buyer->display_name ?: $buyer->name,
+                        'sender' => $sender->display_name ?: $sender->name,
                     ]),
                     [
                         'conversation_id' => $conversation->getKey(),
@@ -98,14 +112,14 @@ class MessageController extends Controller
                     'messages'
                 );
 
-                if ($listing->seller) {
+                if ($recipient) {
                     $notifications->sendEmailIfAllowed(
-                        $listing->seller,
+                        $recipient,
                         new MarketplaceEventMail(
-                            $listing->seller,
+                            $recipient,
                             $this->messageMailContent(
-                                $listing->seller->locale,
-                                $buyer->display_name ?: $buyer->name,
+                                $recipient->locale,
+                                $sender->display_name ?: $sender->name,
                                 $listing->title_snapshot ?: $listing->product?->title ?: 'Cardora listing'
                             )
                         ),

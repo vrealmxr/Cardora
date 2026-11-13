@@ -89,6 +89,17 @@ class Order extends Model
         'shipment_synced_at' => 'datetime',
     ];
 
+    // Keep payment attempts available to Stripe reconciliation, but out of sales histories.
+    public function scopePlacedSales($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('payment_method')->orWhere('payment_method', '!=', 'stripe_checkout')
+                ->orWhereNotIn('status', ['pending_payment', 'cancelled'])
+                ->orWhereNotNull('stripe_charge_id')
+                ->orWhereHas('escrowTransaction', fn ($escrow) => $escrow->whereNotNull('held_at'));
+        });
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
