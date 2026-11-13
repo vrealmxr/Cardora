@@ -22,25 +22,27 @@ class MarketplaceAccessService
             ? $user->sellerPayoutAccount
             : $user->sellerPayoutAccount()->first();
 
-        $buyRequirements = [
+        $participationRequirements = [
             $this->verificationRequirement('identity', $latestVerificationSubmissions->get('identity'), $locale),
             $this->verificationRequirement('address', $latestVerificationSubmissions->get('address'), $locale),
             $this->verificationRequirement('bank', $latestVerificationSubmissions->get('bank'), $locale),
             $this->stripeRequirement($stripeAccount, $locale),
         ];
         $sellerShippingRequirement = $this->sellerShippingOriginRequirement($user, $locale);
-        $requirements = [...$buyRequirements, $sellerShippingRequirement];
+        $requirements = [...$participationRequirements, $sellerShippingRequirement];
 
         $readyCount = collect($requirements)->where('ready', true)->count();
         $totalCount = count($requirements);
         $missingRequirements = collect($requirements)
             ->filter(fn (array $requirement) => ! $requirement['ready'])
             ->values();
-        $missingBuyRequirements = collect($buyRequirements)
+        $missingParticipationRequirements = collect($participationRequirements)
             ->filter(fn (array $requirement) => ! $requirement['ready'])
             ->values();
-        $canBuy = $missingBuyRequirements->isEmpty();
-        $canSell = $canBuy && $sellerShippingRequirement['ready'];
+        $canParticipate = $missingParticipationRequirements->isEmpty();
+        // Buying needs an authenticated customer, not a seller payout account.
+        $canBuy = true;
+        $canSell = $canParticipate && $sellerShippingRequirement['ready'];
         $isMarketplaceReady = $canSell;
 
         return [
@@ -50,14 +52,13 @@ class MarketplaceAccessService
             'can_checkout' => $canBuy,
             'can_create_listing' => $canSell,
             'can_bid' => $canBuy,
-            'can_join_draws' => $canBuy,
+            'can_join_draws' => $canParticipate,
             'completion_percentage' => (int) round(($readyCount / max($totalCount, 1)) * 100),
             'ready_count' => $readyCount,
             'total_requirements' => $totalCount,
             'missing_keys' => $missingRequirements->pluck('key')->all(),
-            'blocking_message' => $canBuy
-                ? $this->sellerBlockingMessage($missingRequirements->all(), $locale)
-                : $this->blockingMessage($missingBuyRequirements->all(), $locale),
+            'blocking_message' => $this->sellerBlockingMessage($missingRequirements->all(), $locale),
+            'participation_blocking_message' => $this->blockingMessage($missingParticipationRequirements->all(), $locale),
             'requirements' => $requirements,
             'verification' => [
                 'identity' => $requirements[0],
@@ -82,6 +83,27 @@ class MarketplaceAccessService
         ]);
     }
 
+    // Bidding follows buyer access; raffle participation retains its existing rules.
+    public function assertCanBid(User $user, ?string $locale = null): void
+    {
+        $this->assertCanBuy($user, $locale);
+    }
+
+    public function assertCanJoinDraws(User $user, ?string $locale = null): void
+    {
+        $this->assertCanParticipate($user, 'can_join_draws', $locale);
+    }
+
+    protected function assertCanParticipate(User $user, string $capability, ?string $locale): void
+    {
+        $summary = $this->summaryForUser($user, $locale);
+        if (! $summary[$capability]) {
+            throw ValidationException::withMessages([
+                'marketplace' => [$summary['participation_blocking_message']],
+            ]);
+        }
+    }
+
     protected function diditSummary(User $user, string $locale): array
     {
         $state = app(DiditService::class)->status($user);
@@ -99,15 +121,17 @@ class MarketplaceAccessService
         $shipping = $this->sellerShippingOriginRequirement($user, $locale);
         $requirements = [$identity, $stripe, $shipping];
         $missing = collect($requirements)->filter(fn ($r) => ! $r['ready'])->values();
-        $canBuy = $identity['ready'] && $stripe['ready'];
-        $canSell = $canBuy && $shipping['ready'];
+        $canParticipate = $identity['ready'] && $stripe['ready'];
+        $canBuy = true;
+        $canSell = $canParticipate && $shipping['ready'];
         return [
             'is_marketplace_ready' => $canSell, 'can_buy' => $canBuy, 'can_sell' => $canSell,
-            'can_checkout' => $canBuy, 'can_create_listing' => $canSell, 'can_bid' => $canBuy, 'can_join_draws' => $canBuy,
+            'can_checkout' => $canBuy, 'can_create_listing' => $canSell, 'can_bid' => $canBuy, 'can_join_draws' => $canParticipate,
             'completion_percentage' => (int) round((3 - $missing->count()) / 3 * 100),
             'ready_count' => 3 - $missing->count(), 'total_requirements' => 3,
             'missing_keys' => $missing->pluck('key')->all(),
-            'blocking_message' => $canBuy ? $this->sellerBlockingMessage($missing->all(), $locale) : $this->blockingMessage($missing->all(), $locale),
+            'blocking_message' => $this->sellerBlockingMessage($missing->all(), $locale),
+            'participation_blocking_message' => $this->blockingMessage(collect([$identity, $stripe])->filter(fn ($r) => ! $r['ready'])->values()->all(), $locale),
             'requirements' => $requirements, 'verification' => ['identity' => $identity],
             'stripe_connect' => $stripe, 'seller_shipping_origin' => $shipping,
         ];
@@ -225,8 +249,8 @@ class MarketplaceAccessService
                     : 'Το Stripe Connect είναι έτοιμο για protected releases και seller payouts.')
                 : (! $hasAccount
                     ? ($locale === 'en'
-                        ? 'Create your Stripe connected account so Cardora can release funds through Stripe after buyer confirmation.'
-                        : 'Δημιούργησε Stripe connected account για να δουλέψει το escrow και οι αποδεσμεύσεις.')
+                        ? 'Set up your Stripe connected account to receive payments as a seller.'
+                        : 'Σύνδεσε τον λογαριασμό Stripe για να λαμβάνεις τις πληρωμές σου ως πωλητής.')
                     : ($locale === 'en'
                         ? 'Finish the Stripe onboarding steps so transfers and payouts can be enabled.'
                         : 'Ολοκλήρωσε το onboarding του Stripe ώστε να ενεργοποιηθούν transfers και payouts.')),
@@ -310,9 +334,9 @@ class MarketplaceAccessService
                 'needs_revision' => 'A clearer file or corrected information is needed before approval.',
                 'rejected' => 'This section was rejected and needs a new submission.',
                 default => match ($type) {
-                    'identity' => 'Submit identity documents before marketplace activity is unlocked.',
-                    'address' => 'Submit proof of address before marketplace activity is unlocked.',
-                    'bank' => 'Submit your IBAN and bank ownership proof before marketplace activity is unlocked.',
+                    'identity' => 'Submit identity documents before selling is enabled.',
+                    'address' => 'Submit proof of address before selling is enabled.',
+                    'bank' => 'Submit your IBAN and bank ownership proof before selling is enabled.',
                     default => 'This requirement is still missing.',
                 },
             };
@@ -329,9 +353,9 @@ class MarketplaceAccessService
             'needs_revision' => 'Χρειάζεται πιο καθαρό αρχείο ή διορθωμένα στοιχεία πριν εγκριθεί.',
             'rejected' => 'Η ενότητα απορρίφθηκε και χρειάζεται νέα υποβολή.',
             default => match ($type) {
-                'identity' => 'Ανέβασε ταυτότητα για να ξεκλειδώσει το marketplace.',
-                'address' => 'Ανέβασε αποδεικτικό διεύθυνσης για να ξεκλειδώσει το marketplace.',
-                'bank' => 'Ανέβασε IBAN και στοιχείο τράπεζας για να ξεκλειδώσει το marketplace.',
+                'identity' => 'Ανέβασε ταυτότητα για να ενεργοποιηθούν οι πωλήσεις.',
+                'address' => 'Ανέβασε αποδεικτικό διεύθυνσης για να ενεργοποιηθούν οι πωλήσεις.',
+                'bank' => 'Ανέβασε IBAN και στοιχείο τράπεζας για να ενεργοποιηθούν οι πωλήσεις.',
                 default => 'Η ενότητα λείπει ακόμη.',
             },
         };
@@ -372,13 +396,13 @@ class MarketplaceAccessService
 
         if ($locale === 'en') {
             return sprintf(
-                'To buy or sell on Cardora you must complete the following first: %s.',
+                'To join draws on Cardora, complete the following first: %s.',
                 $labels
             );
         }
 
         return sprintf(
-            'Για να αγοράζεις ή να πουλάς στην Cardora πρέπει πρώτα να ολοκληρώσεις: %s.',
+            'Για να συμμετέχεις σε κληρώσεις, ολοκλήρωσε πρώτα: %s.',
             $labels
         );
     }
@@ -397,13 +421,13 @@ class MarketplaceAccessService
 
         if ($locale === 'en') {
             return sprintf(
-                'To publish or keep listings visible on Cardora, complete the following required shipping details: %s.',
+                'To sell on Cardora, complete the following requirements: %s.',
                 $labels
             );
         }
 
         return sprintf(
-            'Για να δημοσιεύεις ή να παραμένουν ορατές οι αγγελίες σου στην Cardora, ολοκλήρωσε τα εξής υποχρεωτικά στοιχεία αποστολής: %s.',
+            'Για να πουλάς στην Cardora, ολοκλήρωσε τις παρακάτω προϋποθέσεις: %s.',
             $labels
         );
     }

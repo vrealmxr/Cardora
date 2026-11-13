@@ -170,6 +170,7 @@ class OrderCheckoutService
                     (int) ($item['listing']->available_quantity ?? $item['listing']->quantity ?? 0) - $item['quantity']
                 );
 
+                if (($item['metadata']['item_mode'] ?? null) === 'auction_winner') $remainingQuantity = 0;
                 $item['listing']->update([
                     'available_quantity' => $remainingQuantity,
                     'status' => $remainingQuantity === 0 ? 'sold' : $item['listing']->status,
@@ -592,7 +593,8 @@ class OrderCheckoutService
                     $cartItem->listing,
                     (int) $cartItem->quantity,
                     $cartItem->getKey(),
-                    $cartItem->metadata ?? []
+                    $cartItem->metadata ?? [],
+                    $buyer
                 );
             });
         }
@@ -640,7 +642,8 @@ class OrderCheckoutService
                 $listing,
                 $quantity,
                 null,
-                $requestedItem['metadata'] ?? []
+                $requestedItem['metadata'] ?? [],
+                $buyer
             );
         });
     }
@@ -649,7 +652,8 @@ class OrderCheckoutService
         Listing $listing,
         int $quantity,
         ?int $cartItemId = null,
-        array $metadata = []
+        array $metadata = [],
+        ?User $buyer = null
     ): array
     {
         if ($listing->sale_format === 'trade') {
@@ -659,9 +663,19 @@ class OrderCheckoutService
         }
 
         if ($listing->sale_format === 'auction') {
-            throw ValidationException::withMessages([
-                'items' => [__('api.orders.auction_checkout_not_supported')],
-            ]);
+            // Lock again at checkout, never trust the cart snapshot or client amount.
+            $listing = Listing::query()->with(['product.category', 'seller'])->lockForUpdate()->findOrFail($listing->getKey());
+            if (! $buyer) throw ValidationException::withMessages(['items' => ['Authentication required.']]);
+            app(AuctionPurchaseService::class)->assertWinnerCanPurchase($listing, $buyer, $quantity);
+            return [
+                'cart_item_id' => $cartItemId, 'item_type' => 'listing', 'seller_id' => (int) $listing->seller_id,
+                'listing' => $listing, 'draw_campaign' => null, 'product' => $listing->product,
+                'quantity' => 1, 'unit_price' => (float) $listing->current_bid,
+                'title' => $listing->title_snapshot ?: $listing->product?->title,
+                'condition_snapshot' => $listing->condition,
+                'metadata' => ['item_type' => 'listing', 'item_mode' => 'auction_winner', 'sale_format' => 'auction',
+                    'auction_reserved_quantity' => (int) ($listing->available_quantity ?? $listing->quantity)],
+            ];
         }
 
         if (($metadata['item_mode'] ?? null) === LotCardSelectionService::ITEM_MODE) {
@@ -1307,7 +1321,7 @@ class OrderCheckoutService
             }
 
             $currentAvailable = (int) ($item->listing->available_quantity ?? 0);
-            $restoredQuantity = $currentAvailable + (int) $item->quantity;
+            $restoredQuantity = $currentAvailable + (int) ($item->metadata['auction_reserved_quantity'] ?? $item->quantity);
 
             $item->listing->update([
                 'available_quantity' => $restoredQuantity,

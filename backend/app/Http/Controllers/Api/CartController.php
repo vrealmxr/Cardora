@@ -88,6 +88,9 @@ class CartController extends Controller
                 ]);
             }
 
+            if ($listing->sale_format === 'auction') {
+                app(\App\Services\AuctionPurchaseService::class)->assertWinnerCanPurchase($listing, $request->user(), $quantity);
+            }
             app(LotCardSelectionService::class)->assertWholeLotPurchaseAllowed($listing);
             $this->ensureListingQuantityAvailable($listing, $quantity);
         }
@@ -122,9 +125,11 @@ class CartController extends Controller
         }
 
         if ($listing->sale_format === 'auction') {
-            throw ValidationException::withMessages([
-                'listing_id' => [__('api.cart.auction_not_supported')],
-            ]);
+            app(\App\Services\AuctionPurchaseService::class)->assertWinnerCanPurchase($listing, $request->user(), $request->integer('quantity', 1));
+            $item = CartItem::updateOrCreate([
+                'user_id' => $request->user()->getKey(), 'listing_id' => $listing->getKey(), 'draw_campaign_id' => null,
+            ], ['quantity' => 1, 'metadata' => ['item_mode' => 'auction_winner']]);
+            return response()->json(['message' => __('api.cart.added'), 'data' => new CartItemResource($item->load($this->cartItemRelations()))], 201);
         }
 
         if ($listing->sale_format === 'trade') {

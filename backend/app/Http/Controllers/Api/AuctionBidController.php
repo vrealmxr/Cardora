@@ -33,36 +33,30 @@ class AuctionBidController extends Controller
         MarketplaceNotificationService $notifications
     ) {
         $bidder = $request->user();
-        $marketplaceAccess->assertCanBuy($bidder, app()->getLocale());
-
-        if ($listing->sale_format !== 'auction') {
-            throw ValidationException::withMessages([
-                'listing' => [__('api.auctions.invalid_format')],
-            ]);
-        }
-
-        $minimumAllowedBid = max(
-            (float) ($listing->current_bid ?? 0) + (float) ($listing->bid_increment ?? 0),
-            (float) ($listing->starting_bid ?? 0)
-        );
-
-        if ((float) $request->input('amount') < $minimumAllowedBid) {
-            throw ValidationException::withMessages([
-                'amount' => [__('api.auctions.bid_too_low', ['amount' => number_format($minimumAllowedBid, 2)])],
-            ]);
-        }
+        $marketplaceAccess->assertCanBid($bidder, app()->getLocale());
 
         $bid = DB::transaction(function () use ($request, $listing, $bidder) {
             $lockedListing = Listing::query()->lockForUpdate()->findOrFail($listing->getKey());
+            app(\App\Services\AuctionPurchaseService::class)->assertOpenForBid($lockedListing, $bidder);
+            // Recompute under the lock so concurrent requests cannot overwrite a higher bid.
+            $minimumAllowedBid = max(
+                (float) ($lockedListing->current_bid ?? 0) + max(0.01, (float) ($lockedListing->bid_increment ?? 0)),
+                (float) ($lockedListing->starting_bid ?? 0)
+            );
+            if (round((float) $request->input('amount'), 2) < round($minimumAllowedBid, 2)) {
+                throw ValidationException::withMessages([
+                    'amount' => [__('api.auctions.bid_too_low', ['amount' => number_format($minimumAllowedBid, 2)])],
+                ]);
+            }
 
             $bid = AuctionBid::create([
                 'listing_id' => $lockedListing->getKey(),
                 'bidder_id' => $bidder->getKey(),
-                'amount' => $request->input('amount'),
-                'placed_at' => $request->input('placed_at', now()),
+                'amount' => round((float) $request->input('amount'), 2),
+                'placed_at' => now(),
                 'ip_address' => $request->ip(),
                 'user_agent' => (string) $request->userAgent(),
-                'status' => $request->input('status', 'submitted'),
+                'status' => 'submitted',
                 'metadata' => $request->validated('metadata'),
             ]);
 
