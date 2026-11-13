@@ -76,19 +76,23 @@ function CardoraScannerPage() {
         scanning: 'Scanning sources…',
         resultsTitle: 'Estimated prices',
         resultsFor: 'Results for',
-        suggested: 'Suggested price (median)',
+        suggested: 'Estimated sale price',
+        suggestedFallback: 'Median asking price',
+        confidence: { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' },
+        askingTitle: 'Asking prices on eBay right now',
         listings: 'active listings',
         statLow: 'Lowest',
         statMedian: 'Median',
         statAverage: 'Average',
         statHigh: 'Highest',
-        basedOn: (used, total) => `Based on ${used} of ${total} active eBay listings`,
+        basedOn: (used, total, graded) =>
+          `Based on ${used} ${graded ? 'graded' : 'ungraded'} listings out of ${total} active eBay listings worldwide`,
         sampleListings: 'Sample listings',
         viewOnEbay: 'View on eBay',
         noResults: 'No eBay listings found for this search. Try the card name with its number, e.g. “Pikachu 025/165”.',
         lookupFailed: 'We could not fetch prices right now. Please try again in a moment.',
         sandboxNote: 'Test mode: eBay sandbox data, not real market prices.',
-        disclaimer: 'Estimates from current asking prices on active eBay listings, with outliers removed. Not a guaranteed sale price.',
+        disclaimer: 'The estimated sale price comes from the cheaper end of current eBay asking prices (where cards actually sell), with graded slabs and outliers removed and prices converted to euro. Less reliable for very cheap cards and for vintage cards, whose price depends heavily on condition. Not a guaranteed sale price.',
         scansLeft: 'scans left this month',
         unlimitedScans: 'Unlimited scans (PRO)',
         limitReached: "You've used all your free scans this month. Upgrade to Cardora PRO for unlimited AI Scanner.",
@@ -109,19 +113,23 @@ function CardoraScannerPage() {
         scanning: 'Σάρωση πηγών…',
         resultsTitle: 'Εκτιμώμενες τιμές',
         resultsFor: 'Αποτελέσματα για',
-        suggested: 'Προτεινόμενη τιμή (διάμεσος)',
+        suggested: 'Εκτιμώμενη τιμή πώλησης',
+        suggestedFallback: 'Διάμεσος ζητούμενων τιμών',
+        confidence: { high: 'Υψηλή αξιοπιστία', medium: 'Μέτρια αξιοπιστία', low: 'Χαμηλή αξιοπιστία' },
+        askingTitle: 'Ζητούμενες τιμές στο eBay αυτή τη στιγμή',
         listings: 'ενεργές καταχωρήσεις',
         statLow: 'Χαμηλότερη',
         statMedian: 'Διάμεσος',
         statAverage: 'Μέσος όρος',
         statHigh: 'Υψηλότερη',
-        basedOn: (used, total) => `Με βάση ${used} από ${total} ενεργές καταχωρήσεις στο eBay`,
+        basedOn: (used, total, graded) =>
+          `Με βάση ${used} ${graded ? 'βαθμολογημένες (graded)' : 'μη βαθμολογημένες'} καταχωρήσεις από ${total} ενεργές καταχωρήσεις στο eBay παγκοσμίως`,
         sampleListings: 'Ενδεικτικές καταχωρήσεις',
         viewOnEbay: 'Δες στο eBay',
         noResults: 'Δεν βρέθηκαν καταχωρήσεις στο eBay. Δοκίμασε το όνομα της κάρτας μαζί με τον αριθμό της, π.χ. «Pikachu 025/165».',
         lookupFailed: 'Δεν μπορέσαμε να φέρουμε τιμές αυτή τη στιγμή. Δοκίμασε ξανά σε λίγο.',
         sandboxNote: 'Δοκιμαστική λειτουργία: δεδομένα eBay sandbox, όχι πραγματικές τιμές αγοράς.',
-        disclaimer: 'Εκτίμηση από τις τρέχουσες τιμές ενεργών καταχωρήσεων στο eBay, χωρίς τις ακραίες τιμές. Δεν είναι εγγυημένη τιμή πώλησης.',
+        disclaimer: 'Η εκτιμώμενη τιμή πώλησης βγαίνει από τη φθηνότερη πλευρά των τρεχουσών τιμών στο eBay (εκεί όπου πουλιούνται οι κάρτες), χωρίς βαθμολογημένες κάρτες και ακραίες τιμές, μετατρεμμένη σε ευρώ. Είναι λιγότερο αξιόπιστη για πολύ φθηνές κάρτες και για vintage κάρτες, όπου η τιμή εξαρτάται πολύ από την κατάσταση. Δεν είναι εγγυημένη τιμή πώλησης.',
         scansLeft: 'scans διαθέσιμα αυτόν τον μήνα',
         unlimitedScans: 'Απεριόριστα scans (PRO)',
         limitReached: 'Έχεις χρησιμοποιήσει όλα τα δωρεάν scans σου αυτόν τον μήνα. Αναβάθμισε σε Cardora PRO για απεριόριστο AI Scanner.',
@@ -173,6 +181,7 @@ function CardoraScannerPage() {
   }
 
   const hasPrices = Boolean(results && results.used_for_stats > 0)
+  const saleEstimate = results?.estimated_sale ?? null
   const price = (value) => formatPrice(value, results?.currency, locale)
 
   return (
@@ -352,8 +361,21 @@ function CardoraScannerPage() {
             {hasPrices ? (
               <div className="flex items-center gap-2 rounded-xl border border-[#eadab7] bg-[#fff8ec] px-4 py-2.5">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9d6a17]/80">{copy.suggested}</p>
-                  <p className="font-display text-lg font-bold text-[#6b4718]">{price(results.median)}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9d6a17]/80">
+                    {saleEstimate ? copy.suggested : copy.suggestedFallback}
+                  </p>
+                  <p className="font-display text-lg font-bold text-[#6b4718]">
+                    {price(saleEstimate ? saleEstimate.price : results.median)}
+                  </p>
+                  {saleEstimate?.confidence ? (
+                    <p
+                      className={`mt-0.5 text-[10px] font-medium ${
+                        saleEstimate.confidence === 'high' ? 'text-emerald-700' : saleEstimate.confidence === 'medium' ? 'text-[#9d6a17]' : 'text-rose-700'
+                      }`}
+                    >
+                      {copy.confidence[saleEstimate.confidence]}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -367,6 +389,7 @@ function CardoraScannerPage() {
 
           {hasPrices ? (
             <>
+              <h4 className="mb-2 text-sm font-semibold text-ink">{copy.askingTitle}</h4>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                   [copy.statLow, results.min],
@@ -381,7 +404,7 @@ function CardoraScannerPage() {
                 ))}
               </div>
               <p className="mt-2 text-[11px] text-slate-500">
-                {copy.basedOn(results.used_for_stats, results.total_matches)}
+                {copy.basedOn(results.used_for_stats, results.total_matches, results.condition_filter === 'graded')}
               </p>
 
               {results.items?.length ? (
