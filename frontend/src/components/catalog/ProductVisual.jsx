@@ -1,6 +1,9 @@
+import { catalogValueLabel, distinctCatalogSeries } from '@/utils/catalogLabels'
+import { useState } from 'react'
 import Badge from '@/components/ui/Badge'
 import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/utils/helpers'
+import { lazyListingImageProps } from '@/utils/mediaImages'
 
 function ProductVisual({ product, className, hoverSwap = false }) {
   const { locale } = useI18n()
@@ -10,10 +13,14 @@ function ProductVisual({ product, className, hoverSwap = false }) {
   const mediaItems = Array.isArray(product.media) ? product.media.filter((item) => item?.url) : []
   const leadMedia = mediaItems[0] ?? null
   const hoverMedia = hoverSwap && mediaItems.length > 1 ? mediaItems[1] : null
-  const canSwapOnHover = Boolean(hoverMedia)
-  const contextTags = [...new Set([product.franchise, product.series, product.typeLabel].filter(Boolean))]
+  const [requestedImage, setRequestedImage] = useState(null)
+  const [readyImage, setReadyImage] = useState(null)
+  const contextTags = [...new Set([catalogValueLabel('franchise', product.franchise, locale), distinctCatalogSeries(product), catalogValueLabel('typeLabel', product.typeLabel, locale)].filter(Boolean))]
     .slice(0, 3)
   const resolveCardImage = (media) => media?.thumbUrl ?? media?.previewUrl ?? media?.url ?? null
+  const hoverImage = resolveCardImage(hoverMedia)
+  const loadHoverImage = Boolean(hoverImage && requestedImage === hoverImage)
+  const canSwapOnHover = loadHoverImage && readyImage === hoverImage
 
   const copy =
     locale === 'en'
@@ -25,18 +32,24 @@ function ProductVisual({ product, className, hoverSwap = false }) {
         }
       : {
           auction: 'Δημοπρασία',
-          trade: 'Trade',
+          trade: 'Ανταλλαγή',
           lot: 'Lot καρτών',
           listing: 'Αγγελία',
         }
 
   return (
-    <div className={cn('relative h-full min-h-[200px] overflow-hidden rounded-[24px] border border-[#ead7ae] bg-white', className)}>
+    <div
+      className={cn('relative h-full min-h-[200px] overflow-hidden rounded-[24px] border border-[#ead7ae] bg-white', className)}
+      onPointerEnter={(event) => {
+        if (hoverImage && event.pointerType !== 'touch') setRequestedImage(hoverImage)
+      }}
+    >
       {leadMedia ? (
         <>
           <img
-            src={resolveCardImage(leadMedia)}
-            alt={leadMedia.alt ?? product.title ?? 'Product image'}
+            {...lazyListingImageProps(leadMedia)}
+            alt=""
+            aria-hidden="true"
             className={cn(
               'absolute inset-0 h-full w-full scale-110 object-cover blur-xl transition-opacity duration-300',
               canSwapOnHover ? 'opacity-30 group-hover:opacity-0' : 'opacity-30',
@@ -47,8 +60,9 @@ function ProductVisual({ product, className, hoverSwap = false }) {
 
           {canSwapOnHover ? (
             <img
-              src={resolveCardImage(hoverMedia)}
-              alt={hoverMedia.alt ?? product.title ?? 'Product image'}
+              {...lazyListingImageProps(hoverMedia)}
+              alt=""
+              aria-hidden="true"
               className="absolute inset-0 h-full w-full scale-110 object-cover opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-30"
               loading="lazy"
               decoding="async"
@@ -56,8 +70,8 @@ function ProductVisual({ product, className, hoverSwap = false }) {
           ) : null}
 
           <img
-            src={resolveCardImage(leadMedia)}
-            alt={leadMedia.alt ?? product.title ?? 'Product image'}
+            {...lazyListingImageProps(leadMedia)}
+            alt={product.title ?? leadMedia.alt ?? 'Product image'}
             className={cn(
               'relative z-[1] h-full w-full object-contain p-3 sm:p-4 transition-opacity duration-300',
               canSwapOnHover ? 'opacity-100 group-hover:opacity-0' : 'opacity-100',
@@ -66,12 +80,14 @@ function ProductVisual({ product, className, hoverSwap = false }) {
             decoding="async"
           />
 
-          {canSwapOnHover ? (
+          {loadHoverImage ? (
             <img
-              src={resolveCardImage(hoverMedia)}
-              alt={hoverMedia.alt ?? product.title ?? 'Product image'}
-              className="pointer-events-none absolute inset-0 z-[1] h-full w-full object-contain p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:p-4"
-              loading="lazy"
+              {...lazyListingImageProps(hoverMedia)}
+              alt=""
+              aria-hidden="true"
+              onLoad={() => setReadyImage(hoverImage)}
+              onError={() => setReadyImage(null)}
+              className={cn('pointer-events-none absolute inset-0 z-[1] h-full w-full object-contain p-3 opacity-0 transition-opacity duration-300 sm:p-4', canSwapOnHover && 'group-hover:opacity-100')}
               decoding="async"
             />
           ) : null}
@@ -94,7 +110,7 @@ function ProductVisual({ product, className, hoverSwap = false }) {
             tone="muted"
             className="bg-[rgba(255,255,255,0.97)] text-slate-700 shadow-[0_8px_20px_rgba(15,23,42,0.06)]"
           >
-            {product.visual.label}
+            {({ Listing: copy.listing, Auction: copy.auction, Trade: copy.trade, 'Card lot': copy.lot })[product.visual.label] ?? product.visual.label}
           </Badge>
         ) : null}
       </div>

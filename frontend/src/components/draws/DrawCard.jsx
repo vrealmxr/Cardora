@@ -4,7 +4,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import { useI18n } from '@/hooks/useI18n'
-import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters'
+import { useFormatters } from '@/hooks/useFormatters'
 import { normalizeTextTree } from '@/utils/textEncoding'
 import { cn } from '@/utils/helpers'
 
@@ -32,6 +32,7 @@ function DrawCard({
   detailsTo,
   showDetails = true,
 }) {
+  const { formatCurrency, formatDate, formatNumber } = useFormatters()
   const { locale } = useI18n()
   const isPlatform = draw.campaignType === 'platform_volume'
   const communityDrawSubtitle = !isPlatform

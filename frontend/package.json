@@ -6,8 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:ssr": "vite build --config vite.ssr.config.js",
+    "build:pages": "vite build && vite build --config vite.origin.config.js && node scripts/package-origin.mjs && vite build --config vite.worker.config.js",
+    "test:seo": "npm run build:ssr && node --test tests/catalog-query.test.js tests/public-render.test.js tests/public-handler.test.js tests/structured-data.test.js tests/editorial-guides.test.js tests/legal-localization.test.js tests/public-render-signing.test.js",
+    "test:origin": "node --test tests/origin-renderer.test.js tests/origin-bridge.test.js",
+    "test:sessions": "vite build --config vite.session-test.config.js && node --test tests/session-isolation.test.js tests/listing-navigation.test.js tests/grading-edit.test.js",
+    "test:analytics": "vite build --config vite.analytics-test.config.js && node --test tests/analytics.test.js tests/analytics-integration.test.js tests/support-chat.test.js tests/support-chat-integration.test.js tests/grading-form.test.js tests/product-visual.test.js tests/media-images.test.js",
+    "preview:public": "node scripts/preview-public.mjs",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:buyer-access": "vite build --config vite.session-test.config.js && node --test tests/marketplace-access.test.js tests/buyer-access-integration.test.js tests/auction-page.test.js"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.2.11",

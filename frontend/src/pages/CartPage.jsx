@@ -1,4 +1,4 @@
-﻿import { Link } from 'react-router-dom'
+﻿import { Link, useLocation } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import EmptyState from '@/components/ui/EmptyState'
@@ -11,6 +11,7 @@ import { localizePath } from '@/utils/helpers'
 import { normalizeTextTree } from '@/utils/textEncoding'
 
 const getMaxSelectableQuantity = (item) => {
+  if (item.product?.saleFormat === 'auction') return 1
   if (item.itemType === 'draw_entry') {
     const perUserLimit = Number(item.draw?.maxEntriesPerUser ?? 0)
     const remainingEntries = Number(item.draw?.entriesRemaining ?? item.draw?.targetEntries ?? 0)
@@ -24,6 +25,7 @@ const getMaxSelectableQuantity = (item) => {
 }
 
 function CartPage() {
+  const { state } = useLocation()
   const { currentUser } = useAuth()
   const { locale } = useI18n()
   const {
@@ -129,9 +131,16 @@ function CartPage() {
     return leadMedia?.thumbUrl ?? leadMedia?.url ?? null
   }
 
+  const returnNotice = state?.checkoutCancelled && (
+    <p role="status" className="mb-4 rounded-xl border border-gold-300/30 p-4">
+      {locale === 'en' ? 'Your order was not completed.' : 'Η παραγγελία σου δεν ολοκληρώθηκε.'}
+    </p>
+  )
+
   if (!cartDetailed.length) {
     return (
       <div className="container pb-16">
+        {returnNotice}
         <EmptyState
           title={copy.emptyTitle}
           description={copy.emptyDescription}
@@ -144,6 +153,7 @@ function CartPage() {
 
   return (
     <div className="container pb-16">
+      {returnNotice}
       <SectionHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
       <div className="grid gap-8 xl:grid-cols-[1fr,360px]">
         <div className="space-y-5">

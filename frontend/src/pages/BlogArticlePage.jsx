@@ -1,6 +1,8 @@
 import { ArrowLeft, ExternalLink } from 'lucide-react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import BlogCard from '@/components/blog/BlogCard'
+import PageSeo from '@/components/PageSeo'
+import NotFoundPage from '@/pages/NotFoundPage'
 import BlogEditorialCover from '@/components/blog/BlogEditorialCover'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -8,13 +10,16 @@ import CardSurface from '@/components/ui/CardSurface'
 import SectionHeader from '@/components/ui/SectionHeader'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
-import { formatDate } from '@/utils/formatters'
+import { useFormatters } from '@/hooks/useFormatters'
+import { localizePath } from '@/utils/helpers'
+import { getEditorialGuide } from '@/data/editorialGuides'
 
 function BlogArticlePage() {
+  const { formatDate } = useFormatters()
   const { locale } = useI18n()
   const { slug } = useParams()
-  const { getBlogPostBySlug, getRelatedBlogPosts } = useMarketplace()
-  const post = getBlogPostBySlug(slug)
+  const { getBlogPostBySlug, getRelatedBlogPosts, isReady } = useMarketplace()
+  const post = getEditorialGuide(slug, locale) || getBlogPostBySlug(slug)
 
   const copy =
     locale === 'en'
@@ -40,11 +45,11 @@ function BlogArticlePage() {
           intro: 'Εισαγωγή άρθρου',
           source: 'Επίσημη πηγή',
           sourceButton: 'Άνοιγμα πηγής',
-          tags: 'Tags άρθρου',
+          tags: 'Θέματα άρθρου',
           nextTitle: 'Χρήσιμα επόμενα βήματα',
           nextItems: [
-            'Αν το άρθρο αλλάζει το πώς σκέφτεσαι για τιμή ή παρουσίαση, ανανέωσε το επόμενο listing σου με καθαρότερες φωτογραφίες, πιο σαφές condition και σωστούς όρους αποστολής.',
-            'Για κομμάτια υψηλότερης αξίας, κράτα έτοιμα στοιχεία αυθεντικότητας, close-up φωτογραφίες και καθαρές σημειώσεις συσκευασίας πριν το κομμάτι βγει δημόσια.',
+            'Πριν δημοσιεύσεις μια αγγελία, πρόσθεσε καθαρές φωτογραφίες, συγκεκριμένη περιγραφή κατάστασης και τις διαθέσιμες επιλογές αποστολής.',
+            'Κράτησε τα στοιχεία έκδοσης, τυχόν πιστοποίηση και κοντινές φωτογραφίες διαθέσιμα, ώστε ο αγοραστής να μπορεί να ελέγξει το συγκεκριμένο αντικείμενο.',
           ],
           createListing: 'Δημιούργησε αγγελία',
           verify: 'Ολοκλήρωσε επαλήθευση',
@@ -54,20 +59,21 @@ function BlogArticlePage() {
         }
 
   if (!post) {
-    return <Navigate to="/blog" replace />
+    return isReady ? <NotFoundPage /> : null
   }
 
   const relatedPosts = getRelatedBlogPosts(post.slug, post.category)
 
   return (
     <div className="container pb-16">
-      <Button as={Link} to="/blog" variant="ghost" className="mb-5">
+      <PageSeo fallbackTitle={`${post.title} | Cardora`} fallbackDescription={post.excerpt || post.intro?.slice(0, 180)} type="article" image={post.coverImage} />
+      <Button as={Link} to={localizePath('/blog', locale)} variant="ghost" className="mb-5">
         <ArrowLeft className="h-4 w-4" />
         {copy.back}
       </Button>
 
       <CardSurface className="overflow-hidden p-0">
-        <BlogEditorialCover post={post} variant="hero" />
+        <BlogEditorialCover post={post} variant="hero" as="h1" />
       </CardSurface>
 
       <div className="mt-12 grid gap-8 xl:grid-cols-[1.15fr,0.85fr]">
@@ -79,8 +85,8 @@ function BlogArticlePage() {
             </CardSurface>
           ) : null}
 
-          {post.sections.map((section) => (
-            <CardSurface key={section.title}>
+          {post.sections.map((section, index) => (
+            <CardSurface key={section.title} id={post.editorial ? `guide-section-${index + 1}` : undefined} className="scroll-mt-28">
               <h2 className="font-display text-4xl text-white">{section.title}</h2>
               <div className="mt-4 space-y-4">
                 {section.paragraphs?.map((paragraph) => (
@@ -101,11 +107,20 @@ function BlogArticlePage() {
                   </div>
                 ) : null}
               </div>
+              {section.sources?.length ? <p className="mt-4 text-xs leading-6 text-mist">
+                {locale === 'en' ? 'Official references: ' : 'Επίσημες πηγές: '}
+                {section.sources.map((sourceIndex, position) => <span key={sourceIndex}>{position ? ' · ' : ''}<a href={post.sources[sourceIndex].url} target="_blank" rel="noreferrer" className="underline">{post.sources[sourceIndex].title}</a></span>)}
+              </p> : null}
             </CardSurface>
           ))}
         </article>
 
         <div className="space-y-6">
+          {post.editorial ? <CardSurface>
+            <h2 className="font-display text-3xl text-ink">{locale === 'en' ? 'In this guide' : 'Σε αυτόν τον οδηγό'}</h2>
+            <ol className="mt-4 space-y-3 text-sm text-mist">{post.sections.map((section, index) => <li key={section.title}><a className="underline" href={`#guide-section-${index + 1}`}>{section.title}</a></li>)}</ol>
+            <p className="mt-5 text-sm leading-7 text-mist">{locale === 'en' ? 'Practical guidance from Cardora. Official sources are linked beside the relevant sections.' : 'Πρακτικός οδηγός της Cardora. Οι επίσημες πηγές συνδέονται δίπλα στις σχετικές ενότητες.'}</p>
+          </CardSurface> : null}
           {post.source ? (
             <CardSurface>
               <p className="text-[11px] uppercase tracking-[0.28em] text-gold-100">{copy.source}</p>
@@ -147,13 +162,19 @@ function BlogArticlePage() {
               ))}
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
-              <Button as={Link} to="/dimiourgia-aggelias">
+              <Button as={Link} to={localizePath('/dimiourgia-aggelias', locale)}>
                 {copy.createListing}
               </Button>
-              <Button as={Link} to="/epalithefsi-logariasmou" variant="secondary">
+              <Button as={Link} to={localizePath('/epalithefsi-logariasmou', locale)} variant="secondary">
                 {copy.verify}
               </Button>
             </div>
+            {post.relatedPaths?.length ? <ul className="mt-5 space-y-3 text-sm text-mist">{post.relatedPaths.map(path => <li key={path}><Link className="underline" to={localizePath(path, locale)}>{({
+              '/kartes': locale === 'en' ? 'Browse cards' : 'Δες τις κάρτες',
+              '/katastasi-kai-grading': locale === 'en' ? 'Condition and grading glossary' : 'Οδηγός κατάστασης και grading',
+              '/odigos-polisis': locale === 'en' ? 'Selling guide and fees' : 'Οδηγός πώλησης και χρεώσεις',
+              '/epistrofes-kai-diafores': locale === 'en' ? 'Refunds and disputes' : 'Επιστροφές και διαφορές',
+            })[path]}</Link></li>)}</ul> : null}
           </CardSurface>
         </div>
       </div>

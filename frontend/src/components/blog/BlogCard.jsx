@@ -3,13 +3,16 @@ import { Link } from 'react-router-dom'
 import BlogEditorialCover from '@/components/blog/BlogEditorialCover'
 import Badge from '@/components/ui/Badge'
 import CardSurface from '@/components/ui/CardSurface'
-import { formatDate } from '@/utils/formatters'
-import { cn } from '@/utils/helpers'
+import { useFormatters } from '@/hooks/useFormatters'
+import { cn, localizePath } from '@/utils/helpers'
+import { useI18n } from '@/hooks/useI18n'
 
 function BlogCard({ post, featured = false, className }) {
+  const { formatDate } = useFormatters()
+  const { locale } = useI18n()
   return (
     <CardSurface className={cn('group h-full overflow-hidden p-0', className)}>
-      <Link to={`/blog/${post.slug}`} className="block h-full">
+      <Link to={localizePath(`/blog/${post.slug}`, locale)} className="block h-full">
         <div className="space-y-4">
           <BlogEditorialCover post={post} variant={featured ? 'hero' : 'card'} />
           <div className="px-1">

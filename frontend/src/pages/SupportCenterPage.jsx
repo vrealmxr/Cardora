@@ -111,7 +111,7 @@ function SupportCenterPage() {
   return (
     <div className="container pb-16">
       <PageSeo pageKey="support-center" fallbackTitle={copy.title} fallbackDescription={copy.description} />
-      <SectionHeader eyebrow={copy.eyebrow} title={seo?.h1 || copy.title} description={copy.description} />
+      <SectionHeader as="h1" eyebrow={copy.eyebrow} title={seo?.h1 || copy.title} description={copy.description} />
 
       <div className="mb-8">
         <StripeTransparencyCard />

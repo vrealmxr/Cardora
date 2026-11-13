@@ -1,9 +1,17 @@
+import StructuredData from '@/components/StructuredData'
+import { collectionStructuredData } from '@/utils/structuredData'
+import { getSeoUrls } from '@/utils/seoUrls'
+import { useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { catalogCopy } from '@/data/catalogCopy'
+import { localizePath } from '@/utils/helpers'
 import { Filter } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useCatalogQuery } from '@/hooks/useCatalogQuery'
 import Breadcrumbs from '@/components/catalog/Breadcrumbs'
 import FilterSidebar from '@/components/catalog/FilterSidebar'
 import PageSeo from '@/components/PageSeo'
+import NotFoundPage from '@/pages/NotFoundPage'
 import ProductCard from '@/components/catalog/ProductCard'
 import SearchBar from '@/components/catalog/SearchBar'
 import Button from '@/components/ui/Button'
@@ -25,29 +33,15 @@ const CATEGORY_SLUG_TO_SEO_KEY = {
 
 function CategoryPage({ categorySlug }) {
   const { locale } = useI18n()
-  const { categories, searchProducts, getDynamicFacets, defaultSearchFilters, allFilterValue } =
+  const location = useLocation()
+  const { isReady, categories, searchProducts, getDynamicFacets, defaultSearchFilters, allFilterValue } =
     useMarketplace()
-  const [searchParams, setSearchParams] = useSearchParams()
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const category = categories.find((item) => item.slug === categorySlug)
   const seo = useSeo(CATEGORY_SLUG_TO_SEO_KEY[categorySlug])
-  const previousCategorySlugRef = useRef(categorySlug)
 
-  const [page, setPage] = useState(1)
-  const [sort, setSort] = useState(searchParams.get('sort') ?? 'newest')
-  const [filters, setFilters] = useState(() => ({
-    ...defaultSearchFilters,
-    search: searchParams.get('q') ?? searchParams.get('search') ?? '',
-    price: searchParams.get('price') ?? defaultSearchFilters.price,
-    condition: searchParams.get('condition') ?? defaultSearchFilters.condition,
-    rarity: searchParams.get('rarity') ?? defaultSearchFilters.rarity,
-    franchise: searchParams.get('franchise') ?? defaultSearchFilters.franchise,
-    brand: searchParams.get('brand') ?? defaultSearchFilters.brand,
-    productType: searchParams.get('productType') ?? defaultSearchFilters.productType,
-    graded: searchParams.get('graded') ?? defaultSearchFilters.graded,
-    availability: searchParams.get('availability') ?? defaultSearchFilters.availability,
-    sellerRating: searchParams.get('sellerRating') ?? defaultSearchFilters.sellerRating,
-  }))
+  const { page, sort, filters, setSort, setFilters, pageHref } =
+    useCatalogQuery(defaultSearchFilters, allFilterValue)
 
   const copy =
     locale === 'en'
@@ -55,12 +49,12 @@ function CategoryPage({ categorySlug }) {
           home: 'Home',
           heroCategory: 'Hero category',
           collectorCategory: 'Collector category',
-          listings: 'Listings',
-          sales: 'Sales',
+          listings: locale === 'en' ? 'Listings' : 'Αγγελίες',
+          sales: 'Orders',
           verified: 'Verified sellers here',
           resultsEyebrow: 'Search Results',
           resultsDescription: (count) =>
-            `${count} results with dynamic filtering and cleaner matching based on your current criteria.`,
+            `${count} listings match your selection.`,
           filters: 'Filters',
           sortNewest: 'Newest first',
           sortPriceAsc: 'Price: low to high',
@@ -74,17 +68,17 @@ function CategoryPage({ categorySlug }) {
           home: '\u0391\u03c1\u03c7\u03b9\u03ba\u03ae',
           heroCategory: '\u039a\u03b5\u03bd\u03c4\u03c1\u03b9\u03ba\u03ae \u03ba\u03b1\u03c4\u03b7\u03b3\u03bf\u03c1\u03af\u03b1',
           collectorCategory: '\u039a\u03b1\u03c4\u03b7\u03b3\u03bf\u03c1\u03af\u03b1 \u03c3\u03c5\u03bb\u03bb\u03b5\u03ba\u03c4\u03ce\u03bd',
-          listings: 'Listings',
-          sales: '\u03a0\u03c9\u03bb\u03ae\u03c3\u03b5\u03b9\u03c2',
+          listings: locale === 'en' ? 'Listings' : 'Αγγελίες',
+          sales: 'Παραγγελίες',
           verified: '\u0395\u03c0\u03b1\u03bb\u03b7\u03b8\u03b5\u03c5\u03bc\u03ad\u03bd\u03bf\u03b9 \u03c0\u03c9\u03bb\u03b7\u03c4\u03ad\u03c2 \u03b5\u03b4\u03ce',
           resultsEyebrow: '\u0391\u03c0\u03bf\u03c4\u03b5\u03bb\u03ad\u03c3\u03bc\u03b1\u03c4\u03b1 \u03b1\u03bd\u03b1\u03b6\u03ae\u03c4\u03b7\u03c3\u03b7\u03c2',
           resultsDescription: (count) =>
-            `${count} \u03b1\u03c0\u03bf\u03c4\u03b5\u03bb\u03ad\u03c3\u03bc\u03b1\u03c4\u03b1 \u03bc\u03b5 \u03ad\u03be\u03c5\u03c0\u03bd\u03b1 \u03b4\u03c5\u03bd\u03b1\u03bc\u03b9\u03ba\u03ac \u03c6\u03af\u03bb\u03c4\u03c1\u03b1 \u03ba\u03b1\u03b9 \u03c0\u03b9\u03bf \u03c3\u03c9\u03c3\u03c4\u03cc matching.`,
+            `${count} αγγελίες ταιριάζουν στις επιλογές σου.`,
           filters: '\u03a6\u03af\u03bb\u03c4\u03c1\u03b1',
           sortNewest: '\u039d\u03b5\u03cc\u03c4\u03b5\u03c1\u03b1 \u03c0\u03c1\u03ce\u03c4\u03b1',
           sortPriceAsc: '\u03a4\u03b9\u03bc\u03ae: \u03c7\u03b1\u03bc\u03b7\u03bb\u03ae \u03c3\u03b5 \u03c5\u03c8\u03b7\u03bb\u03ae',
           sortPriceDesc: '\u03a4\u03b9\u03bc\u03ae: \u03c5\u03c8\u03b7\u03bb\u03ae \u03c3\u03b5 \u03c7\u03b1\u03bc\u03b7\u03bb\u03ae',
-          sortRating: 'Seller rating',
+          sortRating: 'Βαθμολογία πωλητή',
           emptyTitle: '\u0394\u03b5\u03bd \u03b2\u03c1\u03ad\u03b8\u03b7\u03ba\u03b1\u03bd \u03b1\u03bd\u03c4\u03b9\u03ba\u03b5\u03af\u03bc\u03b5\u03bd\u03b1',
           emptyDescription:
             '\u0394\u03bf\u03ba\u03af\u03bc\u03b1\u03c3\u03b5 \u03c0\u03b9\u03bf \u03b5\u03bb\u03b1\u03c3\u03c4\u03b9\u03ba\u03ac \u03c6\u03af\u03bb\u03c4\u03c1\u03b1 \u03ae \u03bd\u03ad\u03b1 \u03b1\u03bd\u03b1\u03b6\u03ae\u03c4\u03b7\u03c3\u03b7.',
@@ -92,49 +86,10 @@ function CategoryPage({ categorySlug }) {
         }
 
   useEffect(() => {
-    setPage(1)
-  }, [filters, sort])
-
-  useEffect(() => {
-    if (previousCategorySlugRef.current === categorySlug) {
-      return
-    }
-
-    previousCategorySlugRef.current = categorySlug
-    setFilters({
-      ...defaultSearchFilters,
-      search: '',
-    })
-    setSort('newest')
-    setPage(1)
-    setSearchParams({}, { replace: true })
-  }, [categorySlug, defaultSearchFilters, setSearchParams])
-
-  useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [page])
 
-  useEffect(() => {
-    const params = new URLSearchParams()
-
-    if (filters.search?.trim()) params.set('q', filters.search.trim())
-
-    Object.entries(filters).forEach(([key, value]) => {
-      if (key === 'search' || value == null) return
-      if (String(value) === String(allFilterValue)) return
-      params.set(key, value)
-    })
-
-    if (sort !== 'newest') {
-      params.set('sort', sort)
-    }
-
-    if (params.toString() !== searchParams.toString()) {
-      setSearchParams(params, { replace: true })
-    }
-  }, [allFilterValue, filters, searchParams, setSearchParams, sort])
-
-  if (!category) return null
+  if (!category) return isReady ? <NotFoundPage /> : null
 
   const results = searchProducts({
     categoryId: category.id,
@@ -168,13 +123,11 @@ function CategoryPage({ categorySlug }) {
 
   const perPage = 20
   const totalPages = Math.max(1, Math.ceil(sorted.length / perPage))
+  if (isReady && page > totalPages) return <NotFoundPage />
   const paginated = sorted.slice((page - 1) * perPage, page * perPage)
 
   const updateFilter = (key, value) => {
-    setFilters((previous) => ({
-      ...previous,
-      [key]: previous[key] === value ? allFilterValue : value,
-    }))
+    setFilters({ [key]: filters[key] === value ? allFilterValue : value })
   }
 
   const resetFilters = () => {
@@ -186,10 +139,11 @@ function CategoryPage({ categorySlug }) {
 
   return (
     <div className="container pb-14">
+      <StructuredData value={collectionStructuredData({ title: seo?.h1 || category.name, canonical: getSeoUrls(location.pathname, location.search, locale).canonical, products: paginated, locale, start: (page - 1) * perPage })} />
       <PageSeo
         pageKey={CATEGORY_SLUG_TO_SEO_KEY[categorySlug]}
         fallbackTitle={category.name}
-        fallbackDescription={category.description}
+        fallbackDescription={catalogCopy[locale]?.[categorySlug]?.short || category.description}
       />
       <CardSurface className="overflow-hidden p-6 sm:p-7">
         <Breadcrumbs items={[{ label: copy.home, href: '/' }, { label: category.name }]} />
@@ -204,7 +158,8 @@ function CategoryPage({ categorySlug }) {
             {seo?.h2 ? (
               <h2 className="mt-2 font-display text-xl text-gold-100 md:text-2xl">{seo.h2}</h2>
             ) : null}
-            <p className="mt-3.5 max-w-3xl text-base leading-7 text-mist">{category.description}</p>
+            <p className="mt-3.5 max-w-3xl text-base leading-7 text-mist">{catalogCopy[locale]?.[categorySlug]?.intro || category.description}</p>
+            <Link className="mt-3 inline-block text-sm text-gold-700 underline" to={localizePath('/katastasi-kai-grading', locale)}>{locale === 'en' ? 'Understand condition and grading' : 'Δείτε τον οδηγό κατάστασης και grading'}</Link>
             <div className="mt-5 flex flex-wrap gap-2">
               {(category.spotlightFilters ?? []).map((item) => (
                 <span
@@ -280,6 +235,7 @@ function CategoryPage({ categorySlug }) {
               </Button>
 
               <select
+                aria-label={locale === 'en' ? 'Sort results' : 'Ταξινόμηση αποτελεσμάτων'}
                 value={sort}
                 onChange={(event) => setSort(event.target.value)}
                 className="rounded-xl border border-[#eadab7] bg-white px-3.5 py-2.5 text-[13px] text-slate-700"
@@ -299,7 +255,7 @@ function CategoryPage({ categorySlug }) {
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              <Pagination page={page} totalPages={totalPages} getPageHref={pageHref} />
             </>
           ) : (
             <EmptyState

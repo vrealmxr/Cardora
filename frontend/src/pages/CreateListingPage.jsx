@@ -16,6 +16,7 @@ import { formatCurrency } from '@/utils/formatters'
 import { translateCreateListingGreek } from '@/utils/createListingTranslations'
 import { cn } from '@/utils/helpers'
 import { normalizePotentialMojibake } from '@/utils/textEncoding'
+import { gradingOptionsForEdit, gradingChoiceLabel } from '@/utils/gradingPresentation'
 import {
   BOXNOW_PARCEL_TYPES,
   DEFAULT_DOMESTIC_SHIPPING,
@@ -738,7 +739,6 @@ function CreateListingPage() {
         domesticParcelType,
       })
     : 0
-  const domesticShippingFee = hasDhlDomesticCarrier ? dhlDomesticShippingFee : boxNowDomesticShippingFee
   const cyprusShippingFee = usesParcelTypeDomesticShipping
     ? resolveCyprusShippingFee({
         categoryId: form.categoryId,
@@ -972,6 +972,7 @@ function CreateListingPage() {
 
   const getAttributeFieldOptions = (field) => {
     if (field.type !== 'select') return field.options ?? []
+    if (field.name === 'gradedCompany') return gradingOptionsForEdit(field.options, form.gradedCompany)
     if (field.name === 'rarity' && form.categoryId === 'cards') {
       const rarityOptions = getRarityOptionsForGroup(activeTemplate, form.franchiseGroup)
       return rarityOptions.length ? rarityOptions : field.options
@@ -1706,14 +1707,20 @@ function CreateListingPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm text-mist">{t('Condition', 'Condition')}</label>
-                    <Select value={form.condition} onChange={(event) => updateForm('condition', event.target.value)}>
+                    <label htmlFor="listing-condition" className="mb-2 block text-sm text-mist">{t('Condition', 'Condition')}</label>
+                    <Select id="listing-condition" aria-describedby="listing-condition-help" value={form.condition} onChange={(event) => updateForm('condition', event.target.value)}>
                       {activeTemplate.conditions.map((item) => (
                         <option key={item} value={item}>
                           {item}
                         </option>
                       ))}
                     </Select>
+                    <p id="listing-condition-help" className="mt-2 text-xs leading-6 text-mist">
+                      {locale === 'en' ? 'Describe visible wear separately from professional grading. ' : 'Περιέγραψε τη φθορά χωριστά από την επαγγελματική βαθμολόγηση. '}
+                      <Link to={`/${locale}/katastasi-kai-grading`} target="_blank" rel="noopener noreferrer" className="underline">
+                        {locale === 'en' ? 'Condition guide (new tab)' : 'Οδηγός κατάστασης (νέα καρτέλα)'}
+                      </Link>
+                    </p>
                   </div>
 
                   <div>
@@ -1868,23 +1875,24 @@ function CreateListingPage() {
                       .filter((field) => !(field.name === 'miniatureSubtype' && form.typeLabel !== 'Miniatures'))
                       .map((field) => (
                         <div key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
-                          <label className="mb-2 block text-sm text-mist">
+                          <label htmlFor={`listing-${field.name}`} className="mb-2 block text-sm text-mist">
                             {field.label}
                             {field.required ? <span className="ml-1 text-gold-100">*</span> : null}
                           </label>
                           {field.type === 'select' ? (
-                            <Select value={form[field.name]} onChange={(event) => updateForm(field.name, event.target.value)}>
+                            <Select id={`listing-${field.name}`} aria-describedby={field.help ? `listing-${field.name}-help` : undefined} value={form[field.name]} onChange={(event) => updateForm(field.name, event.target.value)}>
                               {getAttributeFieldOptions(field).map((option) => (
                                 <option key={option} value={option}>
-                                  {option}
+                                  {field.name === 'gradedCompany' ? gradingChoiceLabel(option, locale) : option}
                                 </option>
                               ))}
                             </Select>
                           ) : field.type === 'textarea' ? (
-                            <Textarea value={form[field.name]} onChange={(event) => updateForm(field.name, event.target.value)} placeholder={field.placeholder} />
+                            <Textarea id={`listing-${field.name}`} aria-describedby={field.help ? `listing-${field.name}-help` : undefined} value={form[field.name]} onChange={(event) => updateForm(field.name, event.target.value)} placeholder={field.placeholder} />
                           ) : (
-                            <Input value={form[field.name]} onChange={(event) => updateForm(field.name, event.target.value)} placeholder={field.placeholder} />
+                            <Input id={`listing-${field.name}`} aria-describedby={field.help ? `listing-${field.name}-help` : undefined} value={form[field.name]} onChange={(event) => updateForm(field.name, event.target.value)} placeholder={field.placeholder} />
                           )}
+                          {field.help && <p id={`listing-${field.name}-help`} className="mt-2 text-xs leading-6 text-mist">{field.help}</p>}
                         </div>
                       ))}
                   </div>

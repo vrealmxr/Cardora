@@ -1,353 +1,259 @@
-import { Camera, Crown, ImagePlus, Loader2, Search, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Camera, ImagePlus, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import BinderShell from '@/components/binder/BinderShell'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
-import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Input'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
-import { cardoraService } from '@/services/cardoraService'
-import { cn, localizePath } from '@/utils/helpers'
+import { apiClient } from '@/services/apiClient'
+import { prepareCardPhoto } from '@/components/scanner/autoCrop'
+import { localizePath } from '@/utils/helpers'
 
-const MOCK_SOURCES = ['Cardora Market', 'eBay', 'TCGplayer', 'Cardmarket']
+const isPending = (scan) => ['queued', 'processing'].includes(scan?.state)
 
-function fakeSearch(term) {
-  const seed = term.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) || 42
-  const base = 8 + (seed % 180)
-  return MOCK_SOURCES.map((source, i) => {
-    const variance = ((seed * (i + 3)) % 40) - 15
-    const price = Math.max(1, Math.round((base + variance) * 100) / 100)
-    return { source, price, listings: 3 + ((seed + i * 7) % 24) }
-  }).sort((a, b) => a.price - b.price)
+function PhotoField({ role, label, file, required, disabled, onChange, english }) {
+  const input = useRef(null)
+  const [preview, setPreview] = useState(null)
+  useEffect(() => {
+    if (!file) { setPreview(null); return }
+    const url = URL.createObjectURL(file)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+  return (
+    <div>
+      <p id={'label-' + role} className="mb-2 text-xs font-semibold text-ink">{label}{required ? ' *' : english ? ' (optional)' : ' (προαιρετική)'}</p>
+      <input ref={input} type="file" className="sr-only" accept="image/jpeg,image/png,image/webp"
+        aria-labelledby={'label-' + role} disabled={disabled}
+        onChange={event => onChange(event.target.files?.[0] || null)} />
+      <button type="button" disabled={disabled} onClick={() => input.current?.click()}
+        onDragOver={event => event.preventDefault()}
+        onDrop={event => { event.preventDefault(); if (!disabled) onChange(event.dataTransfer.files?.[0] || null) }}
+        className="flex min-h-48 w-full flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-[#eadab7] p-4 text-slate-500 transition hover:border-[#d8b06a] hover:text-[#6b4718] disabled:cursor-not-allowed disabled:opacity-60">
+        {preview ? <img src={preview} alt={label} className="h-36 max-w-full rounded-[14px] object-contain" /> : <ImagePlus className="h-8 w-8" />}
+        <span className="max-w-full truncate text-xs">{file ? (english ? 'Photo ready' : 'Η φωτογραφία είναι έτοιμη') : (english ? 'Drop or select a photo' : 'Σύρε ή επίλεξε μια φωτογραφία')}</span>
+      </button>
+      {file && <button type="button" disabled={disabled} className="mt-2 text-xs text-slate-500 underline"
+        onClick={() => { onChange(null); if (input.current) input.current.value = '' }}>
+        {english ? 'Remove photo' : 'Αφαίρεση φωτογραφίας'}
+      </button>}
+    </div>
+  )
 }
 
-function CardoraScannerPage() {
+export default function CardoraScannerPage() {
   const { locale } = useI18n()
-  const { isAuthenticated } = useAuth()
-  const navigate = useNavigate()
-  const isEnglish = locale === 'en'
-  const localized = (path) => localizePath(path, locale)
-  const fileInputRef = useRef(null)
-
-  const [mode, setMode] = useState('search')
-  const [query, setQuery] = useState('')
-  const [imagePreview, setImagePreview] = useState(null)
-  const [imageName, setImageName] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
-  const [results, setResults] = useState(null)
-  const [searchedTerm, setSearchedTerm] = useState('')
-  const [usage, setUsage] = useState(null)
-  const [usageError, setUsageError] = useState(null)
-
-  useEffect(() => {
-    document.title = 'Cardora Scanner'
+  const { isAuthenticated, isAuthReady } = useAuth()
+  const english = locale === 'en'
+  const t = (el, en) => english ? en : el
+  const [config, setConfig] = useState(null)
+  const [category, setCategory] = useState('pokemon')
+  const [files, setFiles] = useState({})
+  const [preparing, setPreparing] = useState(false)
+  const [cropped, setCropped] = useState({})
+  const preparation = useRef(0)
+  const [scan, setScan] = useState(null)
+  const [recent, setRecent] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const requestKey = useRef(null)
+  const requiresBack = ['starwars', 'nba', 'soccer', 'euroleague'].includes(category)
+  const pending = isPending(scan)
+  const locked = busy || pending || preparing || !isAuthenticated
+  const updateScan = useCallback(row => {
+    setScan(row)
+    setRecent(old => [row, ...old.filter(item => item.id !== row.id)].slice(0, 50))
   }, [])
 
   useEffect(() => {
-    if (!isAuthenticated) return
-    cardoraService
-      .getScannerUsage()
-      .then((data) => setUsage(data))
-      .catch(() => setUsage(null))
+    document.title = 'Cardora Scanner'
+    let active = true
+    apiClient.get('/card-scans/config').then(value => { if (active) setConfig(value) }).catch(e => { if (active) setError(e.message) })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    if (isAuthenticated) {
+      apiClient.get('/card-scans/mine').then(rows => {
+        if (!active) return
+        setRecent(rows)
+        setScan(current => current || rows.find(isPending) || null)
+      }).catch(e => { if (active) setError(e.message) })
+    } else { setRecent([]); setScan(null); setFiles({}); setCropped({}); preparation.current++; setPreparing(false) }
+    return () => { active = false }
   }, [isAuthenticated])
 
-  useEffect(
-    () => () => {
-      if (imagePreview) URL.revokeObjectURL(imagePreview)
-    },
-    [imagePreview],
-  )
+  useEffect(() => {
+    if (!pending) return
+    let active = true
+    let timer
+    let attempts = 0
+    const poll = async () => {
+      let finished = false
+      try {
+        const row = await apiClient.get('/card-scans/' + scan.id)
+        if (active) { updateScan(row); setError(''); finished = !isPending(row) }
+      } catch (e) { if (active) setError(e.message) }
+      if (active && !finished && ++attempts < 180) timer = setTimeout(poll, 5000)
+      else if (active && !finished) setError(english ? 'The scan is taking longer. Use Refresh to check again.' : 'Το scan διαρκεί περισσότερο. Πάτησε Ανανέωση για νέο έλεγχο.')
+    }
+    timer = setTimeout(poll, 4000)
+    return () => { active = false; clearTimeout(timer) }
+  }, [pending, scan?.id, english, updateScan])
 
-  const copy = isEnglish
-    ? {
-        eyebrow: 'Instant price check',
-        title: 'Cardora Scanner',
-        description: 'Search a card by name, or upload a photo — we\'ll estimate a market price from multiple sources.',
-        searchTab: 'Search by name',
-        uploadTab: 'Upload a photo',
-        searchPlaceholder: 'e.g. Charizard ex 199/165',
-        searchCta: 'Search price',
-        dropTitle: 'Drop a photo here',
-        dropHint: 'or click to browse — JPG, PNG up to 10MB',
-        analyzeCta: 'Identify & search price',
-        change: 'Change photo',
-        scanning: 'Scanning sources…',
-        resultsTitle: 'Estimated prices',
-        resultsFor: 'Results for',
-        suggested: 'Suggested average',
-        listings: 'active listings',
-        disclaimer: 'Mock estimate for preview — live scraping connects once the backend is wired up.',
-        scansLeft: 'scans left this month',
-        unlimitedScans: 'Unlimited scans (PRO)',
-        limitReached: "You've used all your free scans this month. Upgrade to Cardora PRO for unlimited AI Scanner.",
-        upgradeCta: 'Upgrade to PRO',
-      }
-    : {
-        eyebrow: 'Άμεσος έλεγχος τιμής',
-        title: 'Cardora Scanner',
-        description: 'Αναζήτησε μια κάρτα με το όνομά της, ή ανέβασε φωτογραφία — θα εκτιμήσουμε μια τιμή αγοράς από πολλαπλές πηγές.',
-        searchTab: 'Αναζήτηση με όνομα',
-        uploadTab: 'Ανέβασμα φωτογραφίας',
-        searchPlaceholder: 'π.χ. Charizard ex 199/165',
-        searchCta: 'Αναζήτηση τιμής',
-        dropTitle: 'Άσε μια φωτογραφία εδώ',
-        dropHint: 'ή πάτα για να την επιλέξεις — JPG, PNG έως 10MB',
-        analyzeCta: 'Αναγνώριση & αναζήτηση τιμής',
-        change: 'Άλλαξε φωτογραφία',
-        scanning: 'Σάρωση πηγών…',
-        resultsTitle: 'Εκτιμώμενες τιμές',
-        resultsFor: 'Αποτελέσματα για',
-        suggested: 'Προτεινόμενος μέσος όρος',
-        listings: 'ενεργές καταχωρήσεις',
-        disclaimer: 'Mock εκτίμηση για preview — το πραγματικό scraping θα συνδεθεί με το backend.',
-        scansLeft: 'scans διαθέσιμα αυτόν τον μήνα',
-        unlimitedScans: 'Απεριόριστα scans (PRO)',
-        limitReached: 'Έχεις χρησιμοποιήσει όλα τα δωρεάν scans σου αυτόν τον μήνα. Αναβάθμισε σε Cardora PRO για απεριόριστο AI Scanner.',
-        upgradeCta: 'Αναβάθμιση σε PRO',
-      }
+  useEffect(() => () => { preparation.current++ }, [])
 
-  const runSearch = async (term) => {
-    if (!term.trim()) return
-
-    if (!isAuthenticated) {
-      navigate(localized('/eisodos'))
+  const chooseFile = async (role, file) => {
+    if (locked) return
+    if (file && (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024)) {
+      setError(t('Χρειάζεται JPG, PNG ή WebP έως 10 MB.', 'Choose a JPG, PNG or WebP up to 10 MB.'))
       return
     }
-
-    setUsageError(null)
-
-    try {
-      const result = await cardoraService.recordScannerUsage()
-      setUsage(result)
-    } catch (err) {
-      if (err?.status === 402) {
-        setUsageError(copy.limitReached)
-        return
-      }
-      // Non-quota failure (network etc.) — still let the preview search run.
-    }
-
-    setIsSearching(true)
-    setResults(null)
-    setSearchedTerm(term.trim())
-    window.setTimeout(() => {
-      setResults(fakeSearch(term.trim()))
-      setIsSearching(false)
-    }, 900)
-  }
-
-  const scanBlocked = Boolean(usage && !usage.unlimited && usage.remaining === 0)
-
-  const handleFile = (file) => {
+    setError(''); requestKey.current = null
+    setFiles(old => ({ ...old, [role]: null })); setCropped(old => ({ ...old, [role]: false }))
     if (!file) return
-    setImagePreview(URL.createObjectURL(file))
-    setImageName(file.name)
-    setResults(null)
+    const attempt = ++preparation.current
+    setPreparing(true)
+    try {
+      const prepared = await prepareCardPhoto(file)
+      if (attempt !== preparation.current) return
+      setFiles(old => ({ ...old, [role]: prepared.file }))
+      setCropped(old => ({ ...old, [role]: prepared.cropped }))
+    } catch (e) {
+      if (attempt === preparation.current) setError(e.message === 'image_size'
+        ? t('Διάλεξε καθαρή φωτογραφία έως 16 megapixels και 10 MB.', 'Choose a clear photo up to 16 megapixels and 10 MB.')
+        : t('Δεν μπορέσαμε να ανοίξουμε τη φωτογραφία. Δοκίμασε άλλη.', 'We could not open this photo. Try another.'))
+    } finally { if (attempt === preparation.current) setPreparing(false) }
   }
 
-  const suggestedAverage =
-    results && results.length ? results.reduce((sum, r) => sum + r.price, 0) / results.length : null
+  const submit = async event => {
+    event.preventDefault()
+    if (locked || !config?.enabled) return
+    if (!files.front || (requiresBack && !files.back)) {
+      setError(t('Πρόσθεσε τις υποχρεωτικές όψεις της κάρτας.', 'Add the required card views.'))
+      return
+    }
+    setBusy(true); setError(''); setNotice('')
+    requestKey.current ||= crypto.randomUUID()
+    const data = new FormData()
+    data.append('request_key', requestKey.current)
+    data.append('category', category)
+    data.append('terms_accepted', '1')
+    data.append('image_preparation', Object.entries(files).filter(([, file]) => file).every(([role]) => cropped[role]) ? 'auto-card-crop-v2' : 'scan-only-v2')
+    data.append('policy_version', config.policy_version)
+    Object.entries(files).forEach(([role, file]) => { if (file) data.append(role, file) })
+    try { updateScan(await apiClient.post('/card-scans', data)); requestKey.current = null }
+    catch (e) { setError(e.message) }
+    finally { setBusy(false) }
+  }
+
+  const removeScan = async () => {
+    setBusy(true); setError('')
+    try {
+      await apiClient.delete('/card-scans/' + scan.id)
+      setRecent(old => old.filter(item => item.id !== scan.id)); setScan(null)
+      setNotice(t('Το scan και οι αποθηκευμένες φωτογραφίες διαγράφηκαν.', 'The scan and its saved photos were deleted.'))
+    } catch (e) { setError(e.message) }
+    finally { setBusy(false) }
+  }
+  const identity = scan?.result?.identity
+  const confirmed = scan?.result?.printing_status === 'confirmed'
 
   return (
     <BinderShell>
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">{copy.eyebrow}</p>
-          <h2 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">{copy.title}</h2>
-          <p className="mt-2 text-sm leading-6 text-mist">{copy.description}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#9d6a17]">Cardora-1 · Beta</p>
+          <h2 className="mt-2 font-display text-3xl font-semibold text-ink sm:text-4xl">Cardora Scanner</h2>
+          <p className="mt-2 text-sm leading-6 text-mist">{t(
+            'Ποια κάρτα έχεις; Ανέβασε μια καθαρή φωτογραφία και ανακάλυψε τη συλλογή, τον αριθμό και την έκδοσή της.',
+            'Which card do you have? Upload a clear photo to discover its set, number and edition.',
+          )}</p>
         </div>
-        {isAuthenticated && usage ? (
-          <div className="rounded-xl border border-[#eee2c4] bg-white px-4 py-2.5 text-xs font-medium text-slate-500">
-            {usage.unlimited ? (
-              <span className="flex items-center gap-1.5 text-[#9d6a17]">
-                <Crown className="h-3.5 w-3.5" /> {copy.unlimitedScans}
-              </span>
-            ) : (
-              <span>
-                {usage.remaining}/{usage.limit} {copy.scansLeft}
-              </span>
-            )}
-          </div>
-        ) : null}
+        {config && <div className="rounded-xl border border-[#eee2c4] bg-white px-4 py-2.5 text-xs font-medium text-slate-500">
+          {config.user_daily_limit} {t('αναγνωρίσεις την ημέρα', 'scans a day')}
+        </div>}
       </div>
 
-      {usageError ? (
-        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-[#eadab7] bg-[#fff8ec] px-4 py-3 text-sm text-[#6b4718]">
-          <Crown className="h-4 w-4 shrink-0" />
-          <span className="flex-1">{usageError}</span>
-          <Link to={localized('/cardora-pro')} className="shrink-0 font-semibold underline">
-            {copy.upgradeCta}
-          </Link>
-        </div>
-      ) : null}
-
-      <div className="mb-5 inline-flex rounded-2xl border border-[#eadab7] bg-white p-1.5 shadow-glass">
-        <button
-          type="button"
-          onClick={() => setMode('search')}
-          className={cn(
-            'flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition',
-            mode === 'search'
-              ? 'border border-[#d8b06a] bg-[linear-gradient(145deg,rgba(255,247,229,0.98)_0%,rgba(243,229,193,0.96)_100%)] text-[#6b4718]'
-              : 'text-slate-600 hover:text-[#6b4718]',
-          )}
-        >
-          <Search className="h-3.5 w-3.5" />
-          {copy.searchTab}
+      <div className="mb-5 inline-flex flex-wrap rounded-2xl border border-[#eadab7] bg-white p-1.5 shadow-glass">
+        <button type="button" disabled title={t('Οι τιμές θα προστεθούν αργότερα.', 'Prices will be added later.')}
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-slate-400">
+          <Search className="h-3.5 w-3.5" />{t('Αναζήτηση τιμής · προσεχώς', 'Price search · coming soon')}
         </button>
-        <button
-          type="button"
-          onClick={() => setMode('upload')}
-          className={cn(
-            'flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition',
-            mode === 'upload'
-              ? 'border border-[#d8b06a] bg-[linear-gradient(145deg,rgba(255,247,229,0.98)_0%,rgba(243,229,193,0.96)_100%)] text-[#6b4718]'
-              : 'text-slate-600 hover:text-[#6b4718]',
-          )}
-        >
-          <Camera className="h-3.5 w-3.5" />
-          {copy.uploadTab}
-        </button>
+        <span className="flex items-center gap-1.5 rounded-xl border border-[#d8b06a] bg-[linear-gradient(145deg,rgba(255,247,229,0.98)_0%,rgba(243,229,193,0.96)_100%)] px-4 py-2 text-xs font-semibold text-[#6b4718]">
+          <Camera className="h-3.5 w-3.5" />{t('Ανέβασμα φωτογραφίας', 'Upload a photo')}
+        </span>
       </div>
+
+      {isAuthReady && !isAuthenticated && <div className="mb-5 rounded-xl border border-[#eadab7] bg-[#fff8ec] px-4 py-3 text-sm text-[#6b4718]">
+        <Link className="font-semibold underline" to={localizePath('/eisodos', locale)}>{t('Συνδέσου στον λογαριασμό σου', 'Sign in to your account')}</Link>
+        {t(' για να κάνεις scan και να βλέπεις τα αποτελέσματά σου.', ' to scan cards and view your results.')}
+      </div>}
+      {error && <p role="alert" className="mb-5 rounded-xl border border-[#eadab7] bg-[#fff8ec] px-4 py-3 text-sm text-[#6b4718]">{error}</p>}
+      {notice && <p role="status" className="mb-5 text-sm text-slate-600">{notice}</p>}
 
       <CardSurface hover={false}>
-        {mode === 'search' ? (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              runSearch(query)
-            }}
-            className="flex flex-col gap-3 sm:flex-row"
-          >
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                type="text"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={copy.searchPlaceholder}
-                className="py-3 pl-10"
-              />
-            </div>
-            <Button type="submit" disabled={isSearching || !query.trim() || scanBlocked}>
-              {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              {copy.searchCta}
-            </Button>
-          </form>
-        ) : (
-          <div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => handleFile(event.target.files?.[0])}
-            />
-            {imagePreview ? (
-              <div className="flex flex-col items-center gap-4 sm:flex-row">
-                <div className="relative">
-                  <img
-                    src={imagePreview}
-                    alt={imageName}
-                    className="h-36 w-28 rounded-[14px] border border-[#eadab7] object-cover shadow-glass"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImagePreview(null)
-                      setImageName('')
-                      setResults(null)
-                      if (fileInputRef.current) fileInputRef.current.value = ''
-                    }}
-                    className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-[#eadab7] bg-white text-slate-500 shadow-glass hover:text-slate-800"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <div className="flex-1 text-center sm:text-left">
-                  <p className="truncate text-sm font-medium text-slate-600">{imageName}</p>
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                    <Button
-                      onClick={() => runSearch(imageName.replace(/\.[a-z0-9]+$/i, '') || 'card')}
-                      disabled={isSearching || scanBlocked}
-                    >
-                      {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                      {copy.analyzeCta}
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-xs font-semibold text-slate-500 underline decoration-dotted underline-offset-4 hover:text-slate-700"
-                    >
-                      {copy.change}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center gap-3 rounded-[18px] border-2 border-dashed border-[#eadab7] py-12 text-slate-500 transition hover:border-[#d8b06a] hover:text-[#6b4718]"
-              >
-                <ImagePlus className="h-8 w-8" />
-                <span className="text-sm font-semibold text-ink">{copy.dropTitle}</span>
-                <span className="text-xs text-slate-400">{copy.dropHint}</span>
-              </button>
-            )}
+        <form onSubmit={submit} className="space-y-5">
+          <label className="block max-w-sm text-xs font-semibold text-ink">
+            {t('Συλλογή', 'Collection')}
+            <Select value={category} disabled={locked} onChange={event => setCategory(event.target.value)} className="mt-2">
+              {Object.entries(config?.categories || { pokemon: 'Pokémon' }).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+            </Select>
+          </label>
+          <div className="grid gap-5 sm:grid-cols-3">
+            {[['front', t('Μπροστινή όψη', 'Front'), true], ['back', t('Πίσω όψη', 'Back'), requiresBack], ['angled', t('Λήψη υπό γωνία', 'Angled view'), false]].map(([role, label, required]) =>
+              <PhotoField key={role} role={role} label={label} required={required} file={files[role]} disabled={locked}
+                english={english} onChange={file => chooseFile(role, file)} />)}
           </div>
-        )}
+          <p className="text-xs leading-5 text-slate-500">{t(
+            'Φρόντισε να φαίνεται ολόκληρη η κάρτα, χωρίς αντανακλάσεις. Για αθλητικές κάρτες και Star Wars, πρόσθεσε και την πίσω όψη.',
+            'Show the whole card clearly, without glare. For sports and Star Wars cards, add the back too.',
+          )}</p>
+          <p className="text-xs leading-6 text-slate-500">
+            {t('Χρησιμοποιώντας το Cardora Scanner, αποδέχεσαι τους ', 'By using Cardora Scanner, you accept our ')}
+            <Link to={localizePath('/oroi-xrisis', locale) + '#cardora-scanner'} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#9d6a17] underline underline-offset-2">{t('Όρους Χρήσης', 'Terms of Use')}</Link>.
+            {' '}{t('Περικόπτουμε αυτόματα τις φωτογραφίες σου. Για τη βελτίωση και την εκπαίδευση του μοντέλου μας κρατάμε μόνο εικόνες στις οποίες έχει απομονωθεί η κάρτα.', 'We crop your photos automatically. To improve and train our model, we only keep images where the card has been isolated.')}
+          </p>
+          <Button type="submit" disabled={locked || !config?.enabled || !files.front || (requiresBack && !files.back)}>
+            {busy || pending || preparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            {preparing ? t('Ετοιμάζουμε τη φωτογραφία…', 'Preparing your photo…') : pending ? t('Η αναγνώριση εκτελείται…', 'Identifying…') : busy ? t('Αποστολή…', 'Uploading…') : t('Αναγνώριση κάρτας', 'Identify card')}
+          </Button>
+          {config && !config.enabled && <p className="text-xs text-slate-500">{t('Το scanner είναι προσωρινά μη διαθέσιμο.', 'The scanner is temporarily unavailable.')}</p>}
+        </form>
       </CardSurface>
 
-      {isSearching ? (
-        <div className="mt-8 flex items-center gap-3 text-sm text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin text-[#9d6a17]" />
-          {copy.scanning}
+      {recent.length > 0 && <label className="mt-6 block max-w-xl text-xs font-semibold text-ink">
+        {t('Οι πρόσφατες κάρτες μου', 'My recent cards')}
+        <Select className="mt-2" value={scan?.id || ''} disabled={busy || pending} onChange={event => setScan(recent.find(row => row.id === event.target.value) || null)}>
+          <option value="">{t('Νέα αναγνώριση', 'New scan')}</option>
+          {recent.map(row => <option key={row.id} value={row.id}>{row.result?.identity?.name || t('Κάρτα', 'Card')} · {({ queued: t('Σε αναμονή', 'Waiting'), processing: t('Αναγνώριση…', 'Identifying…'), completed: t('Έτοιμο', 'Ready'), failed: t('Δεν ολοκληρώθηκε', 'Incomplete') })[row.state]}</option>)}
+        </Select>
+      </label>}
+
+      {scan && <div className="mt-6" aria-live="polite"><CardSurface hover={false}>
+        <h3 className="font-display text-2xl font-semibold text-ink">{pending ? t('Το scan σου είναι σε εξέλιξη', 'Your scan is in progress') : scan.state === 'failed' ? t('Η ανάλυση δεν ολοκληρώθηκε', 'Analysis did not complete') : identity?.name || t('Χρειάζεται επιπλέον έλεγχος', 'Further review needed')}</h3>
+        {pending && <p className="mt-3 text-sm leading-6 text-slate-500">{t('Ψάχνουμε την κάρτα σου. Μπορεί να χρειαστούν λίγα λεπτά — το αποτέλεσμα θα εμφανιστεί εδώ.', 'We’re looking for your card. This may take a few minutes — your result will appear here.')}</p>}
+        {scan.error && <p className="mt-3 text-sm text-slate-500">{scan.error}</p>}
+        {identity && <dl className="my-5 grid grid-cols-2 gap-3 text-sm text-slate-600">
+          <dt>Set</dt><dd>{identity.set_name || t('Άγνωστο', 'Unknown')}</dd>
+          <dt>{t('Αριθμός', 'Number')}</dt><dd>{identity.collector_number || t('Άγνωστος', 'Unknown')}</dd>
+          <dt>{t('Ταυτότητα', 'Identity')}</dt><dd>{scan.result.identity_status === 'confirmed' ? t('Επιβεβαιωμένη από το σύστημα', 'Confirmed by the system') : t('Χρειάζεται έλεγχος', 'Needs review')}</dd>
+          <dt>Parallel</dt><dd>{confirmed ? scan.result.parallel || t('Δεν δηλώθηκε', 'Not specified') : t('Δεν επιβεβαιώθηκε', 'Unconfirmed')}</dd>
+          <dt>Finish</dt><dd>{confirmed ? scan.result.finish || t('Δεν δηλώθηκε', 'Not specified') : t('Δεν επιβεβαιώθηκε', 'Unconfirmed')}</dd>
+        </dl>}
+        <div className="flex flex-wrap gap-3">
+          <Button variant="secondary" size="sm" disabled={busy} onClick={() => apiClient.get('/card-scans/' + scan.id).then(updateScan).catch(e => setError(e.message))}>
+            <RefreshCw className="h-3.5 w-3.5" />{t('Ανανέωση', 'Refresh')}
+          </Button>
+          <Button variant="ghost" size="sm" disabled={busy || pending} onClick={removeScan}>
+            <Trash2 className="h-3.5 w-3.5" />{t('Διαγραφή scan και φωτογραφιών', 'Delete scan and photos')}
+          </Button>
         </div>
-      ) : null}
-
-      {results && !isSearching ? (
-        <div className="mt-8">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="font-display text-xl font-semibold text-ink">{copy.resultsTitle}</h3>
-              <p className="text-xs text-slate-500">
-                {copy.resultsFor} <span className="font-semibold text-slate-700">“{searchedTerm}”</span>
-              </p>
-            </div>
-            {suggestedAverage !== null ? (
-              <div className="flex items-center gap-2 rounded-xl border border-[#eadab7] bg-[#fff8ec] px-4 py-2.5">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#9d6a17]/80">{copy.suggested}</p>
-                  <p className="font-display text-lg font-bold text-[#6b4718]">€{suggestedAverage.toFixed(2)}</p>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {results.map((r) => (
-              <div
-                key={r.source}
-                className="flex items-center justify-between rounded-[16px] border border-[#ead9b1] bg-white px-4 py-3.5 shadow-glass"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-ink">{r.source}</p>
-                  <p className="text-[11px] text-slate-400">
-                    {r.listings} {copy.listings}
-                  </p>
-                </div>
-                <p className="font-display text-lg font-bold text-[#9d6a17]">€{r.price.toFixed(2)}</p>
-              </div>
-            ))}
-          </div>
-
-          <p className="mt-4 text-[11px] text-slate-400">{copy.disclaimer}</p>
-        </div>
-      ) : null}
+      </CardSurface></div>}
     </BinderShell>
   )
 }
-
-export default CardoraScannerPage

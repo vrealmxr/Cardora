@@ -6,8 +6,9 @@ import CardSurface from '@/components/ui/CardSurface'
 import { Input, Select } from '@/components/ui/Input'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
-import { formatCurrency } from '@/utils/formatters'
-import { cn } from '@/utils/helpers'
+import { useFormatters } from '@/hooks/useFormatters'
+import { cn, localizePath } from '@/utils/helpers'
+import { catalogValueLabel } from '@/utils/catalogLabels'
 
 const ALL_CATEGORY_VALUE = 'all'
 
@@ -19,6 +20,7 @@ function SearchBar({
   initialValues,
   showSort = true,
 }) {
+  const { formatCurrency } = useFormatters()
   const { t, locale } = useI18n()
   const navigate = useNavigate()
   const {
@@ -149,7 +151,7 @@ function SearchBar({
     if (condition && String(condition) !== String(allFilterValue)) params.set('condition', condition)
     if (sort !== 'newest') params.set('sort', sort)
 
-    navigate(`/anazitisi${params.toString() ? `?${params.toString()}` : ''}`)
+    navigate(`${localizePath('/anazitisi', locale)}${params.toString() ? `?${params.toString()}` : ''}`)
     setIsFocused(false)
     setActiveSuggestionIndex(-1)
   }
@@ -192,7 +194,7 @@ function SearchBar({
       event.preventDefault()
 
       if (activeSuggestionIndex >= 0 && activeSuggestionIndex < suggestions.length) {
-        navigate(`/proion/${suggestions[activeSuggestionIndex].slug}`)
+        navigate(localizePath(`/proion/${suggestions[activeSuggestionIndex].slug}`, locale))
       } else {
         navigateToSearch()
       }
@@ -206,6 +208,7 @@ function SearchBar({
     <div ref={containerRef} className="relative z-20 flex-1">
       <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gold-200" />
       <Input
+        aria-label={locale === 'en' ? 'Search collectibles' : 'Αναζήτηση συλλεκτικών'}
         value={query}
         onChange={(event) => {
           setQuery(event.target.value)
@@ -237,7 +240,7 @@ function SearchBar({
                   key={item.id}
                   type="button"
                   onClick={() => {
-                    navigate(`/proion/${item.slug}`)
+                    navigate(localizePath(`/proion/${item.slug}`, locale))
                     setIsFocused(false)
                     setActiveSuggestionIndex(-1)
                   }}
@@ -252,7 +255,9 @@ function SearchBar({
                     {item.mediaUrl ? (
                       <img
                         src={item.mediaUrl}
-                        alt={item.title}
+                        alt=""
+                        width="40"
+                        height="40"
                         className="h-full w-full object-cover"
                         loading="lazy"
                       />
@@ -261,7 +266,7 @@ function SearchBar({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
                     <p className="truncate text-xs text-mist">
-                      {[item.subtitle, item.franchise, item.categoryName].filter(Boolean).join(' \u2022 ')}
+                      {[item.subtitle, catalogValueLabel('franchise', item.franchise, locale), item.categoryName].filter(Boolean).join(' \u2022 ')}
                     </p>
                   </div>
                   <p className="text-xs font-semibold text-gold-100">{formatCurrency(item.price)}</p>
@@ -311,7 +316,7 @@ function SearchBar({
       >
         {renderSearchInput()}
 
-        <Select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+        <Select aria-label={locale === 'en' ? 'Category' : 'Κατηγορία'} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
           <option value={ALL_CATEGORY_VALUE}>{copy.allCategories}</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>
@@ -320,7 +325,7 @@ function SearchBar({
           ))}
         </Select>
 
-        <Select value={price} onChange={(event) => setPrice(event.target.value)}>
+        <Select aria-label={locale === 'en' ? 'Price range' : 'Εύρος τιμής'} value={price} onChange={(event) => setPrice(event.target.value)}>
           {priceOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -328,7 +333,7 @@ function SearchBar({
           ))}
         </Select>
 
-        <Select value={condition} onChange={(event) => setCondition(event.target.value)}>
+        <Select aria-label={locale === 'en' ? 'Condition' : 'Κατάσταση'} value={condition} onChange={(event) => setCondition(event.target.value)}>
           {conditionOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -337,7 +342,7 @@ function SearchBar({
         </Select>
 
         {showSort ? (
-          <Select value={sort} onChange={(event) => setSort(event.target.value)}>
+          <Select aria-label={locale === 'en' ? 'Sort results' : 'Ταξινόμηση αποτελεσμάτων'} value={sort} onChange={(event) => setSort(event.target.value)}>
             <option value="newest">{copy.sortNewest}</option>
             <option value="price-asc">{copy.sortPriceAsc}</option>
             <option value="price-desc">{copy.sortPriceDesc}</option>

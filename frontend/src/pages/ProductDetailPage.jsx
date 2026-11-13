@@ -1,79 +1,39 @@
-﻿import { Euro, Gavel, Heart, ShieldCheck, ShoppingCart, Tag, Truck, ZoomIn } from 'lucide-react'
+import { catalogValueLabel, distinctCatalogSeries } from '@/utils/catalogLabels'
+import StructuredData from '@/components/StructuredData'
+import { productStructuredData } from '@/utils/structuredData'
+import { Euro, Gavel, Heart, ShieldCheck, ShoppingCart, Tag, Truck, ZoomIn } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import Breadcrumbs from '@/components/catalog/Breadcrumbs'
+import PageSeo from '@/components/PageSeo'
+import NotFoundPage from '@/pages/NotFoundPage'
 import ProductCard from '@/components/catalog/ProductCard'
+import { lazyListingImageProps, originalImageProps } from '@/utils/mediaImages'
 import SellerCard from '@/components/people/SellerCard'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
-import EmptyState from '@/components/ui/EmptyState'
 import { Input } from '@/components/ui/Input'
 import SectionHeader from '@/components/ui/SectionHeader'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
-import { cardoraService } from '@/services/cardoraService'
-import { formatCurrency, formatShortDateTime } from '@/utils/formatters'
+import { usePublicListing } from '@/hooks/usePublicListing'
+import { localizePath } from '@/utils/helpers'
+import { useFormatters } from '@/hooks/useFormatters'
 import { calculateLotSelectionDomesticShipping } from '@/utils/listingShipping'
 import { normalizeTextTree } from '@/utils/textEncoding'
-
-const mapListingDetailsToProduct = (listing, fallbackProduct) => {
-  if (!listing || !fallbackProduct) return fallbackProduct
-
-  const attributes = listing.attributes ?? {}
-  const productPayload = listing.product ?? {}
-  const metadata = productPayload.metadata ?? {}
-
-  return {
-    ...fallbackProduct,
-    publisher: attributes.publisher ?? productPayload.brand ?? fallbackProduct.publisher ?? '',
-    issueNumber: attributes.issue_number ?? productPayload.item_number ?? fallbackProduct.issueNumber ?? '',
-    printing: attributes.printing ?? fallbackProduct.printing ?? '',
-    characterName: attributes.character_name ?? fallbackProduct.characterName ?? '',
-    manufacturerLine: attributes.manufacturer_line ?? fallbackProduct.manufacturerLine ?? '',
-    scale: attributes.scale ?? fallbackProduct.scale ?? '',
-    figureHeight: attributes.figure_height ?? fallbackProduct.figureHeight ?? '',
-    material: attributes.material ?? fallbackProduct.material ?? '',
-    miniatureSubtype: attributes.miniature_subtype ?? fallbackProduct.miniatureSubtype ?? '',
-    displayStatus: attributes.display_status ?? fallbackProduct.displayStatus ?? '',
-    boxCondition: attributes.box_condition ?? fallbackProduct.boxCondition ?? '',
-    edition: attributes.edition ?? fallbackProduct.edition ?? '',
-    accessories: attributes.accessories ?? fallbackProduct.accessories ?? '',
-    serialReference: attributes.serial_reference ?? fallbackProduct.serialReference ?? '',
-    bundleContents: attributes.bundle_contents ?? fallbackProduct.bundleContents ?? '',
-    writer: attributes.writer ?? fallbackProduct.writer ?? '',
-    artist: attributes.artist ?? fallbackProduct.artist ?? '',
-    coverArtist: attributes.cover_artist ?? fallbackProduct.coverArtist ?? '',
-    signedBy: attributes.signed_by ?? fallbackProduct.signedBy ?? '',
-    pageCount: attributes.page_count ?? fallbackProduct.pageCount ?? '',
-    isbn: attributes.isbn ?? fallbackProduct.isbn ?? '',
-    authenticity:
-      productPayload.authenticity_notes ??
-      attributes.authenticity ??
-      fallbackProduct.authenticity ??
-      '',
-    shortDescription:
-      fallbackProduct.shortDescription ??
-      productPayload.subtitle ??
-      productPayload.description ??
-      '',
-    description: productPayload.description ?? fallbackProduct.description ?? '',
-    shippingInfo:
-      listing.packaging_notes ??
-      metadata.shipping_info ??
-      fallbackProduct.shippingInfo ??
-      '',
-    returns: metadata.returns ?? fallbackProduct.returns ?? '',
-  }
-}
+import { marketplaceTrust } from '@/data/marketplaceTrust'
+import { gradingPresentation } from '@/utils/gradingPresentation'
 
 function ProductDetailPage() {
+  const { formatCurrency, formatShortDateTime } = useFormatters()
   const { currentUser } = useAuth()
   const { locale } = useI18n()
   const { slug } = useParams()
   const navigate = useNavigate()
   const {
+    initialPublicListing,
     addToCart,
     createListingOffer,
     favoriteProductIds,
@@ -86,8 +46,8 @@ function ProductDetailPage() {
     toggleFavorite,
   } = useMarketplace()
   const summaryProduct = productsWithSellers.find((item) => item.slug === slug)
-  const [hydratedProduct, setHydratedProduct] = useState(null)
-  const product = hydratedProduct ?? summaryProduct
+  const { result: listingResult, retry: retryListing } = usePublicListing(slug, locale, initialPublicListing, summaryProduct)
+  const product = listingResult?.status === 200 ? listingResult.product : null
   const [activeMediaIndex, setActiveMediaIndex] = useState(0)
   const [isZoomPinned, setIsZoomPinned] = useState(false)
   const [isImageHovering, setIsImageHovering] = useState(false)
@@ -128,25 +88,24 @@ function ProductDetailPage() {
           buyout: 'Buyout',
           addToCart: 'Add to cart',
           buyNow: 'Buy now',
-          paymentTitle: 'Protected payment',
-          paymentText:
-            'The payment stays secured by the platform and is released only after you confirm the item arrived as described.',
+          paymentTitle: marketplaceTrust.en.title,
+          paymentText: marketplaceTrust.en.payment,
           shippingTitle: 'Shipping & returns',
           descriptionTitle: 'Item description',
           specsTitle: 'Item details',
           specsDescription:
-            'Core listing details, condition information and reference data shown exactly where the buyer expects to find them.',
+            'Check the edition, condition and other details provided by the seller.',
           lotEyebrow: 'Card lot overview',
-          lotTitle: 'A clearer way to show many cards in one listing',
+          lotTitle: 'What is included in this card lot',
           lotDescription:
-            'Instead of turning into a wall of text, the lot stays readable through a short summary, named highlights and the total count.',
+            'Review the total number of cards, highlighted cards and the seller’s description before buying.',
           totalCards: 'total cards',
           guaranteedHits: 'guaranteed hits',
           moreCards: 'more cards',
           similarEyebrow: 'Similar Listings',
           similarTitle: 'More items from the same category',
           similarDescription:
-            'Continue browsing nearby listings without losing the same collecting context.',
+            'Explore other available items in this category.',
           recentEyebrow: 'Recently Viewed',
           recentTitle: 'Items you looked at recently',
           recentDescription:
@@ -211,25 +170,24 @@ function ProductDetailPage() {
           buyout: 'Buyout',
           addToCart: 'Προσθήκη στο καλάθι',
           buyNow: 'Άμεση αγορά',
-          paymentTitle: 'Προστατευμένη πληρωμή',
-          paymentText:
-            'Το ποσό παραμένει ασφαλές στην πλατφόρμα και αποδεσμεύεται μόνο αφού επιβεβαιώσεις ότι το αντικείμενο έφτασε όπως περιγραφόταν.',
+          paymentTitle: marketplaceTrust.el.title,
+          paymentText: marketplaceTrust.el.payment,
           shippingTitle: 'Αποστολή & επιστροφές',
           descriptionTitle: 'Περιγραφή αντικειμένου',
           specsTitle: 'Τεχνικά στοιχεία',
           specsDescription:
-            'Όλα τα βασικά στοιχεία της αγγελίας, η κατάσταση και τα σημεία αναφοράς εμφανίζονται συγκεντρωμένα εκεί που τα περιμένει ο αγοραστής.',
+            'Έλεγξε την έκδοση, την κατάσταση και τα υπόλοιπα στοιχεία που έχει δηλώσει ο πωλητής.',
           lotEyebrow: 'Επισκόπηση lot',
-          lotTitle: 'Ένας πιο καθαρός τρόπος να παρουσιαστούν πολλές κάρτες',
+          lotTitle: 'Τι περιλαμβάνει το lot καρτών',
           lotDescription:
-            'Το lot δεν μετατρέπεται σε κουραστικό κείμενο. Μένει ευανάγνωστο με μικρό summary, βασικά highlights και συνολικό πλήθος.',
+            'Δες το συνολικό πλήθος, τις κάρτες που ξεχωρίζει ο πωλητής και την περιγραφή του πριν αγοράσεις.',
           totalCards: 'συνολικές κάρτες',
           guaranteedHits: 'guaranteed hits',
           moreCards: 'ακόμη κάρτες',
           similarEyebrow: 'Παρόμοιες αγγελίες',
           similarTitle: 'Περισσότερα αντικείμενα από την ίδια κατηγορία',
           similarDescription:
-            'Συνέχισε την περιήγηση σε συναφή listings χωρίς να χάνεις το ίδιο collecting context.',
+            'Δες κι άλλα διαθέσιμα αντικείμενα από την ίδια κατηγορία.',
           recentEyebrow: 'Πρόσφατα προβεβλημένα',
           recentTitle: 'Αντικείμενα που είδες πριν από αυτό',
           recentDescription:
@@ -274,32 +232,6 @@ function ProductDetailPage() {
   )
 
   useEffect(() => {
-    let isActive = true
-
-    if (!summaryProduct?.listingId) {
-      setHydratedProduct(null)
-      return undefined
-    }
-
-    const hydrateProduct = async () => {
-      try {
-        const listing = await cardoraService.getListing(summaryProduct.listingId)
-        if (!isActive) return
-        setHydratedProduct(mapListingDetailsToProduct(listing, summaryProduct))
-      } catch (error) {
-        if (!isActive) return
-        setHydratedProduct(summaryProduct)
-      }
-    }
-
-    hydrateProduct()
-
-    return () => {
-      isActive = false
-    }
-  }, [summaryProduct])
-
-  useEffect(() => {
     if (!product?.id) return
     const normalizedProductId = String(product.id)
 
@@ -334,22 +266,27 @@ function ProductDetailPage() {
     setSelectedLotCardIds([])
   }, [product?.id])
 
-  if (!product) {
-    return (
-      <div className="container pb-14">
-        <EmptyState
-          title={copy.notFoundTitle}
-          description={copy.notFoundDescription}
-        />
-      </div>
-    )
-  }
+  if (listingResult?.status === 404) return <NotFoundPage />
+  if (!product) return <div className="container pb-16">
+    <PageSeo fallbackTitle={locale === 'en' ? 'Listing | Cardora' : 'Αγγελία | Cardora'} status={listingResult?.status || 200} noIndex />
+    <h1 className="font-display text-4xl text-ink">{listingResult?.status === 503
+      ? (locale === 'en' ? 'The listing is temporarily unavailable' : 'Η αγγελία δεν είναι προσωρινά διαθέσιμη')
+      : (locale === 'en' ? 'Loading listing' : 'Φόρτωση αγγελίας')}</h1>
+    {listingResult?.status === 503 ? <Button className="mt-5" onClick={retryListing}>{locale === 'en' ? 'Try again' : 'Δοκίμασε ξανά'}</Button> : null}
+  </div>
+
+  const isSold = product.status === 'sold'
+  const isAvailable = !isSold && (!product.status || ['active', 'published'].includes(product.status))
+    && (Number(product.stock) > 0 || (product.lot?.allowsIndividualPurchase && Number(product.lot.availableIndividualCardsCount) > 0))
 
   const isAuction = product.saleFormat === 'auction'
   const isTrade = product.saleFormat === 'trade'
-  const minimumNextBid = isAuction && product.auction ? product.auction.currentBid + product.auction.bidIncrement : 0
+  const minimumNextBid = isAuction && product.auction ? Math.max(product.auction.startingBid, product.auction.currentBid + product.auction.bidIncrement) : 0
+  const auctionEnded = isAuction && product.auction?.endsAt && Date.parse(product.auction.endsAt) <= Date.now()
+  const auctionNotStarted = isAuction && product.auction?.startsAt && Date.parse(product.auction.startsAt) > Date.now()
+  const isAuctionWinner = auctionEnded && currentUser && Number(product.auction?.winningBidderId) === Number(currentUser.id) && product.auction?.reserveMet
   const similarProducts = productsWithSellers
-    .filter((item) => item.categoryId === product.categoryId && item.id !== product.id)
+    .filter((item) => item.categoryId === product.categoryId && item.id !== product.id && Number(item.stock) > 0 && (!item.status || ['active', 'published'].includes(item.status)))
     .slice(0, 4)
   const recentlyViewed = recentProducts
     .filter((item) => String(item.id) !== String(product.id))
@@ -361,20 +298,20 @@ function ProductDetailPage() {
     ? product.media.filter((item) => item?.url)
     : []
   const buyGateMessage =
-    currentUser && marketplaceAccess && !marketplaceAccess.can_buy
-      ? marketplaceAccess.blocking_message
+    currentUser && marketplaceAccess && !(isAuction ? marketplaceAccess.can_bid : marketplaceAccess.can_buy)
+      ? (isAuction ? marketplaceAccess.participation_blocking_message ?? marketplaceAccess.blocking_message : marketplaceAccess.blocking_message)
       : ''
-  const allowsPrivateOffers = Boolean(product?.acceptOffers) && product?.saleFormat === 'fixed_price'
+  const allowsPrivateOffers = isAvailable && Boolean(product?.acceptOffers) && product?.saleFormat === 'fixed_price'
   const activeMedia = mediaItems[activeMediaIndex] ?? mediaItems[0] ?? null
   const isFigureProduct = product?.categoryId === 'figures'
   const isComicProduct = product?.categoryId === 'comics'
   const isMiscProduct = product?.categoryId === 'misc'
   const imageTags = [...new Set((
     isComicProduct
-      ? [product.publisher || product.brand, product.series, product.issueNumber, product.printing || product.typeLabel]
+      ? [product.publisher || catalogValueLabel('brand', product.brand, locale), distinctCatalogSeries(product), product.issueNumber, product.printing || catalogValueLabel('typeLabel', product.typeLabel, locale)]
       : isMiscProduct
-        ? [product.franchise, product.typeLabel, product.edition || product.brand]
-      : [product.franchise, product.series, product.typeLabel]
+        ? [catalogValueLabel('franchise', product.franchise, locale), catalogValueLabel('typeLabel', product.typeLabel, locale), product.edition || catalogValueLabel('brand', product.brand, locale)]
+      : [catalogValueLabel('franchise', product.franchise, locale), distinctCatalogSeries(product), catalogValueLabel('typeLabel', product.typeLabel, locale)]
   )
     .filter(Boolean))]
     .slice(0, 4)
@@ -500,14 +437,15 @@ function ProductDetailPage() {
     }
   }
 
+  const grading = gradingPresentation(product.gradedCompany, locale)
   const specifications = (
     isFigureProduct
       ? [
-          [copy.category, [product.category?.name, product.typeLabel].filter(Boolean).join(' / ')],
-          [copy.franchise, product.franchise],
+          [copy.category, [product.category?.name, catalogValueLabel('typeLabel', product.typeLabel, locale)].filter(Boolean).join(' / ')],
+          [copy.franchise, catalogValueLabel('franchise', product.franchise, locale)],
           [copy.condition, product.condition],
           [copy.character, product.characterName],
-          [copy.line, product.series || product.manufacturerLine],
+          [copy.line, distinctCatalogSeries(product) || product.manufacturerLine],
           [copy.scaleSize, product.scale],
           [copy.miniatureType, product.miniatureSubtype],
           [copy.figureHeight, product.figureHeight],
@@ -521,20 +459,21 @@ function ProductDetailPage() {
         ]
       : isComicProduct
         ? [
-            [copy.category, [product.category?.name, product.typeLabel].filter(Boolean).join(' / ')],
-            [copy.franchise, [product.franchise, product.series].filter(Boolean).join(' • ')],
-            [copy.publisher, product.publisher || product.brand],
+            [copy.category, [product.category?.name, catalogValueLabel('typeLabel', product.typeLabel, locale)].filter(Boolean).join(' / ')],
+            [copy.franchise, [catalogValueLabel('franchise', product.franchise, locale), distinctCatalogSeries(product)].filter(Boolean).join(' • ')],
+            [copy.publisher, product.publisher || catalogValueLabel('brand', product.brand, locale)],
             [copy.condition, product.condition],
             [copy.issueVolume, product.issueNumber || product.cardNumber],
             [copy.printing, product.printing],
-            [copy.language, product.language],
+            [copy.language, catalogValueLabel('language', product.language, locale)],
             [copy.writer, product.writer],
             [copy.artist, product.artist],
             [copy.coverArtist, product.coverArtist],
             [copy.pageCount, product.pageCount],
             [copy.isbn, product.isbn],
-            [copy.grading, product.gradedCompany],
-            [copy.grade, product.grade],
+            [copy.grading, grading.company],
+            [grading.gradeLabel, product.grade],
+            [locale === 'en' ? 'Packaging' : 'Συσκευασία', grading.packaging],
             [copy.signedBy, product.signedBy],
             [copy.edition, product.edition],
             [copy.authenticity, product.authenticity],
@@ -542,9 +481,9 @@ function ProductDetailPage() {
           ]
       : isMiscProduct
         ? [
-            [copy.category, [product.category?.name, product.typeLabel].filter(Boolean).join(' / ')],
-            [copy.franchise, product.franchise],
-            [copy.brandMaker, product.brand],
+            [copy.category, [product.category?.name, catalogValueLabel('typeLabel', product.typeLabel, locale)].filter(Boolean).join(' / ')],
+            [copy.franchise, catalogValueLabel('franchise', product.franchise, locale)],
+            [copy.brandMaker, catalogValueLabel('brand', product.brand, locale)],
             [copy.condition, product.condition],
             [copy.edition, product.edition],
             [copy.material, product.material],
@@ -555,15 +494,16 @@ function ProductDetailPage() {
             [copy.saleFormat, isAuction ? copy.auction : isTrade ? (copy.trade ?? 'Trade') : copy.fixedPrice],
           ]
       : [
-          [copy.category, product.category?.name],
-          [copy.franchise, [product.franchise, product.series].filter(Boolean).join(' • ')],
+          [copy.category, [product.category?.name, catalogValueLabel('typeLabel', product.typeLabel, locale)].filter(Boolean).join(' / ')],
+          [copy.franchise, [catalogValueLabel('franchise', product.franchise, locale), distinctCatalogSeries(product)].filter(Boolean).join(' • ')],
           [copy.condition, product.condition],
-          ['Set Name', product.setName],
-          ['Card / Item Number', product.cardNumber],
+          [locale === 'en' ? 'Set / expansion' : 'Set / επέκταση', product.setName],
+          [locale === 'en' ? 'Card / item number' : 'Αριθμός κάρτας / αντικειμένου', product.cardNumber],
           [copy.year, product.year],
-          [copy.language, product.language],
-          [copy.grading, product.gradedCompany],
-          [copy.grade, product.grade],
+          [copy.language, catalogValueLabel('language', product.language, locale)],
+          [copy.grading, grading.company],
+          [grading.gradeLabel, product.grade],
+          [locale === 'en' ? 'Packaging' : 'Συσκευασία', grading.packaging],
           [copy.authenticity, product.authenticity],
           [copy.saleFormat, isAuction ? copy.auction : isTrade ? (copy.trade ?? 'Trade') : copy.fixedPrice],
         ]
@@ -571,6 +511,7 @@ function ProductDetailPage() {
 
 
   const handleBidSubmit = async () => {
+    if (!isAvailable) return
     const result = await placeAuctionBid(product.id, Number(bidAmount))
 
     if (!result) return
@@ -581,11 +522,13 @@ function ProductDetailPage() {
     })
 
     if (result.success) {
+      retryListing()
       setBidAmount(String((result.amount ?? minimumNextBid) + (product.auction?.bidIncrement ?? 0)))
     }
   }
 
   const handleAddToCart = async () => {
+    if (!isAvailable) return
     const result = await addToCart(product.id)
 
     if (!result) return
@@ -597,6 +540,7 @@ function ProductDetailPage() {
   }
 
   const handleAddSelectedLotCardsToCart = async () => {
+    if (!isAvailable) return
     const result = await addToCart({
       productId: product.id,
       itemMode: 'lot_individual_cards',
@@ -616,6 +560,7 @@ function ProductDetailPage() {
   }
 
   const handleSubmitPrivateOffer = async () => {
+    if (!isAvailable) return
     if (isOfferSubmitting || !product?.id) {
       return
     }
@@ -666,6 +611,12 @@ function ProductDetailPage() {
 
   return (
     <div className="container pb-14">
+      <StructuredData value={productStructuredData(product, locale)} />
+      <PageSeo
+        fallbackTitle={`${product.title} | Cardora`}
+        fallbackDescription={String(product.shortDescription || product.description || product.title).slice(0, 180)}
+        image={product.media?.[0]?.url}
+      />
       <Breadcrumbs
         items={[
           { label: copy.home, href: '/' },
@@ -692,20 +643,22 @@ function ProductDetailPage() {
             {activeMedia?.url ? (
               <>
                 <img
-                  src={activeMedia.thumbUrl ?? activeMedia.url}
-                  alt={activeMedia.alt ?? product.title}
+                  {...lazyListingImageProps(activeMedia)}
+                  alt=""
+                  aria-hidden="true"
                   className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-xl"
                   loading="lazy"
                   decoding="async"
                 />
                 <img
-                  src={activeMedia.url}
+                  {...originalImageProps(activeMedia)}
                   alt={activeMedia.alt ?? product.title}
                   className={`relative z-[1] h-[min(68vh,640px)] w-full object-contain p-3 transition-transform duration-150 ${
                     isZoomActive ? 'scale-[2.05]' : 'scale-100'
                   }`}
                   style={{ transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%` }}
-                  loading="lazy"
+                  loading="eager"
+                  fetchPriority="high"
                   decoding="async"
                 />
               </>
@@ -760,7 +713,7 @@ function ProductDetailPage() {
                 >
                   <div className="overflow-hidden rounded-[12px] border border-[#eadab7] bg-[linear-gradient(160deg,rgba(255,251,241,0.86),rgba(247,236,210,0.62))]">
                     <img
-                      src={media.thumbUrl ?? media.url}
+                      {...lazyListingImageProps(media)}
                       alt={media.alt ?? `${product.title}-${index + 1}`}
                       className="h-24 w-full object-contain p-1.5"
                       loading="lazy"
@@ -786,7 +739,7 @@ function ProductDetailPage() {
         <div className="space-y-5">
           <CardSurface hover={false}>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="gold">{product.rarity}</Badge>
+              <Badge tone="gold">{catalogValueLabel('rarity', product.rarity, locale)}</Badge>
               <Badge tone={product.condition === 'Sealed' ? 'success' : 'muted'}>{product.condition}</Badge>
               <Badge tone="info">{product.category?.name}</Badge>
               {isAuction ? <Badge tone="warning">{copy.auction}</Badge> : null}
@@ -800,7 +753,7 @@ function ProductDetailPage() {
             <div className="mt-5 flex items-center gap-5">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">
-                  {isAuction ? copy.currentBid : isTrade ? (copy.trade ?? 'Trade') : copy.sellingPrice}
+                  {isSold ? (isTrade ? (locale === 'en' ? 'Listed trade value' : 'Δηλωμένη αξία ανταλλαγής') : isAuction ? (locale === 'en' ? 'Last recorded bid' : 'Τελευταία καταγεγραμμένη προσφορά') : (locale === 'en' ? 'Last listing price' : 'Τελευταία τιμή αγγελίας')) : isAuction ? copy.currentBid : isTrade ? (copy.trade ?? 'Trade') : copy.sellingPrice}
                 </p>
                 <p className="mt-1 text-3xl font-semibold text-white">{formatCurrency(product.price)}</p>
                 {product.oldPrice && !isAuction && !isTrade ? (
@@ -808,11 +761,11 @@ function ProductDetailPage() {
                 ) : null}
               </div>
               <div className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-[13px] text-mist">
-                {isAuction ? `${product.auction?.bidCount ?? 0} ${copy.bids}` : `${product.stock} ${copy.available}`}
+                {isSold ? (locale === 'en' ? 'Sold' : 'Πωλήθηκε') : isAuction ? `${product.auction?.bidCount ?? 0} ${copy.bids}` : `${product.stock} ${copy.available}`}
               </div>
             </div>
 
-            {isAuction && product.auction ? (
+            {isAuction && product.auction && !isSold ? (
               <div className="mt-5 grid gap-3 md:grid-cols-4">
                 <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                   <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{copy.reserve}</p>
@@ -826,7 +779,7 @@ function ProductDetailPage() {
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                   <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{copy.ends}</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{formatShortDateTime(product.auction.endsAt)}</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{product.auction.endsAt && Number.isFinite(Date.parse(product.auction.endsAt)) ? formatShortDateTime(product.auction.endsAt) : '—'}</p>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
                   <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">{copy.watchers}</p>
@@ -835,7 +788,13 @@ function ProductDetailPage() {
               </div>
             ) : null}
 
-            {isAuction ? (
+            {!isAvailable ? (
+              <div className="mt-5 rounded-xl border border-gold-200/40 bg-gold-200/10 p-4">
+                <h2 className="text-lg font-semibold text-ink">{isSold ? (locale === 'en' ? 'This item has been sold' : 'Το αντικείμενο έχει πουληθεί') : (locale === 'en' ? 'Currently unavailable' : 'Προς το παρόν μη διαθέσιμο')}</h2>
+                <p className="mt-2 text-sm leading-7 text-mist">{locale === 'en' ? 'You can view the listing details, but this item is no longer available. The displayed amount is not a confirmed final sale price.' : 'Μπορείς να δεις τα στοιχεία της αγγελίας, αλλά το αντικείμενο δεν είναι πλέον διαθέσιμο. Το ποσό που εμφανίζεται δεν αποτελεί επιβεβαιωμένη τελική τιμή πώλησης.'}</p>
+                <Button as={Link} to={localizePath(product.category?.slug ? `/${product.category.slug}` : '/syllektika', locale)} variant="secondary" className="mt-4">{locale === 'en' ? 'Browse available items' : 'Δες διαθέσιμα αντικείμενα'}</Button>
+              </div>
+            ) : isAuction ? (
               <div className="mt-5 space-y-4">
                 {buyGateMessage ? (
                   <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
@@ -850,6 +809,11 @@ function ProductDetailPage() {
                     </div>
                   </div>
                 ) : null}
+                {auctionEnded ? <div className="rounded-xl border border-gold-300/20 bg-gold-300/10 p-4 text-sm">
+                  <p>{isAuctionWinner ? (locale === 'en' ? 'You won this auction. Complete your purchase at the winning bid.' : 'Κέρδισες τη δημοπρασία. Ολοκλήρωσε την αγορά στην τιμή της προσφοράς σου.') : (locale === 'en' ? 'This auction has ended.' : 'Η δημοπρασία ολοκληρώθηκε.')}</p>
+                  {isAuctionWinner ? <div className="mt-3 flex flex-wrap gap-3"><Button onClick={handleAddToCart}>{locale === 'en' ? 'Add winning bid to cart' : 'Προσθήκη στο καλάθι'}</Button><Button as={Link} to={localizePath('/kalathi', locale)} variant="secondary">{locale === 'en' ? 'Go to cart' : 'Πήγαινε στο καλάθι'}</Button></div> : null}
+                  {cartNotice ? <p role="status" className="mt-3">{cartNotice.text}</p> : null}
+                </div> : null}
                 <div className="grid gap-3 md:grid-cols-[1fr,auto]">
                   <Input
                     type="number"
@@ -859,7 +823,7 @@ function ProductDetailPage() {
                     onChange={(event) => setBidAmount(event.target.value)}
                     placeholder={`${copy.minimumBid} ${formatCurrency(minimumNextBid)}`}
                   />
-                  <Button size="lg" onClick={handleBidSubmit} disabled={Boolean(buyGateMessage)}>
+                  <Button size="lg" onClick={handleBidSubmit} disabled={Boolean(buyGateMessage) || Boolean(auctionEnded) || Boolean(auctionNotStarted) || Number(product.sellerId) === Number(currentUser?.id)}>
                     <Gavel className="h-4 w-4" />
                     {copy.placeBid}
                   </Button>
@@ -1140,7 +1104,7 @@ function ProductDetailPage() {
               ) : null}
             </div>
             {product.lot.note ? <p className="mt-5 text-sm leading-7 text-mist">{product.lot.note}</p> : null}
-            {product.lot.allowsIndividualPurchase ? (
+            {isAvailable && product.lot.allowsIndividualPurchase ? (
               <div className="mt-6 rounded-[24px] border border-gold-300/18 bg-gold-300/10 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>

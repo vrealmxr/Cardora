@@ -181,7 +181,7 @@ function MessagePanel({ conversation, currentUser }) {
 
   const currentUserId = Number(currentUser?.id ?? 0)
   const listingId = Number(conversation.productId ?? conversation.listing_id)
-  const product = productsWithSellers.find((item) => Number(item.id) === listingId)
+  const product = conversation.product ?? productsWithSellers.find((item) => Number(item.id) === listingId)
   const buyer = users.find(
     (user) => Number(user.id) === Number(conversation.buyerId ?? conversation.buyer_id),
   )
@@ -327,12 +327,18 @@ function MessagePanel({ conversation, currentUser }) {
     <CardSurface className="flex h-full flex-col gap-4 p-0">
       <div className="border-b border-white/8 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <div className="flex min-w-0 items-center gap-4">
+            {product?.media?.[0]?.url ? (
+              <img src={product.media[0].thumbUrl || product.media[0].url} alt={product.title || ''}
+                className="h-20 w-16 shrink-0 rounded-xl border border-white/8 bg-white object-contain" />
+            ) : null}
+            <div>
             <p className="text-xs uppercase tracking-[0.3em] text-gold-100">{copy.heading}</p>
             <h3 className="mt-2 text-xl font-semibold text-white">{product?.title ?? '-'}</h3>
             <p className="mt-1 text-sm text-mist">
               {copy.withCounterparty} {getUserDisplayName(counterparty)}
             </p>
+            </div>
           </div>
           {canCreateNewOffer ? (
             <Button

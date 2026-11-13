@@ -32,7 +32,7 @@ export function DiditNotice({ en }) {
     <p>{en ? 'Verification expires one calendar year after this session starts. A new verification is then required and deletion of the old Didit session, documents and biometric data is scheduled. Cardora keeps a limited result, consent and deletion record, not a copy of your ID.' : 'Η επαλήθευση λήγει ένα ημερολογιακό έτος από την έναρξη της συνεδρίας. Τότε απαιτείται νέα επαλήθευση και δρομολογείται η διαγραφή της παλιάς συνεδρίας Didit, των εγγράφων και των βιομετρικών δεδομένων. Η Cardora κρατά περιορισμένο αρχείο αποτελέσματος, συγκατάθεσης και διαγραφής, όχι αντίγραφο της ταυτότητάς σου.'}</p>
     <p>{en ? 'You can withdraw consent or request assistance and human review through Support. Withdrawing consent does not affect prior lawful processing; functions requiring verification may remain unavailable.' : 'Μπορείς να ανακαλέσεις τη συγκατάθεση ή να ζητήσεις βοήθεια και ανθρώπινη επανεξέταση από την Υποστήριξη. Η ανάκληση δεν επηρεάζει την προηγούμενη νόμιμη επεξεργασία· λειτουργίες που απαιτούν επαλήθευση ενδέχεται να παραμένουν μη διαθέσιμες.'}</p>
     <div className="flex flex-wrap gap-x-5 gap-y-2 underline">
-      <Link to="/politiki-aporritou">{en ? 'Cardora Privacy Policy' : 'Πολιτική Απορρήτου Cardora'}</Link>
+      <Link to={`/${en ? 'en' : 'el'}/politiki-aporritou`}>{en ? 'Cardora Privacy Policy' : 'Πολιτική Απορρήτου Cardora'}</Link>
       <a href="https://didit.me/terms/verification-privacy-notice/" target="_blank" rel="noreferrer">{en ? 'Didit Privacy Notice' : 'Ενημέρωση απορρήτου Didit'}</a>
       <a href="https://didit.me/terms/identity-verification/" target="_blank" rel="noreferrer">{en ? 'Didit Verification Terms' : 'Όροι επαλήθευσης Didit'}</a>
     </div>
@@ -100,6 +100,7 @@ function DiditVerification({ initial }) {
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#946d32]">CARDORA · DIDIT</p>
       <h1 className="mt-2 font-display text-4xl text-ink">{en ? 'Account verification' : 'Επαλήθευση λογαριασμού'}</h1>
     </div></div>
+    <p className="mb-5 text-sm leading-7 text-slate-600">{en ? 'You can buy without identity verification or a Stripe connected account. Verification and payout setup are required to sell.' : 'Μπορείς να αγοράσεις χωρίς επαλήθευση ταυτότητας ή συνδεδεμένο λογαριασμό Stripe. Για να πουλήσεις, απαιτούνται επαλήθευση και ρύθμιση πληρωμών.'}</p>
     <CardSurface>
       <div role="status" aria-live="polite" className="flex items-center gap-3">
         {state.verified && <CheckCircle2 className="h-7 w-7 text-emerald-600" />}
@@ -120,7 +121,7 @@ function DiditVerification({ initial }) {
         {state.status === 'In Review' && <p className="mt-5 text-sm">{en ? 'You can leave this page. Your account updates when the review finishes.' : 'Μπορείς να κλείσεις τη σελίδα. Ο λογαριασμός σου θα ενημερωθεί μόλις ολοκληρωθεί ο έλεγχος.'}</p>}
       </>}
       {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
-      <div className="mt-6 flex flex-wrap gap-4 text-sm underline"><Link to="/kentro-ypostiriksis">{en ? 'Support / request human review' : 'Υποστήριξη / αίτημα επανεξέτασης'}</Link><Link to="/dashboard-politi">{en ? 'Stripe & payouts' : 'Stripe & πληρωμές'}</Link></div>
+      <div className="mt-6 flex flex-wrap gap-4 text-sm underline"><Link to={`/${locale}/kentro-ypostiriksis`}>{en ? 'Support / request human review' : 'Υποστήριξη / αίτημα επανεξέτασης'}</Link><Link to={`/${locale}/dashboard-politi`}>{en ? 'Stripe & payouts' : 'Stripe & πληρωμές'}</Link></div>
     </CardSurface>
   </div>
 }

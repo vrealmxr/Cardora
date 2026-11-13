@@ -1,0 +1,10 @@
+name = "cardora-public-origin"
+main = "src/server/originBridge.js"
+compatibility_date = "2026-07-17"
+workers_dev = false
+preview_urls = false
+
+# PUBLIC_RENDER_SIGNING_KEY is an existing secret binding, never a config value.
+[[routes]]
+pattern = "public-render.cardora.gr"
+custom_domain = true

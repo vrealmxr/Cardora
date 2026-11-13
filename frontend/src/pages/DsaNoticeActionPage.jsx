@@ -5,9 +5,11 @@ import Button from '@/components/ui/Button'
 import CardSurface from '@/components/ui/CardSurface'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import SectionHeader from '@/components/ui/SectionHeader'
+import PageSeo from '@/components/PageSeo'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
+import { localizePath } from '@/utils/helpers'
 
 const CONTENT_TYPE_OPTIONS = {
   el: [
@@ -209,7 +211,8 @@ function DsaNoticeActionPage() {
 
   return (
     <div className="container pb-16">
-      <SectionHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
+      <PageSeo fallbackTitle={`${copy.title} | Cardora`} fallbackDescription={copy.description} />
+      <SectionHeader as="h1" eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
 
       <div className="grid gap-8 xl:grid-cols-[1.05fr,0.95fr]">
         <div className="space-y-6">
@@ -237,8 +240,8 @@ function DsaNoticeActionPage() {
             <h3 className="mt-4 font-display text-3xl text-white">{copy.authTitle}</h3>
             <p className="mt-4 text-sm leading-7 text-mist">{copy.authText}</p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Button as={Link} to="/auth">{copy.authPrimary}</Button>
-              <Button as={Link} to="/kentro-ypostiriksis" variant="secondary">{copy.authSecondary}</Button>
+              <Button as={Link} to={localizePath('/eisodos', locale)}>{copy.authPrimary}</Button>
+              <Button as={Link} to={localizePath('/kentro-ypostiriksis', locale)} variant="secondary">{copy.authSecondary}</Button>
             </div>
           </CardSurface>
         ) : (
@@ -327,8 +330,8 @@ function DsaNoticeActionPage() {
 
               <div className="flex flex-wrap gap-3 pt-2">
                 <Button type="submit" disabled={isSubmitting}>{isSubmitting ? copy.submitting : copy.submit}</Button>
-                <Button as={Link} to="/oroi-xrisis" variant="secondary">{copy.termsCta}</Button>
-                <Button as={Link} to="/apagorevmena-antikeimena" variant="secondary">{copy.policyCta}</Button>
+                <Button as={Link} to={localizePath('/oroi-xrisis', locale)} variant="secondary">{copy.termsCta}</Button>
+                <Button as={Link} to={localizePath('/apagorevmena-antikeimena', locale)} variant="secondary">{copy.policyCta}</Button>
               </div>
             </form>
           </CardSurface>

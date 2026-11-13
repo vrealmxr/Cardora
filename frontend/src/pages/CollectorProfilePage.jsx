@@ -9,7 +9,7 @@
   UserPlus,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import Badge from '@/components/ui/Badge'
@@ -22,8 +22,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
 import { cardoraService } from '@/services/cardoraService'
-import { formatCurrency, formatNumber } from '@/utils/formatters'
-import { getUserDisplayName } from '@/utils/helpers'
+import { useFormatters } from '@/hooks/useFormatters'
+import PageSeo from '@/components/PageSeo'
+import NotFoundPage from '@/pages/NotFoundPage'
+import { mapPublicProfile } from '@/utils/publicProfile'
+import { getUserDisplayName, localizePath } from '@/utils/helpers'
 
 const getMediaUrl = (mediaItem) => {
   if (!mediaItem) return null
@@ -41,99 +44,19 @@ const getEntryMediaUrls = (entry) => {
   return [...new Set(linkedMedia.map((item) => getMediaUrl(item)).filter(Boolean))]
 }
 
-const normalizePublicCollectionEntry = (entry) => {
-  if (!entry) return null
-
-  return {
-    id: Number(entry.id ?? 0),
-    userId: Number(entry.userId ?? entry.user_id ?? 0),
-    productId:
-      entry.productId != null
-        ? Number(entry.productId)
-        : entry.product_id != null
-          ? Number(entry.product_id)
-          : null,
-    title: entry.title ?? '',
-    caption: entry.caption ?? '',
-    media: Array.isArray(entry.media) ? entry.media.filter(Boolean) : [],
-    sortOrder: Number(entry.sortOrder ?? entry.sort_order ?? 0),
-    isFeatured: Boolean(entry.isFeatured ?? entry.is_featured),
-    visibility: entry.visibility ?? 'public',
-    metadata: entry.metadata ?? {},
-    createdAt: entry.createdAt ?? entry.created_at ?? null,
-    updatedAt: entry.updatedAt ?? entry.updated_at ?? null,
-    product: entry.product ?? null,
-  }
-}
-
-const mapPublicProfileToMarketplaceProfile = (payload, fallbackProfile) => {
-  if (!payload) return fallbackProfile
-
-  const collectionEntries = Array.isArray(payload.collection_entries)
-    ? payload.collection_entries.map(normalizePublicCollectionEntry).filter(Boolean)
-    : []
-  const activeListings = Array.isArray(payload.active_listings) ? payload.active_listings : []
-  const user = {
-    ...(fallbackProfile?.user ?? {}),
-    id: Number(payload.id ?? fallbackProfile?.userId ?? 0),
-    name: payload.name ?? fallbackProfile?.user?.name ?? '',
-    displayName:
-      payload.display_name ??
-      fallbackProfile?.user?.displayName ??
-      fallbackProfile?.nickname ??
-      payload.handle ??
-      '',
-    handle: payload.handle ?? fallbackProfile?.handle ?? '',
-    city: payload.city ?? fallbackProfile?.user?.city ?? '',
-    bio: payload.bio ?? fallbackProfile?.intro ?? '',
-    collectorTagline:
-      payload.collector_tagline ??
-      fallbackProfile?.user?.collectorTagline ??
-      fallbackProfile?.headline ??
-      '',
-    avatarUrl: payload.avatar_url ?? fallbackProfile?.user?.avatarUrl ?? '',
-    rating: Number(payload.rating ?? fallbackProfile?.user?.rating ?? 0),
-    salesCount: Number(payload.sales_count ?? fallbackProfile?.user?.salesCount ?? 0),
-    purchaseCount: Number(payload.purchase_count ?? fallbackProfile?.user?.purchaseCount ?? 0),
-    verified: Boolean(payload.is_verified_seller ?? fallbackProfile?.user?.verified),
-    isPro: Boolean(payload.isPro ?? payload.is_pro ?? fallbackProfile?.user?.isPro),
-  }
-
-  return {
-    ...fallbackProfile,
-    userId: Number(payload.id ?? fallbackProfile?.userId ?? 0),
-    handle: payload.handle ?? fallbackProfile?.handle ?? '',
-    nickname:
-      fallbackProfile?.nickname ??
-      payload.display_name ??
-      payload.handle ??
-      '',
-    headline:
-      fallbackProfile?.headline ??
-      payload.collector_tagline ??
-      payload.bio ??
-      '',
-    intro: payload.bio ?? fallbackProfile?.intro ?? '',
-    collectionEntries,
-    collectionProducts: collectionEntries.map((entry) => entry.product).filter(Boolean),
-    activeListings,
-    likeCount: Number(payload.profile_likes_count ?? fallbackProfile?.likeCount ?? 0),
-    followerCount: Number(payload.followers_count ?? fallbackProfile?.followerCount ?? 0),
-    followingCount: Number(payload.following_count ?? fallbackProfile?.followingCount ?? 0),
-    collectionCount: Number(payload.collection_entries_count ?? fallbackProfile?.collectionCount ?? 0),
-    likedByCurrentUser: Boolean(payload.liked_by_auth_user ?? fallbackProfile?.likedByCurrentUser),
-    followedByCurrentUser: Boolean(payload.followed_by_auth_user ?? fallbackProfile?.followedByCurrentUser),
-    user,
-  }
-}
-
 function CollectorProfilePage() {
   const { handle } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const { locale } = useI18n()
   const { currentUser, isAuthenticated } = useAuth()
-  const { collectorProfilesDetailed, getCollectorProfileByHandle, toggleProfileLike, toggleProfileFollow } = useMarketplace()
-  const [hydratedProfile, setHydratedProfile] = useState(null)
+  const { collectorProfilesDetailed, initialPublicProfile, toggleProfileLike, toggleProfileFollow } = useMarketplace()
+  const { formatCurrency, formatNumber } = useFormatters()
+  const path = value => localizePath(value, locale)
+  const requestKey = `${handle}:${currentUser?.id || 'guest'}`
+  const [profileResult, setProfileResult] = useState(() => !currentUser && initialPublicProfile?.handle === handle
+    ? { key: requestKey, status: initialPublicProfile.status, profile: mapPublicProfile(initialPublicProfile.profile) }
+    : null)
+  const [revision, setRevision] = useState(0)
   const [actionNotice, setActionNotice] = useState(null)
   const [activeTab, setActiveTab] = useState('gallery')
   const [connectionsView, setConnectionsView] = useState(null)
@@ -144,39 +67,9 @@ function CollectorProfilePage() {
     index: 0,
   })
 
-  const summaryProfile = getCollectorProfileByHandle(handle)
-  const profile = useMemo(() => {
-    if (!hydratedProfile) return summaryProfile
-    if (!summaryProfile) return hydratedProfile
-
-    return {
-      ...hydratedProfile,
-      ...summaryProfile,
-      intro: hydratedProfile.intro ?? summaryProfile.intro,
-      collectionEntries:
-        hydratedProfile.collectionEntries?.length
-          ? hydratedProfile.collectionEntries
-          : summaryProfile.collectionEntries ?? [],
-      activeListings:
-        hydratedProfile.activeListings?.length
-          ? hydratedProfile.activeListings
-          : summaryProfile.activeListings ?? [],
-      collectionProducts:
-        hydratedProfile.collectionProducts?.length
-          ? hydratedProfile.collectionProducts
-          : summaryProfile.collectionProducts ?? [],
-      user: {
-        ...(hydratedProfile.user ?? {}),
-        ...(summaryProfile.user ?? {}),
-      },
-      likeCount: summaryProfile.likeCount ?? hydratedProfile.likeCount,
-      followerCount: summaryProfile.followerCount ?? hydratedProfile.followerCount,
-      followingCount: summaryProfile.followingCount ?? hydratedProfile.followingCount,
-      likedByCurrentUser: summaryProfile.likedByCurrentUser ?? hydratedProfile.likedByCurrentUser,
-      followedByCurrentUser:
-        summaryProfile.followedByCurrentUser ?? hydratedProfile.followedByCurrentUser,
-    }
-  }, [hydratedProfile, summaryProfile])
+  // Route/session identity prevents a previous collector or account response flashing on navigation.
+  const result = profileResult?.key === requestKey ? profileResult : null
+  const profile = result?.status === 200 ? result.profile : null
   const collectionEntries = Array.isArray(profile?.collectionEntries) ? profile.collectionEntries : []
   const listingEntries = Array.isArray(profile?.activeListings) ? profile.activeListings : []
 
@@ -273,10 +166,10 @@ function CollectorProfilePage() {
 
   const followerProfiles = useMemo(
     () =>
-      (profile?.followedByUserIds ?? [])
+      (collectorProfilesDetailed.find(item => item.userId === profile?.userId)?.followedByUserIds ?? [])
         .map((userId) => collectorProfilesDetailed.find((item) => item.userId === userId))
         .filter(Boolean),
-    [collectorProfilesDetailed, profile?.followedByUserIds],
+    [collectorProfilesDetailed, profile?.userId],
   )
 
   const followingProfiles = useMemo(
@@ -329,46 +222,40 @@ function CollectorProfilePage() {
 
   useEffect(() => {
     const requestedView = searchParams.get('connections')
-    if (requestedView === 'followers' || requestedView === 'following') {
+    if (isAuthenticated && (requestedView === 'followers' || requestedView === 'following')) {
       setConnectionsView(requestedView)
       return
     }
 
     setConnectionsView(null)
-  }, [searchParams])
+  }, [searchParams, isAuthenticated])
 
   useEffect(() => {
     let isActive = true
-
-    if (!handle) {
-      setHydratedProfile(null)
-      return undefined
-    }
 
     const hydrateProfile = async () => {
       try {
         const payload = await cardoraService.getPublicProfile(handle)
         if (!isActive) return
-        setHydratedProfile(mapPublicProfileToMarketplaceProfile(payload, getCollectorProfileByHandle(handle)))
+        startTransition(() => setProfileResult({ key: requestKey, status: 200, profile: mapPublicProfile(payload) }))
       } catch (error) {
         if (!isActive) return
-        setHydratedProfile(getCollectorProfileByHandle(handle))
+        startTransition(() => setProfileResult({ key: requestKey, status: error.status === 404 ? 404 : 503, profile: null }))
       }
     }
-
     hydrateProfile()
+    return () => { isActive = false }
+  }, [handle, requestKey, revision])
 
-    return () => {
-      isActive = false
-    }
-  }, [getCollectorProfileByHandle, handle])
-
+  if (result?.status === 404) return <NotFoundPage />
   if (!profile) {
-    return (
-      <div className="container pb-16">
-        <EmptyState title={copy.missingTitle} description={copy.missingDescription} />
-      </div>
-    )
+    const unavailable = result?.status === 503
+    const title = unavailable ? copy.missingDescription : (locale === 'en' ? 'Loading profile…' : 'Φόρτωση προφίλ…')
+    return <div className="container pb-16">
+      <PageSeo fallbackTitle={`${title} | Cardora`} status={unavailable ? 503 : 200} noIndex />
+      <h1 className="font-display text-3xl text-ink">{title}</h1>
+      {unavailable && <Button className="mt-4" onClick={() => setRevision(value => value + 1)}>{locale === 'en' ? 'Try again' : 'Δοκιμή ξανά'}</Button>}
+    </div>
   }
 
   const isOwnProfile = currentUser?.id === profile.userId
@@ -417,8 +304,9 @@ function CollectorProfilePage() {
   }
 
   const handleLike = async () => {
-    const result = await toggleProfileLike(profile.userId)
+    const result = await toggleProfileLike(profile.userId, profile)
     if (!result) return
+    if (result.success) setRevision(value => value + 1)
 
     setActionNotice({
       tone: result.success ? 'success' : 'warning',
@@ -429,8 +317,9 @@ function CollectorProfilePage() {
   }
 
   const handleFollow = async () => {
-    const result = await toggleProfileFollow(profile.userId)
+    const result = await toggleProfileFollow(profile.userId, profile)
     if (!result) return
+    if (result.success) setRevision(value => value + 1)
 
     setActionNotice({
       tone: result.success ? 'success' : 'warning',
@@ -456,6 +345,8 @@ function CollectorProfilePage() {
 
   return (
     <div className="container pb-16">
+      <PageSeo fallbackTitle={`${getUserDisplayName(profile.user)} | Cardora`}
+        fallbackDescription={profile.intro || copy.galleryDescription} image={profile.user.avatarUrl} />
       <div className="mx-auto max-w-[1120px] space-y-8">
         <CardSurface hover={false} className="overflow-hidden p-0">
           <div
@@ -489,7 +380,7 @@ function CollectorProfilePage() {
 
               <div className="flex flex-wrap gap-2">
                 {isOwnProfile ? (
-                  <Button as={Link} to="/profil" variant="secondary" size="sm">
+                  <Button as={Link} to={path("/profil")} variant="secondary" size="sm">
                     {copy.edit}
                   </Button>
                 ) : isAuthenticated ? (
@@ -512,7 +403,7 @@ function CollectorProfilePage() {
                     </Button>
                   </>
                 ) : (
-                  <Button as={Link} to="/eisodos" variant="secondary" size="sm">
+                  <Button as={Link} to={path("/eisodos")} variant="secondary" size="sm">
                     {copy.login}
                   </Button>
                 )}
@@ -526,6 +417,7 @@ function CollectorProfilePage() {
               </div>
               <button
                 type="button"
+                disabled={!isAuthenticated}
                 onClick={() => openConnections('followers')}
                 className="rounded-2xl border border-[#eadab7] bg-white px-4 py-3 text-left transition hover:border-[#d8b06a] hover:bg-[#fff8ea]"
               >
@@ -534,6 +426,7 @@ function CollectorProfilePage() {
               </button>
               <button
                 type="button"
+                disabled={!isAuthenticated}
                 onClick={() => openConnections('following')}
                 className="rounded-2xl border border-[#eadab7] bg-white px-4 py-3 text-left transition hover:border-[#d8b06a] hover:bg-[#fff8ea]"
               >
@@ -655,7 +548,7 @@ function CollectorProfilePage() {
                           ) : null}
                           {linkedProduct?.slug ? (
                             <Link
-                              to={`/proion/${linkedProduct.slug}`}
+                              to={path(`/proion/${linkedProduct.slug}`)}
                               className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-gold-100 hover:text-gold-50"
                             >
                               {copy.openProduct}
@@ -720,7 +613,7 @@ function CollectorProfilePage() {
                     )
 
                     return slug ? (
-                      <Link key={listing.id} to={`/proion/${slug}`} className="group block">
+                      <Link key={listing.id} to={path(`/proion/${slug}`)} className="group block">
                         {cardBody}
                       </Link>
                     ) : (
@@ -883,7 +776,7 @@ function CollectorProfilePage() {
                 {viewer.entry?.product?.slug ? (
                   <div className="mt-4 flex justify-end">
                     <Link
-                      to={`/proion/${viewer.entry.product.slug}`}
+                      to={path(`/proion/${viewer.entry.product.slug}`)}
                       className="inline-flex items-center gap-1 rounded-lg border border-gold-300/35 bg-gold-300/12 px-3 py-2 text-xs font-semibold text-gold-100 transition hover:border-gold-300/55 hover:bg-gold-300/20"
                       onClick={closeViewer}
                     >

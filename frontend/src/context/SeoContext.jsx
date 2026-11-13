@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { cardoraService } from '@/services/cardoraService'
+import { startTransition } from 'react'
 import { useI18nContext } from '@/context/I18nContext'
 
 const SeoContext = createContext(null)
 
-export function SeoProvider({ children }) {
+export function SeoProvider({ children, initialSettings, serverHead }) {
   const { locale } = useI18nContext()
-  const [settingsByLocale, setSettingsByLocale] = useState({})
+  const [settingsByLocale, setSettingsByLocale] = useState(() => initialSettings ? { [locale]: initialSettings } : {})
 
   useEffect(() => {
     if (settingsByLocale[locale]) return
@@ -17,7 +18,7 @@ export function SeoProvider({ children }) {
       .getSeoSettings(locale)
       .then((data) => {
         if (!cancelled && data) {
-          setSettingsByLocale((prev) => ({ ...prev, [locale]: data }))
+          startTransition(() => setSettingsByLocale((prev) => ({ ...prev, [locale]: data })))
         }
       })
       .catch(() => {
@@ -29,9 +30,13 @@ export function SeoProvider({ children }) {
     }
   }, [locale, settingsByLocale])
 
-  const value = useMemo(() => ({ settings: settingsByLocale[locale] ?? null }), [settingsByLocale, locale])
+  const value = useMemo(() => ({ settings: settingsByLocale[locale] ?? null, serverHead }), [settingsByLocale, locale, serverHead])
 
   return <SeoContext.Provider value={value}>{children}</SeoContext.Provider>
+}
+
+export function useServerHead() {
+  return useContext(SeoContext)?.serverHead
 }
 
 export function useSeo(pageKey) {

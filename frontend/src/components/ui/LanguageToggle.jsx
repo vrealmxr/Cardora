@@ -10,7 +10,7 @@ function LanguageToggle({ compact = false, className }) {
   const handleLocaleChange = (nextLocale) => {
     if (nextLocale === locale) return
 
-    window.localStorage.setItem('cardora-locale', nextLocale)
+    try { window.localStorage.setItem('cardora-locale', nextLocale) } catch { /* Language switching works without storage. */ }
     document.documentElement.lang = nextLocale
     setLocale(nextLocale)
 

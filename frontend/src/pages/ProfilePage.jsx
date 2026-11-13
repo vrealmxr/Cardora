@@ -2,7 +2,8 @@ import {
   ImagePlus,
   Loader2,
   Mail,
-  PencilLine,  Plus,
+  PencilLine,
+  Plus,
   ShieldCheck,
   Star,
   Trash2,
@@ -190,29 +191,29 @@ function ProfilePage() {
     const accessCopy = normalizeTextTree(
     locale === 'en'
       ? {
-          eyebrow: 'Marketplace access',
-          readyTitle: 'Your account is ready for protected buying and selling',
-          blockedTitle: 'Before you buy or sell, complete the full activation checklist',
+          eyebrow: 'Seller setup',
+          readyTitle: 'Your account is ready to sell',
+          blockedTitle: 'You can buy now. Complete these steps to sell.',
           description:
-            'Cardora requires identity verification through Didit (or an existing preserved approval), a ready Stripe connected account and complete private shipping details before all marketplace actions unlock.',
+            'Purchases do not require identity verification or a Stripe connected account. Selling still requires approved verification, a ready Stripe payout account and complete private shipping details.',
           warning:
-            'Until everything is completed, buying, selling, bidding and raffle entries stay locked, and listings cannot remain visible.',
+            'You can buy and bid without seller verification. Existing requirements for raffle entries remain in place.',
           welcome:
-            'Your account was created successfully. The next step is to complete verification and create your Stripe connected account.',
+            'Your account was created successfully. You can browse and buy. Complete seller setup only when you want to sell.',
           verificationButton: 'Open verification center',
           dashboardButton: 'Open seller dashboard / Stripe setup',
           ordersButton: 'Open orders',
         }
       : {
-          eyebrow: 'Πρόσβαση στο marketplace',
-          readyTitle: 'Ο λογαριασμός σου είναι έτοιμος για protected αγορές και πωλήσεις',
-          blockedTitle: 'Πριν αγοράσεις ή πουλήσεις, ολοκλήρωσε όλο το activation checklist',
+          eyebrow: 'Στοιχεία πωλητή',
+          readyTitle: 'Ο λογαριασμός σου είναι έτοιμος για πωλήσεις',
+          blockedTitle: 'Μπορείς ήδη να αγοράσεις. Για να πουλήσεις, ολοκλήρωσε αυτά τα βήματα.',
           description:
-            'Η Cardora απαιτεί επαλήθευση ταυτότητας μέσω Didit (ή διατηρημένη προηγούμενη έγκριση), έτοιμο Stripe Connected Account και πλήρη ιδιωτικά στοιχεία αποστολής πριν ξεκλειδώσουν όλες οι marketplace ενέργειες.',
+            'Για τις αγορές δεν απαιτείται επαλήθευση ταυτότητας ή συνδεδεμένος λογαριασμός Stripe. Για τις πωλήσεις εξακολουθούν να απαιτούνται εγκεκριμένη επαλήθευση, έτοιμος λογαριασμός πληρωμών Stripe και πλήρη ιδιωτικά στοιχεία αποστολής.',
           warning:
-            'Μέχρι να ολοκληρωθούν όλα, αγορές, πωλήσεις, bids και συμμετοχές σε κληρώσεις παραμένουν κλειδωμένα, ενώ οι αγγελίες δεν μπορούν να παραμένουν ορατές.',
+            'Μπορείς να αγοράζεις και να κάνεις προσφορές σε δημοπρασίες χωρίς επαλήθευση πωλητή. Οι υπάρχουσες απαιτήσεις για κληρώσεις παραμένουν.',
           welcome:
-            'Ο λογαριασμός σου δημιουργήθηκε κανονικά. Επόμενο βήμα είναι να ολοκληρώσεις verification και να δημιουργήσεις Stripe connected account.',
+            'Ο λογαριασμός σου δημιουργήθηκε κανονικά. Μπορείς να περιηγηθείς και να αγοράσεις. Ολοκλήρωσε τα στοιχεία πωλητή όταν θελήσεις να πουλήσεις.',
           verificationButton: 'Άνοιγμα verification center',
           dashboardButton: 'Άνοιγμα seller dashboard / Stripe setup',
           ordersButton: 'Άνοιγμα παραγγελιών',

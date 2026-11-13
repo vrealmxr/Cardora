@@ -8,8 +8,9 @@ import {
   Sparkles,
 } from 'lucide-react'
 import Badge from '@/components/ui/Badge'
-import { formatDate } from '@/utils/formatters'
+import { useFormatters } from '@/hooks/useFormatters'
 import { cn } from '@/utils/helpers'
+import { useI18n } from '@/hooks/useI18n'
 
 const THEMES = [
   { match: 'card', icon: BadgeDollarSign, kicker: 'Market focus' },
@@ -25,7 +26,9 @@ function resolveTheme(post) {
   return THEMES.find((theme) => value.includes(theme.match)) ?? { icon: Sparkles, kicker: 'Cardora editorial' }
 }
 
-function BlogEditorialCover({ post, variant = 'card', className }) {
+function BlogEditorialCover({ post, variant = 'card', className, as: Heading = 'h2' }) {
+  const { formatDate } = useFormatters()
+  const { locale } = useI18n()
   const theme = resolveTheme(post)
   const Icon = theme.icon
   const isHero = variant === 'hero'
@@ -63,14 +66,14 @@ function BlogEditorialCover({ post, variant = 'card', className }) {
               <Icon className="h-3.5 w-3.5" />
               {post.visual?.label || 'Cardora'}
             </div>
-            <h2
+            <Heading
               className={cn(
                 'mt-4 max-w-4xl text-balance font-display text-white',
                 isHero ? 'text-5xl sm:text-6xl' : 'text-[1.95rem] leading-tight',
               )}
             >
               {post.title}
-            </h2>
+            </Heading>
             <p className={cn('mt-4 max-w-3xl text-white/80', isHero ? 'text-sm leading-8' : 'text-sm leading-7')}>
               {post.excerpt}
             </p>
@@ -78,11 +81,11 @@ function BlogEditorialCover({ post, variant = 'card', className }) {
 
           <div className="space-y-3">
             <div className="rounded-[24px] border border-white/10 bg-[#091425]/72 p-4">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-white/44">Published</p>
-              <p className="mt-2 text-xl font-semibold text-white">{formatDate(post.publishedAt)}</p>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/44">{post.editorial ? (locale === 'en' ? 'Updated' : 'Ενημερώθηκε') : (locale === 'en' ? 'Published' : 'Δημοσιεύτηκε')}</p>
+              <p className="mt-2 text-xl font-semibold text-white">{formatDate(post.updatedAt || post.publishedAt)}</p>
             </div>
             <div className="rounded-[24px] border border-white/10 bg-[#091425]/72 p-4">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-white/44">Reading time</p>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/44">{locale === 'en' ? 'Reading time' : 'Χρόνος ανάγνωσης'}</p>
               <div className="mt-2 inline-flex items-center gap-2 text-xl font-semibold text-white">
                 <Clock3 className="h-4 w-4 text-gold-100" />
                 {post.readTime}
@@ -90,7 +93,7 @@ function BlogEditorialCover({ post, variant = 'card', className }) {
             </div>
             {post.author?.name ? (
               <div className="rounded-[24px] border border-white/10 bg-[#091425]/72 p-4">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-white/44">By</p>
+                <p className="text-[11px] uppercase tracking-[0.24em] text-white/44">{locale === 'en' ? 'By' : 'Από'}</p>
                 <p className="mt-2 text-lg font-semibold text-white">{post.author.name}</p>
                 <p className="mt-1 text-sm text-white/60">{post.author.role}</p>
               </div>

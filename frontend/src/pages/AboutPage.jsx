@@ -1,3 +1,6 @@
+import OperatorDetails from '@/components/legal/OperatorDetails'
+import { marketplaceTrust } from '@/data/marketplaceTrust'
+import { localizePath } from '@/utils/helpers'
 import { ShieldCheck, Sparkles, WalletCards } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import PageSeo from '@/components/PageSeo'
@@ -8,12 +11,12 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import { useSeo } from '@/context/SeoContext'
 import { useI18n } from '@/hooks/useI18n'
 import { useMarketplace } from '@/hooks/useMarketplace'
-import { formatCurrency, formatNumber } from '@/utils/formatters'
+import { useFormatters } from '@/hooks/useFormatters'
 
 const COPY_EN = {
   "badge": "About Cardora",
   "title": "Built by collectors, for collectors.",
-  "intro": "Cardora exists to make collectible transactions feel safer, clearer and more serious for both sides. It brings payment protection, account trust signals and support into one marketplace designed for people who care about what they buy and sell.",
+  "intro": "Cardora brings collectors together to buy and sell cards, figures, comics, books and other collectibles. Compare listings, communicate with sellers and follow your orders in one place.",
   "ctaRegister": "Create account",
   "ctaSell": "List a collectible",
   "whyEyebrow": "Why Cardora",
@@ -22,73 +25,77 @@ const COPY_EN = {
   "cards": [
     {
       "title": "What Cardora is",
-      "text": "A marketplace for trading cards, figures, comics, books and other collectibles where presentation and transaction safety matter equally."
+      "text": "A marketplace for cards, figures, comics, books and other collectibles with photographs, descriptions and seller profiles."
     },
     {
-      "title": "Why buyers feel safer",
-      "text": "The payment stays protected, there is room to confirm delivery and support can step in if the order does not match the listing."
+      "title": "Before buying",
+      "text": "Check the edition, condition and total cost. Keep messages on Cardora and report any problem through your order within its review deadline."
     },
     {
-      "title": "Why sellers feel safer",
-      "text": "Orders are paid before shipping and the release process follows a clear path instead of vague back-and-forth messages."
+      "title": "Before selling",
+      "text": "Prepare clear photographs and check your payout account setup, charges and shipping options."
     }
   ],
-  "protectedEyebrow": "Protected Transactions",
-  "protectedTitle": "How Cardora handles a protected order",
+  "protectedEyebrow": "Your order",
+  "protectedTitle": "From listing to delivery",
   "protectedDescription": "The goal is simple: clear expectations before payment, traceable steps after checkout and a proper finish for both sides.",
   "trustTitle": "Trust signals",
   "trustDescription": "Verification, ratings, order tracking and transparent order states help members judge a listing and a seller more easily.",
   "feesTitle": "Fees & commission",
-  "feesDescription": "Cardora charges a platform fee that supports checkout protection, moderation and support when an order needs review.",
-  "feeCardTitle": "Seller fee tiers: €1 (up to €5), 6.5% (€5-€300), 5% (€300-€2,000), 4% (€2,001+)",
-  "feeCardText": "Seller fee is calculated on clean item value, capped at €400. Shipping and extra costs are excluded from the fee base.",
+  "feesDescription": "Review the applicable Standard or Pro charges before selling. Shipping is separate from the item value used to calculate commission.",
+  "feeCardTitle": "Percentage and fixed charges",
+  "feeCardText": "Above €5 of item value, the Standard rate is 6.5% up to €300, 5% up to €2,000 and 4% above €2,000, capped at €400. The selected percentage applies to the whole item value. Up to €5, a €1 fixed fee is added to the buyer’s total instead of being deducted from the seller. Active Pro sellers have different rates; see the full table and examples.",
   "disputeTitle": "How disputes are handled",
   "disputeText": "If a dispute opens, Cardora reviews photos, shipment updates and the conversation history before deciding the next step.",
   "scaleEyebrow": "Marketplace Snapshot",
   "scaleTitle": "A quick look at marketplace activity",
-  "scaleDescription": "These numbers show the kind of visibility and scale Cardora is built to present clearly as the marketplace grows."
+  "scaleDescription": "A current view of listings and marketplace activity."
 }
 const COPY_EL = {
-  "badge": "\u03a3\u03c7\u03b5\u03c4\u03b9\u03ba\u03ac \u03bc\u03b5 \u03c4\u03b7\u03bd Cardora",
-  "title": "\u0393\u03b9\u03b1 \u03c3\u03c5\u03bb\u03bb\u03ad\u03ba\u03c4\u03b5\u03c2, \u03b1\u03c0\u03cc \u03c3\u03c5\u03bb\u03bb\u03ad\u03ba\u03c4\u03b5\u03c2.",
-  "intro": "\u0397 Cardora \u03ba\u03ac\u03bd\u03b5\u03b9 \u03c4\u03b9\u03c2 \u03b1\u03b3\u03bf\u03c1\u03b1\u03c0\u03c9\u03bb\u03b7\u03c3\u03af\u03b5\u03c2 \u03c3\u03c5\u03bb\u03bb\u03b5\u03ba\u03c4\u03b9\u03ba\u03ce\u03bd \u03c0\u03b9\u03bf \u03b1\u03c3\u03c6\u03b1\u03bb\u03b5\u03af\u03c2, \u03c0\u03b9\u03bf \u03ba\u03b1\u03b8\u03b1\u03c1\u03ad\u03c2 \u03ba\u03b1\u03b9 \u03c0\u03b9\u03bf \u03b1\u03be\u03b9\u03cc\u03c0\u03b9\u03c3\u03c4\u03b5\u03c2 \u03ba\u03b1\u03b9 \u03b3\u03b9\u03b1 \u03c4\u03b9\u03c2 \u03b4\u03cd\u03bf \u03c0\u03bb\u03b5\u03c5\u03c1\u03ad\u03c2.",
-  "ctaRegister": "\u0394\u03b7\u03bc\u03b9\u03bf\u03cd\u03c1\u03b3\u03b7\u03c3\u03b5 \u03bb\u03bf\u03b3\u03b1\u03c1\u03b9\u03b1\u03c3\u03bc\u03cc",
-  "ctaSell": "\u03a0\u03bf\u03cd\u03bb\u03b7\u03c3\u03b5 \u03c3\u03c5\u03bb\u03bb\u03b5\u03ba\u03c4\u03b9\u03ba\u03cc",
-  "whyEyebrow": "\u0393\u03b9\u03b1\u03c4\u03af \u03c5\u03c0\u03ac\u03c1\u03c7\u03b5\u03b9",
-  "whyTitle": "\u039f \u03bb\u03cc\u03b3\u03bf\u03c2 \u03cd\u03c0\u03b1\u03c1\u03be\u03b7\u03c2 \u03c4\u03b7\u03c2 Cardora",
-  "whyDescription": "\u0393\u03b9\u03b1\u03c4\u03af \u03bf\u03b9 \u03b1\u03b3\u03bf\u03c1\u03ad\u03c2 \u03c0\u03bf\u03bb\u03cd\u03c4\u03b9\u03bc\u03c9\u03bd \u03c3\u03c5\u03bb\u03bb\u03b5\u03ba\u03c4\u03b9\u03ba\u03ce\u03bd \u03b4\u03b5\u03bd \u03c0\u03c1\u03ad\u03c0\u03b5\u03b9 \u03bd\u03b1 \u03b2\u03b1\u03c3\u03af\u03b6\u03bf\u03bd\u03c4\u03b1\u03b9 \u03c3\u03c4\u03b7\u03bd \u03c4\u03cd\u03c7\u03b7, \u03c3\u03b5 \u03c5\u03c0\u03bf\u03b8\u03ad\u03c3\u03b5\u03b9\u03c2 \u03ae \u03c3\u03b5 \u03b2\u03b9\u03b1\u03c3\u03c4\u03b9\u03ba\u03ac \u03bc\u03b7\u03bd\u03cd\u03bc\u03b1\u03c4\u03b1.",
+  "badge": "Σχετικά με την Cardora",
+  "title": "Για συλλέκτες, από συλλέκτες.",
+  "intro": "Η Cardora φέρνει κοντά συλλέκτες για αγορές και πωλήσεις καρτών, φιγούρων, κόμικς, βιβλίων και άλλων συλλεκτικών. Σύγκρινε αγγελίες, μίλησε με τους πωλητές και παρακολούθησε τις παραγγελίες σου από ένα σημείο.",
+  "ctaRegister": "Δημιούργησε λογαριασμό",
+  "ctaSell": "Πούλησε συλλεκτικό",
+  "whyEyebrow": "Γιατί υπάρχει",
+  "whyTitle": "Ο λόγος ύπαρξης της Cardora",
+  "whyDescription": "Γιατί οι αγορές πολύτιμων συλλεκτικών δεν πρέπει να βασίζονται στην τύχη, σε υποθέσεις ή σε βιαστικά μηνύματα.",
   "cards": [
     {
-      "title": "\u03a4\u03b9 \u03b5\u03af\u03bd\u03b1\u03b9 \u03b7 Cardora",
-      "text": "\u0388\u03bd\u03b1 marketplace \u03b3\u03b9\u03b1 \u03ba\u03ac\u03c1\u03c4\u03b5\u03c2, \u03c6\u03b9\u03b3\u03bf\u03cd\u03c1\u03b5\u03c2, \u03ba\u03cc\u03bc\u03b9\u03ba\u03c2, \u03b2\u03b9\u03b2\u03bb\u03af\u03b1 \u03ba\u03b1\u03b9 \u03ac\u03bb\u03bb\u03b1 \u03c3\u03c5\u03bb\u03bb\u03b5\u03ba\u03c4\u03b9\u03ba\u03ac \u03bc\u03b5 \u03ba\u03b1\u03b8\u03b1\u03c1\u03ae \u03c0\u03b1\u03c1\u03bf\u03c5\u03c3\u03af\u03b1\u03c3\u03b7 \u03ba\u03b1\u03b9 \u03c0\u03c1\u03bf\u03c3\u03c4\u03b1\u03c4\u03b5\u03c5\u03bc\u03ad\u03bd\u03b7 \u03c3\u03c5\u03bd\u03b1\u03bb\u03bb\u03b1\u03b3\u03ae."
+      "title": "Τι είναι η Cardora",
+      "text": "Μια πλατφόρμα για κάρτες, φιγούρες, κόμικς, βιβλία και άλλα συλλεκτικά, με φωτογραφίες, περιγραφές και προφίλ πωλητών."
     },
     {
-      "title": "\u0393\u03b9\u03b1\u03c4\u03af \u03bf \u03b1\u03b3\u03bf\u03c1\u03b1\u03c3\u03c4\u03ae\u03c2 \u03bd\u03b9\u03ce\u03b8\u03b5\u03b9 \u03c0\u03b9\u03bf \u03b1\u03c3\u03c6\u03b1\u03bb\u03ae\u03c2",
-      "text": "\u0397 \u03c0\u03bb\u03b7\u03c1\u03c9\u03bc\u03ae \u03bc\u03ad\u03bd\u03b5\u03b9 \u03c0\u03c1\u03bf\u03c3\u03c4\u03b1\u03c4\u03b5\u03c5\u03bc\u03ad\u03bd\u03b7 \u03bc\u03ad\u03c7\u03c1\u03b9 \u03bd\u03b1 \u03b5\u03c0\u03b9\u03b2\u03b5\u03b2\u03b1\u03b9\u03c9\u03b8\u03b5\u03af \u03b7 \u03c0\u03b1\u03c1\u03b1\u03bb\u03b1\u03b2\u03ae \u03ba\u03b1\u03b9 \u03b7 \u03c5\u03c0\u03bf\u03c3\u03c4\u03ae\u03c1\u03b9\u03be\u03b7 \u03bc\u03c0\u03bf\u03c1\u03b5\u03af \u03bd\u03b1 \u03c0\u03b1\u03c1\u03ad\u03bc\u03b2\u03b5\u03b9 \u03cc\u03c4\u03b1\u03bd \u03c7\u03c1\u03b5\u03b9\u03ac\u03b6\u03b5\u03c4\u03b1\u03b9."
+      "title": "Πριν αγοράσεις",
+      "text": "Έλεγξε έκδοση, κατάσταση και συνολικό κόστος. Κράτησε την επικοινωνία στην Cardora και ανέφερε τυχόν πρόβλημα από την παραγγελία μέσα στην προθεσμία ελέγχου της."
     },
     {
-      "title": "\u0393\u03b9\u03b1\u03c4\u03af \u03bf \u03c0\u03c9\u03bb\u03b7\u03c4\u03ae\u03c2 \u03b4\u03bf\u03c5\u03bb\u03b5\u03cd\u03b5\u03b9 \u03c0\u03b9\u03bf \u03ba\u03b1\u03b8\u03b1\u03c1\u03ac",
-      "text": "\u0397 \u03c0\u03b1\u03c1\u03b1\u03b3\u03b3\u03b5\u03bb\u03af\u03b1 \u03ad\u03c7\u03b5\u03b9 \u03c0\u03bb\u03b7\u03c1\u03c9\u03b8\u03b5\u03af \u03c0\u03c1\u03b9\u03bd \u03c4\u03b7\u03bd \u03b1\u03c0\u03bf\u03c3\u03c4\u03bf\u03bb\u03ae \u03ba\u03b1\u03b9 \u03b7 \u03b1\u03c0\u03bf\u03b4\u03ad\u03c3\u03bc\u03b5\u03c5\u03c3\u03b7 \u03b1\u03ba\u03bf\u03bb\u03bf\u03c5\u03b8\u03b5\u03af \u03be\u03b5\u03ba\u03ac\u03b8\u03b1\u03c1\u03b7 \u03b4\u03b9\u03b1\u03b4\u03b9\u03ba\u03b1\u03c3\u03af\u03b1."
+      "title": "Πριν πουλήσεις",
+      "text": "Ετοίμασε καθαρές φωτογραφίες και έλεγξε τον λογαριασμό πληρωμών σου, τις χρεώσεις και τις επιλογές αποστολής."
     }
   ],
-  "protectedEyebrow": "\u03a0\u03c1\u03bf\u03c3\u03c4\u03b1\u03c4\u03b5\u03c5\u03bc\u03ad\u03bd\u03b5\u03c2 \u03c3\u03c5\u03bd\u03b1\u03bb\u03bb\u03b1\u03b3\u03ad\u03c2",
-  "protectedTitle": "\u03a0\u03ce\u03c2 \u03bf\u03bb\u03bf\u03ba\u03bb\u03b7\u03c1\u03ce\u03bd\u03b5\u03c4\u03b1\u03b9 \u03bc\u03b9\u03b1 \u03c0\u03c1\u03bf\u03c3\u03c4\u03b1\u03c4\u03b5\u03c5\u03bc\u03ad\u03bd\u03b7 \u03c0\u03b1\u03c1\u03b1\u03b3\u03b3\u03b5\u03bb\u03af\u03b1",
-  "protectedDescription": "\u039f \u03c3\u03c4\u03cc\u03c7\u03bf\u03c2 \u03b5\u03af\u03bd\u03b1\u03b9 \u03b1\u03c0\u03bb\u03cc\u03c2: \u03ba\u03b1\u03b8\u03b1\u03c1\u03ae \u03b5\u03b9\u03ba\u03cc\u03bd\u03b1 \u03c0\u03c1\u03b9\u03bd \u03c4\u03b7\u03bd \u03c0\u03bb\u03b7\u03c1\u03c9\u03bc\u03ae, \u03b4\u03b9\u03b1\u03c6\u03b1\u03bd\u03ae \u03b2\u03ae\u03bc\u03b1\u03c4\u03b1 \u03bc\u03b5\u03c4\u03ac \u03c4\u03bf checkout \u03ba\u03b1\u03b9 \u03c3\u03c9\u03c3\u03c4\u03cc \u03ba\u03bb\u03b5\u03af\u03c3\u03b9\u03bc\u03bf \u03ba\u03b1\u03b9 \u03b3\u03b9\u03b1 \u03c4\u03b9\u03c2 \u03b4\u03cd\u03bf \u03c0\u03bb\u03b5\u03c5\u03c1\u03ad\u03c2.",
-  "trustTitle": "\u03a3\u03ae\u03bc\u03b1\u03c4\u03b1 \u03b5\u03bc\u03c0\u03b9\u03c3\u03c4\u03bf\u03c3\u03cd\u03bd\u03b7\u03c2",
-  "trustDescription": "\u0395\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7, \u03b1\u03be\u03b9\u03bf\u03bb\u03bf\u03b3\u03ae\u03c3\u03b5\u03b9\u03c2, tracking \u03ba\u03b1\u03b9 \u03be\u03b5\u03ba\u03ac\u03b8\u03b1\u03c1\u03b5\u03c2 \u03ba\u03b1\u03c4\u03b1\u03c3\u03c4\u03ac\u03c3\u03b5\u03b9\u03c2 \u03c0\u03b1\u03c1\u03b1\u03b3\u03b3\u03b5\u03bb\u03af\u03b1\u03c2 \u03b2\u03bf\u03b7\u03b8\u03bf\u03cd\u03bd \u03ba\u03ac\u03b8\u03b5 \u03bc\u03ad\u03bb\u03bf\u03c2 \u03bd\u03b1 \u03ba\u03c1\u03af\u03bd\u03b5\u03b9 \u03c0\u03b9\u03bf \u03b5\u03cd\u03ba\u03bf\u03bb\u03b1 \u03bc\u03b9\u03b1 \u03b1\u03b3\u03b3\u03b5\u03bb\u03af\u03b1 \u03ba\u03b1\u03b9 \u03ad\u03bd\u03b1\u03bd \u03c0\u03c9\u03bb\u03b7\u03c4\u03ae.",
-  "feesTitle": "\u03a7\u03c1\u03b5\u03ce\u03c3\u03b5\u03b9\u03c2 \u03c0\u03bb\u03b1\u03c4\u03c6\u03cc\u03c1\u03bc\u03b1\u03c2",
-  "feesDescription": "\u0397 Cardora \u03ba\u03c1\u03b1\u03c4\u03ac \u03c0\u03c1\u03bf\u03bc\u03ae\u03b8\u03b5\u03b9\u03b1 \u03c0\u03bf\u03c5 \u03c3\u03c4\u03b7\u03c1\u03af\u03b6\u03b5\u03b9 \u03c4\u03b7\u03bd \u03c0\u03c1\u03bf\u03c3\u03c4\u03b1\u03c3\u03af\u03b1 \u03c4\u03b7\u03c2 \u03c3\u03c5\u03bd\u03b1\u03bb\u03bb\u03b1\u03b3\u03ae\u03c2, \u03c4\u03b7 \u03b4\u03b9\u03b1\u03c7\u03b5\u03af\u03c1\u03b9\u03c3\u03b7 \u03c4\u03c9\u03bd \u03b1\u03b3\u03b3\u03b5\u03bb\u03b9\u03ce\u03bd \u03ba\u03b1\u03b9 \u03c4\u03b7\u03bd \u03c5\u03c0\u03bf\u03c3\u03c4\u03ae\u03c1\u03b9\u03be\u03b7 \u03cc\u03c4\u03b1\u03bd \u03bc\u03b9\u03b1 \u03c0\u03b1\u03c1\u03b1\u03b3\u03b3\u03b5\u03bb\u03af\u03b1 \u03c7\u03c1\u03b5\u03b9\u03ac\u03b6\u03b5\u03c4\u03b1\u03b9 \u03ad\u03bb\u03b5\u03b3\u03c7\u03bf.",
-  "feeCardTitle": "Κλιμακωτή χρέωση πωλητή: 1€ (έως 5€), 6,5% (5€-300€), 5% (300€-2.000€), 4% (2.001€+)",
-  "feeCardText": "Η χρέωση πωλητή υπολογίζεται στην καθαρή αξία αντικειμένου, με ανώτατο πλαφόν 400€. Μεταφορικά και έξτρα κόστη μένουν εκτός βάσης υπολογισμού.",
-  "disputeTitle": "\u03a0\u03ce\u03c2 \u03b1\u03bd\u03c4\u03b9\u03bc\u03b5\u03c4\u03c9\u03c0\u03af\u03b6\u03bf\u03bd\u03c4\u03b1\u03b9 \u03bf\u03b9 \u03b4\u03b9\u03b1\u03c6\u03c9\u03bd\u03af\u03b5\u03c2",
-  "disputeText": "\u0391\u03bd \u03c0\u03c1\u03bf\u03ba\u03cd\u03c8\u03b5\u03b9 \u03b4\u03b9\u03b1\u03c6\u03c9\u03bd\u03af\u03b1, \u03b7 \u03c5\u03c0\u03cc\u03b8\u03b5\u03c3\u03b7 \u03b5\u03be\u03b5\u03c4\u03ac\u03b6\u03b5\u03c4\u03b1\u03b9 \u03c7\u03b5\u03b9\u03c1\u03bf\u03ba\u03af\u03bd\u03b7\u03c4\u03b1 \u03b1\u03c0\u03cc \u03c4\u03b7\u03bd \u03bf\u03bc\u03ac\u03b4\u03b1 \u03c4\u03b7\u03c2 Cardora.",
-  "scaleEyebrow": "\u03a3\u03c4\u03b9\u03b3\u03bc\u03b9\u03cc\u03c4\u03c5\u03c0\u03bf \u03b1\u03b3\u03bf\u03c1\u03ac\u03c2",
-  "scaleTitle": "\u039c\u03b9\u03b1 \u03b3\u03c1\u03ae\u03b3\u03bf\u03c1\u03b7 \u03b5\u03b9\u03ba\u03cc\u03bd\u03b1 \u03c4\u03b7\u03c2 \u03b4\u03c1\u03b1\u03c3\u03c4\u03b7\u03c1\u03b9\u03cc\u03c4\u03b7\u03c4\u03b1\u03c2",
-  "scaleDescription": "\u039f\u03b9 \u03b1\u03c1\u03b9\u03b8\u03bc\u03bf\u03af \u03b1\u03c5\u03c4\u03bf\u03af \u03b4\u03b5\u03af\u03c7\u03bd\u03bf\u03c5\u03bd \u03c4\u03bf \u03b5\u03af\u03b4\u03bf\u03c2 \u03c0\u03b1\u03c1\u03bf\u03c5\u03c3\u03af\u03b1\u03c2 \u03ba\u03b1\u03b9 \u03ba\u03bb\u03af\u03bc\u03b1\u03ba\u03b1\u03c2 \u03c0\u03bf\u03c5 \u03b7 Cardora \u03b5\u03af\u03bd\u03b1\u03b9 \u03c6\u03c4\u03b9\u03b1\u03b3\u03bc\u03ad\u03bd\u03b7 \u03bd\u03b1 \u03c0\u03b1\u03c1\u03bf\u03c5\u03c3\u03b9\u03ac\u03b6\u03b5\u03b9 \u03ba\u03b1\u03b8\u03b1\u03c1\u03ac \u03cc\u03c3\u03bf \u03bc\u03b5\u03b3\u03b1\u03bb\u03ce\u03bd\u03b5\u03b9."
+  "protectedEyebrow": "Η παραγγελία σου",
+  "protectedTitle": "Από την αγγελία στην παράδοση",
+  "protectedDescription": "Ο στόχος είναι απλός: καθαρή εικόνα πριν την πληρωμή, διαφανή βήματα μετά το checkout και σωστό κλείσιμο και για τις δύο πλευρές.",
+  "trustTitle": "Σήματα εμπιστοσύνης",
+  "trustDescription": "Επαλήθευση, αξιολογήσεις, tracking και ξεκάθαρες καταστάσεις παραγγελίας βοηθούν κάθε μέλος να κρίνει πιο εύκολα μια αγγελία και έναν πωλητή.",
+  "feesTitle": "Χρεώσεις πλατφόρμας",
+  "feesDescription": "Δες τις χρεώσεις Standard ή Pro που ισχύουν πριν πουλήσεις. Τα μεταφορικά δεν περιλαμβάνονται στην αξία αντικειμένου πάνω στην οποία υπολογίζεται η προμήθεια.",
+  "feeCardTitle": "Ποσοστά και σταθερές χρεώσεις",
+  "feeCardText": "Για αξία αντικειμένου πάνω από 5€, η χρέωση Standard είναι 6,5% έως 300€, 5% έως 2.000€ και 4% πάνω από 2.000€, με όριο 400€. Το ποσοστό εφαρμόζεται σε ολόκληρη την αξία του αντικειμένου. Έως 5€, η σταθερή χρέωση 1€ προστίθεται στο σύνολο του αγοραστή και δεν αφαιρείται από τον πωλητή. Οι ενεργοί πωλητές Pro έχουν διαφορετικές χρεώσεις· δες τον πλήρη πίνακα και τα παραδείγματα.",
+  "disputeTitle": "Πώς αντιμετωπίζονται οι διαφωνίες",
+  "disputeText": "Αν προκύψει διαφωνία, η υπόθεση εξετάζεται χειροκίνητα από την ομάδα της Cardora.",
+  "scaleEyebrow": "Στιγμιότυπο αγοράς",
+  "scaleTitle": "Μια γρήγορη εικόνα της δραστηριότητας",
+  "scaleDescription": "Η τρέχουσα εικόνα των αγγελιών και της δραστηριότητας στην πλατφόρμα."
 }
 function AboutPage() {
+  const { formatCurrency, formatNumber } = useFormatters()
   const { locale } = useI18n()
-  const { howItWorksSteps, platformStats, trustHighlights } = useMarketplace()
+  const { platformStats } = useMarketplace()
+  const trust = marketplaceTrust[locale]
+  const howItWorksSteps = trust.steps
+  const trustHighlights = trust.highlights
 
   const copy = locale === 'en' ? COPY_EN : COPY_EL
   const seo = useSeo('about')
@@ -106,10 +113,10 @@ function AboutPage() {
             ) : null}
             <p className="mt-5 max-w-3xl text-lg leading-8 text-mist">{copy.intro}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button as={Link} to="/eggrafi" size="lg">
+              <Button as={Link} to={localizePath("/eggrafi", locale)} size="lg">
                 {copy.ctaRegister}
               </Button>
-              <Button as={Link} to="/dimiourgia-aggelias" variant="secondary" size="lg">
+              <Button as={Link} to={localizePath("/dimiourgia-aggelias", locale)} variant="secondary" size="lg">
                 {copy.ctaSell}
               </Button>
             </div>
@@ -163,7 +170,7 @@ function AboutPage() {
 
       <section className="mt-16 grid gap-6 xl:grid-cols-[1fr,1fr]">
         <CardSurface>
-          <SectionHeader title={copy.trustTitle} description={copy.trustDescription} className="mb-6" />
+          <SectionHeader title={copy.trustTitle} description={trust.verification} className="mb-6" />
           <div className="space-y-4">
             {trustHighlights.map((item) => (
               <div key={item} className="flex items-center gap-3 rounded-[22px] border border-gold-200/30 bg-white p-4">
@@ -182,6 +189,7 @@ function AboutPage() {
                 <p className="font-semibold text-ink">{copy.feeCardTitle}</p>
               </div>
               <p className="mt-2 text-sm leading-7 text-mist">{copy.feeCardText}</p>
+              <Link to={localizePath('/odigos-polisis', locale)} className="mt-3 inline-block text-sm text-gold-700 underline">{locale === 'en' ? 'Full fee table and selling guide' : 'Πίνακας χρεώσεων και οδηγός πώλησης'}</Link>
             </div>
             <div className="rounded-[22px] border border-gold-200/30 bg-white p-4">
               <div className="flex items-center gap-3">
@@ -195,9 +203,15 @@ function AboutPage() {
       </section>
 
       <section className="mt-16">
+        <CardSurface><SectionHeader title={locale === 'en' ? 'Who operates Cardora' : 'Ποιος διαχειρίζεται την Cardora'} />
+          <OperatorDetails />
+          <Link to={localizePath('/epikoinonia', locale)} className="mt-4 inline-block text-gold-700 underline">{locale === 'en' ? 'Contact the team' : 'Επικοινωνία με την ομάδα'}</Link>
+        </CardSurface>
+      </section>
+      <section className="mt-16">
         <SectionHeader eyebrow={copy.scaleEyebrow} title={copy.scaleTitle} description={copy.scaleDescription} />
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {platformStats.map((stat) => (
+          {platformStats.filter(stat => stat.format !== 'currency').map((stat) => (
             <CardSurface key={stat.label}>
               <p className="text-xs uppercase tracking-[0.35em] text-gold-100">{stat.label}</p>
               <p className="mt-3 text-4xl font-semibold text-ink">
