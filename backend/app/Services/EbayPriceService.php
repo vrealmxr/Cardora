@@ -3,14 +3,22 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 /**
  * Market price estimates from eBay's Browse API (active listings).
+ *
+ * Searches every configured eBay marketplace in parallel (US, GB, DE, ...).
+ * Each marketplace is restricted to sellers located in its own country, so
+ * the same listing is never counted twice and prices come in the seller's
+ * own currency; they are converted to EUR with ECB reference rates.
  *
  * Uses an application token (client-credentials grant), so no eBay user
  * account is linked and no eBay user data is stored. Prices are asking
@@ -19,6 +27,8 @@ use RuntimeException;
  */
 class EbayPriceService
 {
+    private const ECB_RATES_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
+
     public function isConfigured(): bool
     {
         return (bool) config('services.ebay.enabled')
@@ -37,9 +47,10 @@ class EbayPriceService
     }
 
     /**
-     * Search live listings and return a price summary.
+     * Search live listings on all configured marketplaces and return one
+     * price summary in the target currency (EUR).
      *
-     * @param  array{category_ids?: string|null, limit?: int, marketplace_id?: string, fresh?: bool}  $options
+     * @param  array{category_ids?: string|null, limit?: int, markets?: string, fresh?: bool}  $options
      */
     public function estimate(string $query, array $options = []): array
     {
@@ -49,11 +60,14 @@ class EbayPriceService
             throw new RuntimeException('eBay price search needs a query.');
         }
 
-        $marketplace = $options['marketplace_id'] ?? config('services.ebay.marketplace_id');
+        $markets = $this->markets($options['markets'] ?? null);
         $limit = max(1, min(200, (int) ($options['limit'] ?? config('services.ebay.search_limit', 50))));
-        $category = $this->resolveCategory($query, $marketplace, $options);
+        // Category ids are shared across eBay's sites, so one lookup on the
+        // reference marketplace (best taxonomy) applies to all of them.
+        $category = $this->resolveCategory($query, (string) config('services.ebay.category_marketplace_id', 'EBAY_US'), $options);
 
-        $cacheKey = 'ebay:price:'.sha1(implode('|', [$this->environment(), $marketplace, $category['id'] ?? '', $limit, mb_strtolower($query)]));
+        $marketKey = implode(',', array_map(fn ($m) => $m['marketplace'].':'.$m['country'], $markets));
+        $cacheKey = 'ebay:price:'.sha1(implode('|', [$this->environment(), $marketKey, $category['id'] ?? '', $limit, mb_strtolower($query)]));
 
         if (! empty($options['fresh'])) {
             Cache::forget($cacheKey);
@@ -62,8 +76,35 @@ class EbayPriceService
         return Cache::remember(
             $cacheKey,
             now()->addMinutes((int) config('services.ebay.cache_minutes', 360)),
-            fn () => $this->summarize($query, $marketplace, $category, $this->search($query, $marketplace, $category['id'], $limit))
+            fn () => $this->summarize($query, $category, $this->searchMarkets($query, $markets, $category['id'], $limit))
         );
+    }
+
+    /**
+     * Configured markets as marketplace + seller country pairs, e.g.
+     * "EBAY_US:US,EBAY_DE:DE,EBAY_DE:GR" (GR = Greek sellers seen via eBay.de).
+     * A bare "EBAY_IT" means sellers in IT.
+     *
+     * @return list<array{marketplace: string, country: string}>
+     */
+    public function markets(?string $spec = null): array
+    {
+        $markets = [];
+
+        foreach (explode(',', (string) ($spec ?? config('services.ebay.markets'))) as $entry) {
+            if (! preg_match('/^\s*(EBAY_[A-Z]{2})(?::([A-Z]{2}))?\s*$/', strtoupper($entry), $match)) {
+                continue;
+            }
+
+            $market = ['marketplace' => $match[1], 'country' => $match[2] ?? substr($match[1], 5)];
+            $markets[$market['marketplace'].':'.$market['country']] = $market;
+        }
+
+        if ($markets === []) {
+            throw new RuntimeException('No valid eBay markets configured (EBAY_MARKETS).');
+        }
+
+        return array_values($markets);
     }
 
     /**
@@ -171,30 +212,126 @@ class EbayPriceService
         });
     }
 
-    public function search(string $query, string $marketplace, ?string $categoryId, int $limit): array
+    /**
+     * Run the Browse search on every market at once. A market whose request
+     * is rejected with the category filter is retried once without it; a
+     * market that still fails is reported in its result instead of failing
+     * the whole lookup. Throws only when no market answered.
+     *
+     * @param  list<array{marketplace: string, country: string}>  $markets
+     * @return list<array{marketplace: string, country: string, payload: ?array, error: ?string, category_dropped: bool}>
+     */
+    public function searchMarkets(string $query, array $markets, ?string $categoryId, int $limit): array
     {
-        $params = array_filter([
-            'q' => $query,
-            'limit' => $limit,
-            'category_ids' => filled($categoryId) ? $categoryId : null,
-            'filter' => 'buyingOptions:{FIXED_PRICE|AUCTION}',
-        ], fn ($value) => $value !== null);
+        $token = $this->accessToken();
+        $results = [];
+        $pending = array_keys($markets);
 
-        try {
-            return $this->request($marketplace)
-                ->get('/buy/browse/v1/item_summary/search', $params)
-                ->throw()
-                ->json() ?? [];
-        } catch (RequestException $exception) {
-            if ($exception->response?->status() === 401) {
-                Cache::forget($this->tokenCacheKey());
+        foreach ([$categoryId, null] as $attempt => $category) {
+            if ($pending === [] || ($attempt === 1 && ! filled($categoryId))) {
+                break;
             }
 
-            throw new RuntimeException(sprintf(
-                'eBay Browse search failed with status %s: %s',
-                $exception->response?->status() ?? 'unknown',
-                $exception->response?->body() ?: $exception->getMessage()
-            ), previous: $exception);
+            $responses = Http::pool(function (Pool $pool) use ($pending, $markets, $token, $query, $limit, $category) {
+                foreach ($pending as $index) {
+                    $pool->as((string) $index)
+                        ->baseUrl($this->host())
+                        ->withToken($token)
+                        ->withHeaders(['X-EBAY-C-MARKETPLACE-ID' => $markets[$index]['marketplace'], 'Accept-Language' => 'en-US'])
+                        ->acceptJson()
+                        ->timeout(20)
+                        ->get('/buy/browse/v1/item_summary/search', array_filter([
+                            'q' => $query,
+                            'limit' => $limit,
+                            'category_ids' => filled($category) ? $category : null,
+                            'filter' => 'buyingOptions:{FIXED_PRICE|AUCTION},itemLocationCountry:'.$markets[$index]['country'],
+                        ], fn ($value) => $value !== null));
+                }
+            });
+
+            $retry = [];
+
+            foreach ($pending as $index) {
+                $response = $responses[(string) $index] ?? null;
+                $result = $markets[$index] + ['payload' => null, 'error' => null, 'category_dropped' => $attempt === 1];
+
+                if ($response instanceof Response && $response->successful()) {
+                    $result['payload'] = $response->json() ?? [];
+                } elseif ($response instanceof Response) {
+                    if ($response->status() === 401) {
+                        Cache::forget($this->tokenCacheKey());
+                    }
+
+                    if ($attempt === 0 && filled($categoryId) && $response->clientError() && $response->status() !== 401) {
+                        $retry[] = $index;
+                        continue;
+                    }
+
+                    $result['error'] = 'HTTP '.$response->status().': '.mb_substr($response->body(), 0, 300);
+                } else {
+                    $result['error'] = $response instanceof Throwable ? mb_substr($response->getMessage(), 0, 300) : 'no response';
+                }
+
+                $results[$index] = $result;
+            }
+
+            $pending = $retry;
+        }
+
+        ksort($results);
+        $results = array_values($results);
+        $failed = array_filter($results, fn ($result) => $result['error'] !== null);
+
+        foreach ($failed as $result) {
+            Log::warning('eBay Browse search failed for one market', ['query' => $query, 'marketplace' => $result['marketplace'], 'country' => $result['country'], 'error' => $result['error']]);
+        }
+
+        if (count($failed) === count($results)) {
+            throw new RuntimeException('eBay Browse search failed on every market: '.($results[0]['error'] ?? 'unknown error'));
+        }
+
+        return $results;
+    }
+
+    /**
+     * EUR-based reference rates (1 EUR = rate × currency) from the ECB,
+     * cached for 12 hours. If the ECB is unreachable the last good rates are
+     * used; with none at all only EUR prices can be converted.
+     *
+     * @return array{date: ?string, rates: array<string, float>}
+     */
+    public function eurRates(): array
+    {
+        $cached = Cache::get('ebay:fx:ecb');
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        try {
+            $xml = Http::timeout(10)->get(self::ECB_RATES_URL)->throw()->body();
+            preg_match_all("/currency='([A-Z]{3})'\\s+rate='([0-9.]+)'/", $xml, $matches, PREG_SET_ORDER);
+            preg_match("/time='(\\d{4}-\\d{2}-\\d{2})'/", $xml, $date);
+
+            if (count($matches) < 10) {
+                throw new RuntimeException('Unexpected ECB rates response.');
+            }
+
+            $rates = ['EUR' => 1.0];
+            foreach ($matches as [, $currency, $rate]) {
+                $rates[$currency] = (float) $rate;
+            }
+
+            $fx = ['date' => $date[1] ?? null, 'rates' => $rates];
+            Cache::put('ebay:fx:ecb', $fx, now()->addHours(12));
+            Cache::forever('ebay:fx:ecb:last', $fx);
+
+            return $fx;
+        } catch (Throwable $exception) {
+            Log::warning('ECB exchange rates unavailable', ['error' => mb_substr($exception->getMessage(), 0, 300)]);
+            $last = Cache::get('ebay:fx:ecb:last');
+
+            return is_array($last) ? $last : ['date' => null, 'rates' => ['EUR' => 1.0]];
         }
     }
 
@@ -260,41 +397,88 @@ class EbayPriceService
     }
 
     /**
-     * Reduce raw item summaries to price stats. Outliers (lots, misprices,
-     * graded slabs mixed into raw searches) are trimmed with Tukey fences
-     * before the average and median are taken.
+     * Merge every market's listings into one set of price stats in the
+     * target currency. Listings are de-duplicated by eBay item id, converted
+     * with ECB rates (a listing in a currency without a rate is skipped),
+     * and outliers (lots, misprices, graded slabs mixed into raw searches)
+     * are trimmed with Tukey fences before the average and median are taken.
+     *
+     * @param  list<array{marketplace: string, country: string, payload: ?array, error: ?string, category_dropped: bool}>  $results
      */
-    private function summarize(string $query, string $marketplace, array $category, array $payload): array
+    private function summarize(string $query, array $category, array $results): array
     {
-        $currency = config('services.ebay.currency', 'EUR');
+        $target = strtoupper((string) config('services.ebay.currency', 'EUR'));
+        $fx = $this->eurRates();
+        $convert = function (float $value, string $currency) use ($fx, $target): ?float {
+            $from = $fx['rates'][$currency] ?? null;
+            $to = $fx['rates'][$target] ?? null;
+
+            return $from && $to ? round($value / $from * $to, 2) : null;
+        };
+
         $items = [];
+        $markets = [];
 
-        foreach ($payload['itemSummaries'] ?? [] as $summary) {
-            $value = $summary['price']['value'] ?? null;
+        foreach ($results as $result) {
+            $market = [
+                'marketplace_id' => $result['marketplace'],
+                'seller_country' => $result['country'],
+                'total_matches' => (int) ($result['payload']['total'] ?? 0),
+                'sample_size' => 0,
+                'median' => null,
+                'local_currency' => null,
+                'category_dropped' => $result['category_dropped'],
+                'error' => $result['error'],
+            ];
+            $marketPrices = [];
+            $localCurrencies = [];
 
-            if (! is_numeric($value) || (float) $value <= 0) {
-                continue;
+            foreach ($result['payload']['itemSummaries'] ?? [] as $summary) {
+                $value = $summary['price']['value'] ?? null;
+                $currency = strtoupper((string) ($summary['price']['currency'] ?? ''));
+                $id = (string) ($summary['legacyItemId'] ?? $summary['itemId'] ?? '');
+                $key = $id === '' ? 'anon:'.count($items) : 'id:'.$id;
+
+                if (! is_numeric($value) || (float) $value <= 0 || $currency === '' || isset($items[$key])) {
+                    continue;
+                }
+
+                $price = $convert((float) $value, $currency);
+                $localCurrencies[] = $currency;
+
+                if ($price === null) {
+                    continue;
+                }
+
+                $item = [
+                    'item_id' => $summary['itemId'] ?? null,
+                    'title' => $summary['title'] ?? null,
+                    'price' => $price,
+                    'currency' => $target,
+                    'original_price' => round((float) $value, 2),
+                    'original_currency' => $currency,
+                    'marketplace_id' => $result['marketplace'],
+                    'condition' => $summary['condition'] ?? null,
+                    'buying_options' => $summary['buyingOptions'] ?? [],
+                    'image_url' => $summary['image']['imageUrl'] ?? null,
+                    'url' => $summary['itemWebUrl'] ?? null,
+                    'item_location_country' => $summary['itemLocation']['country'] ?? null,
+                ];
+
+                $items[$key] = $item;
+                $marketPrices[] = $price;
             }
 
-            $items[] = [
-                'item_id' => $summary['itemId'] ?? null,
-                'title' => $summary['title'] ?? null,
-                'price' => round((float) $value, 2),
-                'currency' => $summary['price']['currency'] ?? $currency,
-                'condition' => $summary['condition'] ?? null,
-                'buying_options' => $summary['buyingOptions'] ?? [],
-                'image_url' => $summary['image']['imageUrl'] ?? null,
-                'url' => $summary['itemWebUrl'] ?? null,
-                'item_location_country' => $summary['itemLocation']['country'] ?? null,
-            ];
+            sort($marketPrices);
+            $market['sample_size'] = count($marketPrices);
+            $market['median'] = $this->median($marketPrices);
+            $counts = array_count_values($localCurrencies);
+            arsort($counts);
+            $market['local_currency'] = array_key_first($counts);
+            $markets[] = $market;
         }
 
-        // Keep only listings in the dominant currency so stats are comparable.
-        $currencyCounts = array_count_values(array_column($items, 'currency'));
-        arsort($currencyCounts);
-        $mainCurrency = array_key_first($currencyCounts) ?? $currency;
-        $items = array_values(array_filter($items, fn ($item) => $item['currency'] === $mainCurrency));
-
+        $items = array_values($items);
         $prices = array_column($items, 'price');
         sort($prices);
         [$low, $high] = $this->outlierFences($prices);
@@ -309,11 +493,10 @@ class EbayPriceService
         return [
             'source' => 'ebay',
             'environment' => $this->environment(),
-            'marketplace_id' => $marketplace,
             'query' => $query,
             'category' => $category,
-            'currency' => $mainCurrency,
-            'total_matches' => (int) ($payload['total'] ?? count($items)),
+            'currency' => $target,
+            'total_matches' => array_sum(array_column($markets, 'total_matches')),
             'sample_size' => count($prices),
             'used_for_stats' => count($trimmed),
             'min' => $trimmed ? min($trimmed) : null,
@@ -321,6 +504,8 @@ class EbayPriceService
             'median' => $median,
             'average' => $trimmed ? round(array_sum($trimmed) / count($trimmed), 2) : null,
             'price_basis' => 'active_listings',
+            'exchange_rates' => ['source' => 'ECB', 'date' => $fx['date']],
+            'marketplaces' => $markets,
             'fetched_at' => now()->toIso8601String(),
             'items' => array_slice($items, 0, 10),
         ];

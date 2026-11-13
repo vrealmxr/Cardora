@@ -67,7 +67,13 @@ return [
         'client_id' => env('EBAY_CLIENT_ID'),
         'client_secret' => env('EBAY_CLIENT_SECRET'),
         'dev_id' => env('EBAY_DEV_ID'),
-        'marketplace_id' => env('EBAY_MARKETPLACE_ID', 'EBAY_DE'),
+        // Markets searched in parallel, as MARKETPLACE:SELLER_COUNTRY. Each one
+        // only returns sellers located in that country, so listings never
+        // repeat across markets. EBAY_DE:GR = Greek sellers seen via eBay.de.
+        'markets' => env('EBAY_MARKETS', 'EBAY_US:US,EBAY_GB:GB,EBAY_DE:DE,EBAY_FR:FR,EBAY_IT:IT,EBAY_ES:ES,EBAY_NL:NL,EBAY_AT:AT,EBAY_BE:BE,EBAY_IE:IE,EBAY_CH:CH,EBAY_PL:PL,EBAY_CA:CA,EBAY_AU:AU,EBAY_HK:HK,EBAY_SG:SG,EBAY_DE:GR'),
+        // Marketplace whose taxonomy picks the category for every search.
+        'category_marketplace_id' => env('EBAY_CATEGORY_MARKETPLACE_ID', 'EBAY_US'),
+        // All prices are converted to this currency with ECB reference rates.
         'currency' => env('EBAY_CURRENCY', 'EUR'),
         'scope' => env('EBAY_OAUTH_SCOPE', 'https://api.ebay.com/oauth/api_scope'),
         // The category for each search comes from eBay's Taxonomy API

@@ -10,10 +10,19 @@ use Tests\TestCase;
 
 class EbayPriceServiceCategoryTest extends TestCase
 {
-    private array $searchedCategories = [];
+    /** Browse searches seen by the fake: [marketplace, seller country, category]. */
+    private array $searches = [];
 
     /** Suggestions the fake Taxonomy API returns, or an HTTP error status. */
     private array|int $suggestions = [];
+
+    /** Listings per marketplace header: [legacyItemId, price, currency]; an int is an HTTP error. */
+    private array $listings = [];
+
+    /** HTTP status the fake Browse API returns when a category filter is sent (null = accept). */
+    private ?int $rejectCategoryFor = null;
+
+    private bool $ecbUp = true;
 
     protected function setUp(): void
     {
@@ -24,45 +33,61 @@ class EbayPriceServiceCategoryTest extends TestCase
             'services.ebay.environment' => 'production',
             'services.ebay.client_id' => 'test-client',
             'services.ebay.client_secret' => 'test-secret',
-            'services.ebay.marketplace_id' => 'EBAY_DE',
+            'services.ebay.currency' => 'EUR',
+            'services.ebay.category_marketplace_id' => 'EBAY_US',
+            'services.ebay.markets' => 'EBAY_DE:DE',
         ]);
         Cache::flush();
-        $this->searchedCategories = [];
-    }
-
-    private function fakeEbay(array|int $suggestions): void
-    {
-        $this->suggestions = $suggestions;
+        $this->searches = [];
+        $this->listings = ['EBAY_DE' => [['1', '10.00', 'EUR'], ['2', '12.00', 'EUR']]];
 
         Http::fake(function (Request $request) {
             $url = $request->url();
-            $suggestions = $this->suggestions;
+
+            if (str_contains($url, 'ecb.europa.eu')) {
+                return $this->ecbUp
+                    ? Http::response("<Cube time='2026-11-13'><Cube currency='USD' rate='1.0000'/><Cube currency='GBP' rate='0.5000'/>"
+                        .str_repeat("<Cube currency='XXX' rate='1'/>", 10).'</Cube>')
+                    : Http::response('down', 503);
+            }
 
             if (str_contains($url, '/identity/v1/oauth2/token')) {
                 return Http::response(['access_token' => 'token', 'expires_in' => 7200]);
             }
 
             if (str_contains($url, 'get_default_category_tree_id')) {
-                return Http::response(['categoryTreeId' => '77']);
+                return Http::response(['categoryTreeId' => '0']);
             }
 
             if (str_contains($url, 'get_category_suggestions')) {
-                return is_int($suggestions)
-                    ? Http::response(['errors' => [['message' => 'boom']]], $suggestions)
+                return is_int($this->suggestions)
+                    ? Http::response(['errors' => [['message' => 'boom']]], $this->suggestions)
                     : Http::response(['categorySuggestions' => array_map(
                         fn ($s) => ['category' => ['categoryId' => $s[0], 'categoryName' => $s[1]]],
-                        $suggestions
+                        $this->suggestions
                     )]);
             }
 
             if (str_contains($url, '/buy/browse/v1/item_summary/search')) {
                 parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
-                $this->searchedCategories[] = $query['category_ids'] ?? null;
+                $marketplace = $request->header('X-EBAY-C-MARKETPLACE-ID')[0] ?? '?';
+                preg_match('/itemLocationCountry:([A-Z]{2})/', $query['filter'] ?? '', $country);
+                $this->searches[] = [$marketplace, $country[1] ?? null, $query['category_ids'] ?? null];
 
-                return Http::response(['total' => 2, 'itemSummaries' => [
-                    ['itemId' => '1', 'title' => 'A', 'price' => ['value' => '10.00', 'currency' => 'EUR']],
-                    ['itemId' => '2', 'title' => 'B', 'price' => ['value' => '12.00', 'currency' => 'EUR']],
-                ]]);
+                if ($this->rejectCategoryFor !== null && isset($query['category_ids']) && $marketplace === 'EBAY_GB') {
+                    return Http::response(['errors' => [['message' => 'bad category']]], $this->rejectCategoryFor);
+                }
+
+                $listings = $this->listings[$marketplace] ?? [];
+
+                if (is_int($listings)) {
+                    return Http::response(['errors' => [['message' => 'down']]], $listings);
+                }
+
+                return Http::response(['total' => count($listings), 'itemSummaries' => array_map(fn ($l) => [
+                    'itemId' => 'v1|'.$l[0].'|0', 'legacyItemId' => $l[0], 'title' => 'Card '.$l[0],
+                    'price' => ['value' => $l[1], 'currency' => $l[2]],
+                ], $listings)]);
             }
 
             return Http::response([], 404);
@@ -71,49 +96,139 @@ class EbayPriceServiceCategoryTest extends TestCase
 
     public function test_category_comes_from_the_query_via_taxonomy_suggestions(): void
     {
-        $this->fakeEbay([['261328', 'Trading Card Einzelkarten'], ['62124', 'Trikots']]);
+        $this->suggestions = [['261328', 'Trading Card Singles'], ['62124', 'Jerseys']];
 
         $result = app(EbayPriceService::class)->estimate('LeBron James Prizm rookie');
 
-        $this->assertSame(['261328'], $this->searchedCategories);
-        $this->assertSame(['id' => '261328', 'name' => 'Trading Card Einzelkarten', 'source' => 'taxonomy'], $result['category']);
+        $this->assertSame([['EBAY_DE', 'DE', '261328']], $this->searches);
+        $this->assertSame(['id' => '261328', 'name' => 'Trading Card Singles', 'source' => 'taxonomy'], $result['category']);
         $this->assertSame(11.0, $result['median']);
     }
 
     public function test_several_requested_categories_resolve_to_one_matching_the_query(): void
     {
-        $this->fakeEbay([['183454', 'TCG Einzelkarten'], ['261328', 'Trading Card Einzelkarten']]);
+        $this->suggestions = [['183454', 'CCG Individual Cards'], ['261328', 'Trading Card Singles']];
 
         $result = app(EbayPriceService::class)->estimate('Charizard ex 199/165', ['category_ids' => '261328,183454']);
 
-        $this->assertSame(['183454'], $this->searchedCategories);
+        $this->assertSame('183454', $this->searches[0][2]);
         $this->assertSame('request', $result['category']['source']);
     }
 
     public function test_single_or_empty_requested_category_skips_suggestions(): void
     {
-        $this->fakeEbay([['183454', 'TCG Einzelkarten']]);
         $ebay = app(EbayPriceService::class);
 
         $ebay->estimate('Pikachu', ['category_ids' => '2536']);
         $ebay->estimate('Pikachu', ['category_ids' => '']);
 
-        $this->assertSame(['2536', null], $this->searchedCategories);
+        $this->assertSame(['2536', null], array_column($this->searches, 2));
         Http::assertNotSent(fn (Request $request) => str_contains($request->url(), 'get_category_suggestions'));
     }
 
     public function test_failed_suggestion_lookup_searches_without_category_and_is_not_cached(): void
     {
-        $this->fakeEbay(500);
+        $this->suggestions = 500;
         $ebay = app(EbayPriceService::class);
 
         $result = $ebay->estimate('Charizard ex 199/165');
 
-        $this->assertSame([null], $this->searchedCategories);
+        $this->assertSame([null], array_column($this->searches, 2));
         $this->assertSame('none', $result['category']['source']);
         $this->assertSame(2, $result['sample_size']);
 
-        $this->suggestions = [['183454', 'TCG Einzelkarten']];
-        $this->assertSame('183454', $ebay->suggestCategories('Charizard ex 199/165', 'EBAY_DE')[0]['id']);
+        $this->suggestions = [['183454', 'CCG Individual Cards']];
+        $this->assertSame('183454', $ebay->suggestCategories('Charizard ex 199/165', 'EBAY_US')[0]['id']);
+    }
+
+    public function test_all_markets_are_searched_for_local_sellers_and_merged_in_eur(): void
+    {
+        config(['services.ebay.markets' => 'EBAY_US:US,EBAY_GB:GB,EBAY_DE:DE,EBAY_DE:GR']);
+        $this->suggestions = [['183454', 'CCG Individual Cards']];
+        $this->listings = [
+            'EBAY_US' => [['10', '20.00', 'USD'], ['11', '22.00', 'USD']],   // 1 EUR = 1 USD in the fake
+            'EBAY_GB' => [['20', '5.00', 'GBP'], ['10', '20.00', 'USD']],    // 5 GBP = 10 EUR; item 10 is a duplicate
+            'EBAY_DE' => [['30', '15.00', 'EUR'], ['31', '9.99', 'JPY']],    // JPY has no rate in the fake
+        ];
+
+        $result = app(EbayPriceService::class)->estimate('Charizard ex 199/165');
+
+        $this->assertEqualsCanonicalizing([
+            ['EBAY_US', 'US', '183454'], ['EBAY_GB', 'GB', '183454'], ['EBAY_DE', 'DE', '183454'], ['EBAY_DE', 'GR', '183454'],
+        ], $this->searches);
+        // US 20, 22 + GB 10 + DE 15 (twice: DE and GR markets get the same fake listings, de-duplicated)
+        $this->assertSame([10.0, 15.0, 20.0, 22.0], collect($result['items'])->pluck('price')->sort()->values()->all());
+        $this->assertSame('EUR', $result['currency']);
+        $this->assertSame(17.5, $result['median']);
+        $this->assertSame(['source' => 'ECB', 'date' => '2026-11-13'], $result['exchange_rates']);
+
+        $gb = collect($result['items'])->firstWhere('original_currency', 'GBP');
+        $this->assertSame(['price' => 10.0, 'original_price' => 5.0, 'marketplace_id' => 'EBAY_GB'], array_intersect_key($gb, array_flip(['price', 'original_price', 'marketplace_id'])));
+
+        $markets = collect($result['marketplaces'])->keyBy(fn ($m) => $m['marketplace_id'].':'.$m['seller_country']);
+        $this->assertSame(2, $markets['EBAY_US:US']['sample_size']);
+        $this->assertSame(1, $markets['EBAY_GB:GB']['sample_size']);
+        $this->assertSame('GBP', $markets['EBAY_GB:GB']['local_currency']);
+        $this->assertSame(0, $markets['EBAY_DE:GR']['sample_size']);
+    }
+
+    public function test_a_failing_market_is_reported_without_failing_the_lookup(): void
+    {
+        config(['services.ebay.markets' => 'EBAY_US:US,EBAY_GB:GB']);
+        $this->listings = ['EBAY_US' => [['10', '20.00', 'USD']], 'EBAY_GB' => 503];
+
+        $result = app(EbayPriceService::class)->estimate('Charizard', ['category_ids' => '']);
+
+        $markets = collect($result['marketplaces'])->keyBy('marketplace_id');
+        $this->assertNull($markets['EBAY_US']['error']);
+        $this->assertStringStartsWith('HTTP 503', $markets['EBAY_GB']['error']);
+        $this->assertSame(20.0, $result['median']);
+    }
+
+    public function test_every_market_failing_throws(): void
+    {
+        $this->listings = ['EBAY_DE' => 503];
+
+        $this->expectException(\RuntimeException::class);
+        app(EbayPriceService::class)->estimate('Charizard', ['category_ids' => '']);
+    }
+
+    public function test_market_rejecting_the_category_is_retried_without_it(): void
+    {
+        config(['services.ebay.markets' => 'EBAY_US:US,EBAY_GB:GB']);
+        $this->rejectCategoryFor = 400;
+        $this->listings = ['EBAY_US' => [['10', '20.00', 'USD']], 'EBAY_GB' => [['20', '5.00', 'GBP']]];
+
+        $result = app(EbayPriceService::class)->estimate('Charizard', ['category_ids' => '183454']);
+
+        $this->assertContains(['EBAY_GB', 'GB', null], $this->searches);
+        $gb = collect($result['marketplaces'])->firstWhere('marketplace_id', 'EBAY_GB');
+        $this->assertTrue($gb['category_dropped']);
+        $this->assertNull($gb['error']);
+        $this->assertSame(2, $result['sample_size']);
+    }
+
+    public function test_without_exchange_rates_only_eur_listings_count(): void
+    {
+        config(['services.ebay.markets' => 'EBAY_US:US,EBAY_DE:DE']);
+        $this->ecbUp = false;
+        $this->listings = ['EBAY_US' => [['10', '20.00', 'USD']], 'EBAY_DE' => [['30', '15.00', 'EUR']]];
+
+        $result = app(EbayPriceService::class)->estimate('Charizard', ['category_ids' => '']);
+
+        $this->assertSame(1, $result['sample_size']);
+        $this->assertSame(15.0, $result['median']);
+        $this->assertNull($result['exchange_rates']['date']);
+    }
+
+    public function test_markets_spec_is_parsed_and_deduplicated(): void
+    {
+        $markets = app(EbayPriceService::class)->markets('EBAY_US:US, ebay_it ,EBAY_DE:GR,EBAY_US:US,bogus');
+
+        $this->assertSame([
+            ['marketplace' => 'EBAY_US', 'country' => 'US'],
+            ['marketplace' => 'EBAY_IT', 'country' => 'IT'],
+            ['marketplace' => 'EBAY_DE', 'country' => 'GR'],
+        ], $markets);
     }
 }
