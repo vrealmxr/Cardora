@@ -110,7 +110,7 @@ class OrderResource extends RestrictableResource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with(['buyer', 'seller'])->withCount(['items', 'supportTickets']))
+            ->modifyQueryUsing(fn (Builder $query) => $query->placedSales()->with(['buyer', 'seller'])->withCount(['items', 'supportTickets']))
             ->columns([
                 TextColumn::make('order_number')
                     ->searchable()

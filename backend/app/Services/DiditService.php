@@ -7,6 +7,7 @@ use App\Models\IdentityVerification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Http\Client\ConnectionException;
 
@@ -34,6 +35,7 @@ class DiditService
 
     public function createSession(User $user, string $locale): array
     {
+        Log::info('didit.session.attempt');
         abort_unless(config('didit.enabled') && filled(config('didit.api_key')) && filled(config('didit.webhook_secret')), 503, 'Η επαλήθευση δεν είναι προσωρινά διαθέσιμη. / Verification is temporarily unavailable.');
 
         // Serialize attempts for the same user, including two browser tabs.
@@ -55,11 +57,30 @@ class DiditService
                 'language' => $locale,
                 ]);
             } catch (ConnectionException $exception) {
+                Log::warning('didit.session.transport_failed');
                 abort(503, 'Η υπηρεσία επαλήθευσης δεν είναι προσωρινά διαθέσιμη. / Verification is temporarily unavailable.');
+            }
+            // Record only status and predefined error categories, never provider bodies or identifiers.
+            if (! $response->successful()) {
+                $categories = [];
+                $body = strtolower(substr($response->body(), 0, 8192));
+                foreach (['credits' => 'credit|balance', 'workflow' => 'workflow', 'authorization' => 'permission|api.key|unauthori|forbidden', 'rate_limit' => 'rate.limit|too.many', 'validation' => 'invalid|required'] as $category => $pattern) {
+                    if (preg_match('/'.$pattern.'/', $body)) $categories[] = $category;
+                }
+                Log::warning('didit.session.provider_failed', ['upstream_status' => $response->status(), 'categories' => $categories]);
             }
             // Never expose upstream bodies: they may contain personal data or tokens.
             abort_unless($response->successful(), 502, 'Η υπηρεσία επαλήθευσης δεν ανταποκρίθηκε. Δοκίμασε ξανά. / Please try verification again.');
             $data = $response->json();
+            $checks = [
+                'object' => is_array($data),
+                'session_uuid' => is_array($data) && is_string($data['session_id'] ?? null) && Str::isUuid($data['session_id']),
+                'safe_url' => is_array($data) && is_string($data['url'] ?? null) && $this->safeVerificationUrl($data['url']),
+                'workflow_matches' => is_array($data) && ($data['workflow_id'] ?? null) === config('didit.workflow_id'),
+                'owner_matches' => is_array($data) && is_scalar($data['vendor_data'] ?? null) && (string) $data['vendor_data'] === (string) $user->id,
+                'known_status' => is_array($data) && in_array($data['status'] ?? '', self::STATUSES, true),
+            ];
+            if (in_array(false, $checks, true)) Log::warning('didit.session.invalid_response', $checks);
             abort_unless(is_array($data) && Str::isUuid($data['session_id'] ?? '')
                 && $this->safeVerificationUrl($data['url'] ?? '')
                 && ($data['workflow_id'] ?? null) === config('didit.workflow_id')
@@ -93,8 +114,9 @@ class DiditService
             && is_int($event['created_at'] ?? null) && $event['created_at'] > 0
             && $event['created_at'] <= time() + 300
             && in_array($event['status'] ?? '', self::STATUSES, true), 422, 'Invalid event.');
-        abort_unless(($event['environment'] ?? '') === config('didit.environment')
-            && ($event['workflow_id'] ?? '') === config('didit.workflow_id')
+        $scope = DiditCredentials::forWorkflow(is_string($event['workflow_id'] ?? null) ? $event['workflow_id'] : '');
+        abort_unless($scope && filled($scope['api_key'] ?? null)
+            && ($event['environment'] ?? '') === ($scope['environment'] ?? null)
             && ($event['session_kind'] ?? 'user') !== 'business', 422, 'Unexpected verification scope.');
 
         return DB::transaction(function () use ($event) {
@@ -139,7 +161,7 @@ class DiditService
         $before = [$session->updated_at->toJSON(), $session->provider_updated_at, $session->status];
         $requestedAt = time();
         try {
-            $response = $this->client()->get(config('didit.base_url').'/session/'.$session->session_id.'/decision/');
+            $response = $this->client($session->workflow_id)->get(config('didit.base_url').'/session/'.$session->session_id.'/decision/');
         } catch (ConnectionException $exception) {
             return;
         }
@@ -174,9 +196,11 @@ class DiditService
         ]);
     }
 
-    private function client(): \Illuminate\Http\Client\PendingRequest
+    private function client(?string $workflowId = null): \Illuminate\Http\Client\PendingRequest
     {
-        return Http::acceptJson()->asJson()->withHeaders(['x-api-key' => config('didit.api_key')])->connectTimeout(5)->timeout(15);
+        $scope = DiditCredentials::forWorkflow($workflowId ?? (string) config('didit.workflow_id'));
+        abort_unless(filled($scope['api_key'] ?? null), 503, 'Verification configuration unavailable.');
+        return Http::acceptJson()->asJson()->withHeaders(['x-api-key' => $scope['api_key']])->connectTimeout(5)->timeout(15);
     }
 
     private function safeVerificationUrl(string $url): bool

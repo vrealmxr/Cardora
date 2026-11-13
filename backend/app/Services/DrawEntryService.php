@@ -78,7 +78,7 @@ class DrawEntryService
 
     protected function validateCampaignForEntries(DrawCampaign $drawCampaign, User $user, int $entries): void
     {
-        $this->marketplaceAccess->assertCanBuy($user, app()->getLocale());
+        $this->marketplaceAccess->assertCanJoinDraws($user, app()->getLocale());
 
         if ($entries < 1) {
             throw ValidationException::withMessages([

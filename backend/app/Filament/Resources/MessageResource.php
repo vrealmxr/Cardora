@@ -83,8 +83,7 @@ class MessageResource extends RestrictableResource
                     ->schema([
                         TextInput::make('moderation_status')
                             ->required(),
-                        TagsInput::make('moderation_flags')
-                            ->separator(','),
+                        TagsInput::make('moderation_flags'),
                         TextInput::make('moderation_score')
                             ->numeric()
                             ->required(),

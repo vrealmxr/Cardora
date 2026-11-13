@@ -29,6 +29,11 @@ class DiditRetentionService
     {
         $session->refresh();
         if ($session->session_deleted_at || $session->retention_due_at->gt(now())) return true;
+        $scope = DiditCredentials::forWorkflow($session->workflow_id);
+        if (! filled($scope['api_key'] ?? null)) {
+            Log::warning('Didit annual deletion deferred: workflow credentials unavailable');
+            return false;
+        }
         $this->expireUser($session->user_id);
         $session->update([
             'deletion_requested_at' => $session->deletion_requested_at ?? now(),
@@ -37,7 +42,7 @@ class DiditRetentionService
         ]);
 
         try {
-            $response = Http::acceptJson()->asJson()->withHeaders(['x-api-key' => config('didit.api_key')])
+            $response = Http::acceptJson()->asJson()->withHeaders(['x-api-key' => $scope['api_key']])
                 ->connectTimeout(5)->timeout(20)
                 ->delete(config('didit.base_url').'/session/'.$session->session_id.'/delete/', [
                     // Do not retain a biometric template after this session is deleted.

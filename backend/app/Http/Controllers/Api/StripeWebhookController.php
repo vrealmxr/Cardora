@@ -156,7 +156,7 @@ class StripeWebhookController extends Controller
         // A batch checkout shares one payment_intent across every order it produced, so a
         // failure has to be applied to all of them, not just one.
         $orders = $marketplaceService->findOrdersByStripeMetadata(
-            (array) ($paymentIntent->metadata ?? []),
+            $marketplaceService->stripeMetadataArray($paymentIntent->metadata ?? null),
             $paymentIntent->id ?? null
         );
 
@@ -171,7 +171,7 @@ class StripeWebhookController extends Controller
     protected function handleCheckoutSessionExpired(object $session, StripeMarketplaceService $marketplaceService): void
     {
         $orders = $marketplaceService->findOrdersByStripeMetadata(
-            (array) ($session->metadata ?? []),
+            $marketplaceService->stripeMetadataArray($session->metadata ?? null),
             $session->payment_intent ?? null,
             $session->id ?? null
         );
