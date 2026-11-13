@@ -148,12 +148,118 @@ class CardScanService
             foreach (['status','identity_status','printing_status','parallel','finish','print_variant','edition','subset'] as $key) {
                 $safe[$key]=is_string($result[$key] ?? null) ? mb_substr($result[$key],0,300) : null;
             }
+            // Price the identified card before the scan is marked complete, so a
+            // client polling for completion gets the price in the same response.
+            $safe['market_price']=$this->marketPrice($safe,$scan->category);
             $scan->update(['state'=>'completed','prediction'=>$safe]);
         } catch (\Throwable $e) {
             $scan->update(['state'=>'failed','error_code'=>'inference_unavailable']);
         } finally {
             if (!$scan->training_opt_in) $this->removeImages($scan);
         }
+    }
+
+    /** Scanner categories whose cards are sold by set, year and parallel rather than by printed "nnn/total". */
+    private const SPORTS_CATEGORIES = ['nba', 'soccer', 'euroleague', 'starwars'];
+
+    /**
+     * eBay search for an identified card: name + collector number for TCGs
+     * ("Charizard ex 199/165"), plus the set (without generic words such as
+     * "Basketball Cards") and any parallel for sports cards
+     * ("Stephen Curry 2025 Topps Chrome 201 Refractor"). Null when the model
+     * did not resolve a name.
+     */
+    public function priceQuery(array $prediction, string $category, bool $withNumber = true): ?string
+    {
+        $identity = $prediction['identity'] ?? [];
+        $name = trim((string) ($identity['name'] ?? ''));
+
+        if ($name === '') {
+            return null;
+        }
+
+        $number = $withNumber ? trim((string) ($identity['collector_number'] ?? '')) : '';
+        $set = trim(preg_replace('/\b(basketball|football|soccer|trading|sports?)?\s*cards?\b/i', ' ', (string) ($identity['set_name'] ?? '')));
+        $parallel = trim((string) ($prediction['parallel'] ?? ''));
+        $parts = [$name];
+
+        if (in_array($category, self::SPORTS_CATEGORIES, true) || $number === '') {
+            $parts[] = $set;
+        }
+
+        $parts[] = $number;
+
+        if ($parallel !== '' && ! preg_match('/^(base|none|unknown)$/i', $parallel)) {
+            $parts[] = $parallel;
+        }
+
+        $query = trim(preg_replace('/\s+/', ' ', implode(' ', $parts)));
+
+        return mb_substr($query, 0, 200);
+    }
+
+    /**
+     * eBay price estimate for the identified card (see EbayPriceService),
+     * trimmed to what a scan result needs. Never throws: a missing name, eBay
+     * being disabled or a failed lookup just leave the price out.
+     */
+    public function marketPrice(array $prediction, string $category): ?array
+    {
+        $ebay = app(EbayPriceService::class);
+        // eBay does not match a bare "42" against titles that print "42/204",
+        // and titles rarely spell out set names, so a search that finds too
+        // little is retried without the number, then with the name alone.
+        $name = trim((string) ($prediction['identity']['name'] ?? ''));
+        $queries = array_filter([
+            'exact' => $this->priceQuery($prediction, $category),
+            'without_number' => $this->priceQuery($prediction, $category, false),
+            'name_only' => $name !== '' ? mb_substr($name, 0, 200) : null,
+        ]);
+        $queries = array_unique($queries);
+
+        if ($queries === [] || ! $ebay->isConfigured()) {
+            return null;
+        }
+
+        $price = null;
+
+        foreach ($queries as $match => $query) {
+            try {
+                $attempt = $ebay->estimate($query) + ['query' => $query, 'match' => $match];
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Card scan price lookup failed', ['query' => $query, 'error' => mb_substr($e->getMessage(), 0, 300)]);
+                continue;
+            }
+
+            if ($price === null || $attempt['used_for_stats'] > $price['used_for_stats']) {
+                $price = $attempt;
+            }
+
+            if ($price['used_for_stats'] >= 3) {
+                break;
+            }
+        }
+
+        if ($price === null) {
+            return null;
+        }
+
+        return [
+            'source' => 'ebay',
+            'query' => $price['query'],
+            // How closely the search matched the identified card: exact (name +
+            // number), without_number, or name_only (may mix other printings).
+            'match' => $price['match'],
+            'currency' => $price['currency'],
+            'estimated_sale' => $price['estimated_sale'],
+            'median_asking' => $price['median'],
+            'condition_filter' => $price['condition_filter'],
+            'used_for_stats' => $price['used_for_stats'],
+            'total_matches' => $price['total_matches'],
+            'price_basis' => $price['price_basis'],
+            'fetched_at' => $price['fetched_at'],
+            'items' => array_map(fn ($item) => array_intersect_key($item, array_flip(['title', 'price', 'currency', 'url', 'image_url', 'marketplace_id', 'condition'])), array_slice($price['items'], 0, 5)),
+        ];
     }
 
     public function removeImages(CardScan $scan): void
